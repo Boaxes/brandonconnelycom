@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>8x8 Display | Brandon Connely</title>
+  <link rel="stylesheet" href="../../../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1 class="site-title">Brandon Connely</h1>
+    <nav aria-label="Main navigation">
+      <ul class="nav-list">
+        <li><a href="../../../index.html">Home</a></li>
+        <li><a class="active" href="../../../projects.html">Projects</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="content">
+    <article class="post">
+      <p class="post-meta">TECHNOLOGY/LOGIC WORLD/8x8 Display</p>
+      <p class="post-meta">CREATED: 4/25/2021 UPDATED:4/27/2021</p>
+
+      <h2>CONCEPT</h2>
+      <p>
+        This build consists of an 8x8 Display which is fed by two binary decoders. You can turn on any pixel with 6 bits of data. Three bits indicate the X of the pixel you desire and the next three indicate the Y of the pixel you desire. Although there is no support to directly turn off pixels through the bus, the 8-bit modules that make up the display technically support it and it would not be that difficult to implement. This is why the reset switch I have is possible. I also built a preprogrammed image to show the functionality of this display. There are 10 switches which each allow the 6-bit piece of data associated with it to be sent down the bus. When all switches are flipped the image you see below is produced.
+      </p>
+
+      <div class="project-gallery">
+        <figure>
+          <img src="../../../images/legacy/3f05b78518b345e694784de714eafea0.png" alt="8x8 display image 1 from the original website">
+        </figure>
+        <figure>
+          <img src="../../../images/legacy/0943aa209811eb820d751e28d7dfae9e.png" alt="8x8 display image 2 from the original website">
+        </figure>
+      </div>
+
+      <h2>HOW IT WORKS</h2>
+      <p>
+        The Display is compromised of 8, 8 bit modules as you can see below
+      </p>
+
+      <div class="project-gallery">
+        <figure>
+          <img src="../../../images/legacy/c8ddb8a261cd9a66e039424e3df16df9.png" alt="8x8 display image 3 from the original website">
+        </figure>
+        <figure>
+          <img src="../../../images/legacy/9c5ec3e6d65d4f3663a2aca7509c245f.jpg" alt="8x8 display image 4 from the original website">
+        </figure>
+      </div>
+
+      <p>
+        Each bit on this display needs to have two wires enabled for anything to happen:
+      </p>
+      <p>
+        Y Level Wire- This wire indicates that the pixel that's being accessed belongs in this Y level. Since the Y in this display is 8 of these stacked, this essentially means when this is on that every bit on this module has one enable wire on
+      </p>
+      <p>
+        X Level Wire- This wire indicates the X Level of the pixel trying to be accessed. This is set up in a way so that when an X of 1 is indicated(which would be the first pin in the series of 8 here) the first pin on all 8 modules is enabled. This system here is a good solution for accessing individual pixels, however, at this point, the data bus is 16 bits and we can make that smaller and more convenient to use.
+      </p>
+
+      <div class="project-gallery">
+        <figure>
+          <img src="../../../images/legacy/99e4f36612cd34d02de0cc5ec5d9724a.png" alt="8x8 display image 5 from the original website">
+        </figure>
+      </div>
+
+      <p>
+        The next part of the process is these binary decoders that sit in front of the six-bit data bus. since each peg previously correlated to an x and a y, without these to indicate a specific pixel, you would need 16 bits of data, which is way too much for our needs as 16 bits of data can hold about 32000 combinations when we only need to hold 64(one for each pixel). So here essentially what we are doing is taking in a 6-bit value where the first 3 bits represent X and the second three bits represent Y, and sending these to the decoders, which then convert that data into one of the 8 pins needed to interface with the display.
+      </p>
+
+      <div class="project-gallery">
+        <figure>
+          <img src="../../../images/legacy/ebdf8a6cd528d6df99db9bc08f97a4fe.png" alt="8x8 display image 6 from the original website">
+        </figure>
+      </div>
+
+      <p>
+        The final part that I added on here is a preprogrammed image to show the functonality of this display. Basically there is 10 Switches, Each acts as a enable wire for a 6 bit piece of binary data that matches up with a pixel. each switch also connects to the enable wire I have setup for the 6 bit bus. When each switch is flicked, you get the image you can see at the top of this article
+      </p>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Brandon Connely</p>
+  </footer>
+</body>
+</html>

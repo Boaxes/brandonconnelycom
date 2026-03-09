@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Binary to 7 Segment Converter | Brandon Connely</title>
+  <link rel="stylesheet" href="../../../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1 class="site-title">Brandon Connely</h1>
+    <nav aria-label="Main navigation">
+      <ul class="nav-list">
+        <li><a href="../../../index.html">Home</a></li>
+        <li><a class="active" href="../../../projects.html">Projects</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="content">
+    <article class="post">
+      <p class="post-meta">TECHNOLOGY/DIGITAL-LOGIC/Binary to 7 Segment Converter</p>
+      <p class="post-meta">CREATED: 4/27/2021</p>
+
+      <h2>CONCEPT</h2>
+      <p>
+        This is a pretty simple contrapition which takes in a binary single, decodes it and then displays a number of the 7 segment display that correlates with the inputted binary number.
+      </p>
+
+      <div class="project-gallery">
+        <figure>
+          <img src="../../../images/legacy/5fc708e3186f550ff7f789ac9b4574b3.png" alt="Binary to 7 segment image 1 from the original website">
+        </figure>
+      </div>
+
+      <iframe
+        class="video-embed"
+        src="https://www.youtube.com/embed/GYyo68ro1RY?autoplay=0&amp;controls=1&amp;start=0&amp;end=0&amp;modestbranding=0&amp;wmode=transparent&amp;enablejsapi=1&amp;loop=0&amp;rel=0"
+        title="Binary to 7 Segment Converter"
+        loading="lazy"
+        allowfullscreen
+      ></iframe>
+
+      <h2>HOW IT WORKS</h2>
+      <p>
+        This Circuit first takes in the 4 bit binary single and decodes it into 9 different lanes(one for each number. each lane correlates to one of the nine sections that you see below
+      </p>
+
+      <div class="project-gallery">
+        <figure>
+          <img src="../../../images/legacy/98b802402f48efe04acda2e067479fb8.png" alt="Binary to 7 segment image 2 from the original website">
+        </figure>
+      </div>
+
+      <p>
+        Essentially, The inputted single serves as a enable line for whatever the block you see on the right. Each of the 7 lanes corresponds to one part of the 7 segment display, and every section you see of this has been programmed to match to a specific number. After the enable line is on, the signal gets sent directly to the 7 Segment display.
+      </p>
+
+      <div class="project-gallery">
+        <figure>
+          <img src="../../../images/legacy/b2289c3aa1138b87c2cdaeab5e163f29.png" alt="Binary to 7 segment image 3 from the original website">
+        </figure>
+        <figure>
+          <img src="../../../images/legacy/923311628c3846eb8dea25811c8c1523.png" alt="Binary to 7 segment image 4 from the original website">
+        </figure>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Brandon Connely</p>
+  </footer>
+</body>
+</html>
