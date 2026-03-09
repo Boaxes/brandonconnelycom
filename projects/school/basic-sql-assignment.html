@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basic SQL Assignment | Brandon Connely</title>
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1 class="site-title">Brandon Connely</h1>
+    <nav aria-label="Main navigation">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+        <li><a class="active" href="../../projects.html">Projects</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="content">
+    <article class="post">
+      <p class="post-meta">Created: March 2026 · Type: Class Assignment</p>
+      <h2>Basic SQL Assignment</h2>
+      <div class="context-box">
+        <p>
+          This assignment was completed through Gradescope and focused on core SQL operations on a provided schema. It served as students first introduction to implementing SQL queries with syntax that had just recently been introduced.
+        </p>
+        <p>
+          The submission format was a set of sql files (`query1.sql`, `query3.sql`, `query5.sql`, `query7.sql`, and `query8.sql`) 
+        </p>
+      </div>
+
+      <h3>Assignment Scope</h3>
+      <p>
+        The work covered the basic fundamental query patterns: filtering, inserts, updates, deletes, and table creation with constraints. 
+      </p>
+      <p>
+        
+      </p>
+
+      <h3>Reflection</h3>
+      <p>
+        I recognize that AI tools can write many SQL queries very easily. Even so, building intuition through these exercises was valuable because in a real job environment I would imagine it is often quicker to write or adjust straightforward SQL directly than to prompt an LLM and validate every detail it returns.
+      </p>
+      <p>
+        Developing intuition also improves debugging speed. When a query result is wrong, knowing how SQL clauses interact makes it much easier to diagnose and fix the issue quickly.
+      </p>
+
+      <h3>Reference Query Code</h3>
+      <p><strong>Query 1</strong></p>
+      <pre class="code-sample"><code>SELECT population FROM bsg_planets WHERE name = 'Caprica'</code></pre>
+
+      <p><strong>Query 2</strong></p>
+      <pre class="code-sample"><code>SELECT fname,lname,age FROM bsg_people where lname != 'Adama' OR lname IS NULL;</code></pre>
+
+      <p><strong>Query 3</strong></p>
+      <pre class="code-sample"><code>SELECT name,population FROM bsg_planets WHERE population > 2600000000;</code></pre>
+
+      <p><strong>Query 4</strong></p>
+      <pre class="code-sample"><code>SELECT fname,lname,age FROM bsg_people WHERE age IS NULL;</code></pre>
+
+      <p><strong>Query 5</strong></p>
+      <pre class="code-sample"><code>INSERT INTO bsg_planets (name,population,language,capital) VALUES ('Mars',2,'Binary','Olympus Mons');
+SELECT * FROM bsg_planets where name = 'Mars';</code></pre>
+
+      <p><strong>Query 6</strong></p>
+      <pre class="code-sample"><code>UPDATE bsg_people
+SET age = 62
+WHERE lname = 'Adama' AND fname = 'William';
+
+SELECT * FROM bsg_people where lname = 'Adama' AND fname = 'William';</code></pre>
+
+      <p><strong>Query 7</strong></p>
+      <pre class="code-sample"><code>DELETE FROM bsg_people
+WHERE age IS NULL;
+
+SELECT * FROM bsg_people WHERE age IS NOT NULL;</code></pre>
+
+      <p><strong>Query 8</strong></p>
+      <pre class="code-sample"><code>CREATE TABLE bsg_spaceship (
+    id INT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    separate_saucer_section BOOLEAN NOT NULL DEFAULT FALSE,
+    length INT NOT NULL,
+    PRIMARY KEY (id)
+);
+
+DESCRIBE bsg_spaceship;</code></pre>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Brandon Connely</p>
+  </footer>
+</body>
+</html>

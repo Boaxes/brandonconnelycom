@@ -1,0 +1,12 @@
+---
+:id: 383927482
+:submitters:
+- :name: Brandon Connely
+  :email: connelyb@oregonstate.edu
+:created_at: !ruby/object:ActiveSupport::TimeWithZone
+  utc: 2026-01-29 09:42:39.913417000 Z
+  zone: !ruby/object:ActiveSupport::TimeZone
+    name: America/Los_Angeles
+  time: 2026-01-29 01:42:39.913417000 Z
+:status: processed
+:score: 100.0

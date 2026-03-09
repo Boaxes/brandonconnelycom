@@ -193,6 +193,38 @@ h3 {
   font-size: 0.95rem;
 }
 
+.context-box {
+  margin: 0.9rem 0 1.1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #4f74b8;
+  border-left: 6px solid #8fc2ff;
+  border-radius: 0.55rem;
+  background: #1b2333;
+  box-shadow: inset 0 0 0 1px rgba(143, 194, 255, 0.18);
+}
+
+.context-box::before {
+  content: "Context";
+  display: inline-block;
+  margin-bottom: 0.55rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #8fc2ff;
+  color: #0f1726;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.context-box p {
+  margin: 0 0 0.5rem;
+}
+
+.context-box p:last-child {
+  margin-bottom: 0;
+}
+
 .site-footer {
   text-align: center;
   padding: 1rem;
