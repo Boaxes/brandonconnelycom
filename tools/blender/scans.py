@@ -22,20 +22,20 @@ os.makedirs(IMG, exist_ok=True)
 # tex: max texture edge; base: 'center' or 'bottom'
 SCANS = {
     # side view (render _0) must show the nose to the RIGHT and the back UP
-    'giant_pacific_octopus': dict(rot=(0, 0, 180), length=2.2, faces=26000, tex=2048, base='bottom'),
+    'giant_pacific_octopus': dict(rot=(0, 0, 180), length=2.2, faces=20000, tex=1024, base='bottom'),
     'herring': dict(rot=(0, 0, 180), length=0.27, faces=1400, tex=512),
     'salmon': dict(rot=(0, 0, 180), length=0.85, faces=6000, tex=1024),
     'rockfish_copper': dict(rot=(0, 0, 180), length=0.42, faces=4500, tex=1024),
     'rockfish_black': dict(rot=(0, 0, 180), length=0.45, faces=4500, tex=1024),
-    'crab_dungeness': dict(rot=(-90, 0, -90), length=0.26, faces=7000, tex=1024, base='bottom'),
-    'crab_helmet': dict(rot=(0, 0, 90), length=0.13, faces=6000, tex=1024, base='bottom'),
-    'crab_kelp': dict(rot=(0, 0, 0), length=0.15, faces=6000, tex=1024, base='bottom'),
-    'crab_decorator': dict(rot=(0, 0, 90), length=0.11, faces=5000, tex=1024, base='bottom'),
-    'sunflower_star': dict(rot=(-90, 0, 0), length=0.6, faces=6000, tex=1024, base='bottom'),
+    'crab_dungeness': dict(rot=(-90, 0, -90), length=0.26, faces=5000, tex=512, base='bottom'),
+    'crab_helmet': dict(rot=(0, 0, 90), length=0.13, faces=4000, tex=512, base='bottom'),
+    'crab_kelp': dict(rot=(0, 0, 0), length=0.15, faces=4000, tex=512, base='bottom'),
+    'crab_decorator': dict(rot=(0, 0, 90), length=0.11, faces=4000, tex=512, base='bottom'),
+    'sunflower_star': dict(rot=(-90, 0, 0), length=0.6, faces=5000, tex=512, base='bottom'),
     'urchin': dict(rot=(0, 0, 0), length=0.11, faces=6000, tex=512, base='bottom'),
     'sea_cucumber': dict(rot=(0, 0, 0), length=0.3, faces=2500, tex=512, base='bottom'),
     'starry_flounder': dict(rot=(0, 0, 180), length=0.45, faces=3000, tex=1024, base='bottom'),
-    'sculpin': dict(rot=(0, 0, 180), length=0.3, faces=4000, tex=1024),
+    'sculpin': dict(rot=(0, 0, 180), length=0.3, faces=3000, tex=512),
     'prawn': dict(rot=(0, 0, 180), length=0.2, faces=3500, tex=512),
     'dogfish': dict(rot=(0, 0, 180), length=1.0, faces=5000, tex=1024),
     'harbor_seal': dict(rot=(90, 0, 0), length=1.6, faces=9000, tex=1024),
@@ -388,3 +388,47 @@ def enqueue(tasks):
 
     bpy.app.timers.register(_run, first_interval=0.2)
     return len(q)
+
+
+def process_set(key, cut_ground=0.05, out_key=None):
+    """A scan pack of several separate, already game-ready pieces (e.g. a rock set): keep the source
+    materials, trim the ground skirt off each piece, sit each on z=0 centred on its footprint, and export
+    them together as one GLB (the loader registers each mesh as '<key>_<i>')."""
+    _clear()
+    _quiet(bpy.ops.import_scene.gltf, filepath=f'{SRC}/{key}.glb')
+    import bmesh
+    pieces = []
+    for o in [o for o in bpy.context.scene.objects if o.type == 'MESH']:
+        bpy.ops.object.select_all(action='DESELECT')
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        mn, mx = _bounds(o)
+        lim = mn.z + (mx.z - mn.z) * cut_ground
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        dead = [f for f in bm.faces if all(v.co.z < lim for v in f.verts)]
+        bmesh.ops.delete(bm, geom=dead, context='FACES')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        bm.to_mesh(o.data)
+        bm.free()
+        mn, mx = _bounds(o)
+        c = (mn + mx) / 2
+        o.data.transform(Matrix.Translation(Vector((-c.x, -c.y, -mn.z))))
+        o.location = (len(pieces) * 3.0, 0, 0)  # spread out, the loader re-centres each piece
+        pieces.append(o)
+    for o in list(bpy.context.scene.objects):
+        if o.type != 'MESH':
+            bpy.data.objects.remove(o, do_unlink=True)
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in pieces:
+        o.select_set(True)
+    path = f'{OUT}/scan_{out_key or key}.glb'
+    _quiet(bpy.ops.export_scene.gltf,
+        filepath=path, export_format='GLB', use_selection=True, export_apply=True,
+        export_normals=True, export_texcoords=True, export_materials='EXPORT', export_tangents=False,
+        export_image_format='JPEG', export_image_quality=85, export_yup=True,
+        export_animations=False, export_skins=False, export_cameras=False, export_lights=False,
+    )
+    return {'pieces': len(pieces), 'faces': [len(o.data.polygons) for o in pieces], 'bytes': os.path.getsize(path)}

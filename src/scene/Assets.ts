@@ -33,6 +33,9 @@ export const SCANS: Record<string, { swim: SwimRule; core?: number }> = {
   log: { swim: 'static' },
 };
 
+/** Packs of several ready-made pieces in one file; each mesh is registered as 'scan:<key>_<i>'. */
+export const SCAN_SETS: Record<string, number> = { rockset: 5 };
+
 export interface ModelAsset {
   geometry: THREE.BufferGeometry;
   map?: THREE.Texture;
@@ -86,15 +89,44 @@ async function loadOne(loader: GLTFLoader, url: string): Promise<{ geo: THREE.Bu
   return { geo, mat: (mat as THREE.MeshStandardMaterial) ?? null };
 }
 
+async function loadSet(loader: GLTFLoader, key: string, url: string) {
+  const gltf = await loader.loadAsync(url);
+  gltf.scene.updateMatrixWorld(true);
+  const meshes: THREE.Mesh[] = [];
+  gltf.scene.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+  meshes.forEach((m, i) => {
+    const geo = m.geometry.clone();
+    geo.applyMatrix4(m.matrixWorld);
+    // each piece sits on y=0, centred on its footprint
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox!;
+    geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+    geo.deleteAttribute('color');
+    computeSwim(geo, 'static');
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial;
+    assets.set(`scan:${key}_${i}`, { geometry: geo, map: mat.map ?? undefined, normalMap: mat.normalMap ?? undefined });
+  });
+}
+
 /** Load every model; resolves when all geometries are ready. Reports progress 0..1. */
 export async function loadAll(onProgress?: (p: number) => void): Promise<void> {
   const loader = new GLTFLoader();
   const base = import.meta.env.BASE_URL + 'models/';
   const scanKeys = Object.keys(SCANS);
-  const total = scanKeys.length;
+  const total = scanKeys.length + Object.keys(SCAN_SETS).length;
   let done = 0;
   const tick = () => onProgress?.(++done / total);
   await Promise.all([
+    ...Object.keys(SCAN_SETS).map(async (key) => {
+      try {
+        await loadSet(loader, key, base + 'scan_' + key + '.glb');
+      } catch (e) {
+        console.warn('scan set missing', key, e);
+      }
+      tick();
+    }),
     ...scanKeys.map(async (key) => {
       try {
         const { geo, mat } = await loadOne(loader, base + 'scan_' + key + '.glb');

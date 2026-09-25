@@ -96,9 +96,9 @@ export class World implements Habitat {
   private surfaces: THREE.Mesh[] = [];
   private surfaceRay = new THREE.Raycaster();
 
-  private scanInstances(key: string, places: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[], roughness: number) {
+  private scanInstances(key: string, places: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[], roughness: number, tint?: number) {
     const a = asset('scan:' + key);
-    const { mat } = makeMaterial({ amp: 0 }, { vertexColors: false, map: a.map, normalMap: a.normalMap, roughness });
+    const { mat } = makeMaterial({ amp: 0 }, { vertexColors: false, map: a.map, normalMap: a.normalMap, roughness, tint: tint !== undefined ? new THREE.Color(tint) : undefined });
     const mesh = new THREE.InstancedMesh(a.geometry, mat, places.length);
     mesh.name = key;
     mesh.castShadow = true;
@@ -132,34 +132,43 @@ export class World implements Habitat {
     const rnd = mulberry32(42);
     const m = marginYaw();
     const band = (side: number, f: number) => side * (m.inner + (m.outer - m.inner) * f);
-    if (hasAsset('scan:rock_boulder')) {
-      const bb = this.scanBounds('rock_boulder');
-      const places: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[] = [];
-      const put = (p: THREE.Vector3, k: number) => {
-        const s = new THREE.Vector3(k * (0.85 + rnd() * 0.3), k * (0.7 + rnd() * 0.5), k * (0.85 + rnd() * 0.3));
-        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.25, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.25));
-        p.y -= (bb.max.y - bb.min.y) * s.y * 0.15; // bed it into the sediment
-        places.push({ p, q, s });
+    // boulders: the big scanned boulder plus three rounded rocks from a scanned set (the set's other two
+    // are squared-off blocks that read as quarried stone), mixed so no two neighbours read the same
+    const kinds = ['rock_boulder', 'rockset_0', 'rockset_1', 'rockset_2'].filter((k) => hasAsset('scan:' + k));
+    if (kinds.length) {
+      const places = new Map<string, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[]>();
+      let turn = 0;
+      /** size: rough footprint diameter (m) wanted */
+      const put = (p: THREE.Vector3, size: number, kind = kinds[turn++ % kinds.length]) => {
+        const bb = this.scanBounds(kind);
+        const foot = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+        const k = size / foot;
+        const s = new THREE.Vector3(k * (0.85 + rnd() * 0.3), k * (0.75 + rnd() * 0.45), k * (0.85 + rnd() * 0.3));
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.2, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.2));
+        p.y -= (bb.max.y - bb.min.y) * s.y * 0.12; // bed it into the sediment
+        if (!places.has(kind)) places.set(kind, []);
+        places.get(kind)!.push({ p, q, s });
         const r = Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 * Math.max(s.x, s.z) * 0.8;
         this.rocks.push({ pos: p.clone(), r });
       };
       // composed pieces: a big boulder in each strip to frame the shot, the right one is the octopus den
-      put(stageFloor(band(1, 0.72), 6.4), 1.05);
+      put(stageFloor(band(1, 0.72), 6.4), 2.3, kinds[0]);
       // the den: at the foot of that boulder, on the side facing the camera
       const denRock = this.rocks[this.rocks.length - 1];
       this.den.subVectors(stage().cam, denRock.pos).setY(0).normalize().multiplyScalar(denRock.r + 0.45).add(denRock.pos);
       this.den.y = floorHeight(this.den.x, this.den.z);
-      put(stageFloor(band(-1, 0.35), 4.6), 0.75);
-      put(stageFloor(band(-1, 0.85), 8.5), 1.2);
-      put(stageFloor(band(1, 0.2), 9.5), 0.8);
+      put(stageFloor(band(-1, 0.35), 4.6), 1.6);
+      put(stageFloor(band(-1, 0.85), 8.5), 2.6);
+      put(stageFloor(band(1, 0.2), 9.5), 1.8);
       // scattered: mostly in the strips, some mid-frame for when the page is hidden, some far for depth
       for (let i = 0; i < 16; i++) {
         const p = randomFloorInMargins(rnd, 3, 13);
-        put(p, Math.min(0.3 + Math.pow(rnd(), 1.8) * 0.9, 0.25 + p.distanceTo(stage().cam) * 0.07));
+        put(p, Math.min(0.6 + Math.pow(rnd(), 1.8) * 1.9, 0.5 + p.distanceTo(stage().cam) * 0.15));
       }
-      for (let i = 0; i < 8; i++) put(randomFloorInView(rnd, 6, 14, undefined, 0.6), 0.4 + rnd() * 0.7);
-      for (let i = 0; i < 6; i++) put(randomFloorInView(rnd, 12, 17, undefined, 1.3), 0.8 + rnd() * 0.8);
-      this.surfaces.push(...this.scanInstances('rock_boulder', places, 0.92));
+      for (let i = 0; i < 8; i++) put(randomFloorInView(rnd, 6, 14, undefined, 0.6), 0.9 + rnd() * 1.5);
+      for (let i = 0; i < 6; i++) put(randomFloorInView(rnd, 12, 17, undefined, 1.3), 1.8 + rnd() * 1.8);
+      // the set was shot in drier, brighter light than the boulder: bring it down to match
+      for (const [kind, pl] of places) this.surfaces.push(...this.scanInstances(kind, pl, 0.92, kind === 'rock_boulder' ? undefined : 0x9a9a92));
     }
     if (hasAsset('scan:log')) {
       // two waterlogged logs, one in each strip

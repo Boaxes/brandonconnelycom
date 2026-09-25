@@ -95,6 +95,8 @@ export class Director {
   private sealVisit(side: number): boolean {
     const s = this.w.scripted('seal');
     if (!s) return false;
+    // a rockfish hanging where the seal is about to stop would crowd the shot: it backs off
+    BenthicFish.inspecting?.leave();
     const H = stage().height;
     const cam = stage().cam;
     const b = (f: number) => this.band(side, f);
@@ -119,7 +121,7 @@ export class Director {
       const o = this.w.scripted('orca');
       if (!o) break;
       const dist = 8 + i * 1.4;
-      const h = 3.2 + i * 0.5;
+      const h = 2.6 + i * 0.5;
       // claim now, start staggered: park it far off-frame until its turn
       o.start(stageWater(this.band(dir, 1.9), 22, h), []);
       o.done = false;

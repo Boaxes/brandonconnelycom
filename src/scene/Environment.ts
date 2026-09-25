@@ -161,7 +161,7 @@ export function buildTorch(): THREE.SpotLight {
   torch.position.copy(TORCH.pos);
   torch.target.position.copy(TORCH.pos).add(TORCH.dir);
   torch.castShadow = true;
-  torch.shadow.mapSize.set(2048, 2048);
+  torch.shadow.mapSize.set(1024, 1024); // soft (radius 5) shadows at a few metres: 1K is plenty
   torch.shadow.camera.near = 0.2;
   torch.shadow.camera.far = TORCH.range;
   torch.shadow.bias = -0.0006;

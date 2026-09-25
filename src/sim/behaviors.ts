@@ -263,12 +263,21 @@ export class BenthicFish extends Agent implements Behavior {
     this.timer = Math.random() * 5;
     this.vel.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(0.2);
   }
+  /** Cut a visit to the camera short (something bigger is coming). */
+  leave() {
+    if (this.state !== 'inspect') return;
+    this.state = 'cruise';
+    this.looked = 0;
+    BenthicFish.inspecting = null;
+    this.goal.copy(this.home);
+    this.timer = 6;
+  }
   /** Swim over to hang just in front of the diver for a few seconds. False if it can't right now. */
   comeLook(): boolean {
     if (BenthicFish.inspecting || !inMargins(this.pos) || this.pos.distanceTo(stage().cam) > 10) return false;
     BenthicFish.inspecting = this;
     this.state = 'inspect';
-    this.timer = 24;
+    this.timer = 16;
     this.looked = 0;
     // a spot just off the lens, on this fish's side of the page, a little below eye level
     const m = marginYaw();
