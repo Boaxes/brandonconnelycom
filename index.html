@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Brandon — data engineering portfolio, set on the floor of Puget Sound." />
+    <title>Brandon · Data Engineering</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/ui/style.css" />
+  </head>
+  <body>
+    <canvas id="ocean"></canvas>
+    <div id="loader" aria-live="polite">
+      <div class="loader-inner">
+        <div class="loader-title">Descending</div>
+        <div class="loader-bar"><div class="loader-fill" id="loader-fill"></div></div>
+        <div class="loader-sub" id="loader-sub">loading the Sound…</div>
+      </div>
+    </div>
+    <div id="ui"></div>
+    <div id="label" class="label" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
