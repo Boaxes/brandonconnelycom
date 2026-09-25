@@ -10,6 +10,7 @@ const CREDITS = [
   { title: 'Spotted Harbor Seal', author: 'c4rn4g3', url: 'https://sketchfab.com/3d-models/eff1b6181eca4a8aaca2cb0a19a1df38' },
   { title: 'Orca Killer Whale', author: 'LostPlaces', url: 'https://sketchfab.com/3d-models/7c01c438ff03401d8e77127154c041c7' },
   { title: 'High-Poly Humpback Whale', author: 'K9239', url: 'https://sketchfab.com/3d-models/5a6a09f1c27e4d0f890f2a30c10d7a81' },
+  { title: 'Rocks Set Stone Collection Scan', author: 'perz_scans', url: 'https://sketchfab.com/3d-models/b45a40fd145c4b9ba7bc5351d344db17' },
   { title: 'Log', author: 'megalitharchive', url: 'https://sketchfab.com/3d-models/86272f8b02bc4de1af5626e00c474edb' },
   { title: 'Model 75A - Harbor Porpoise (CC BY-NC)', author: 'DigitalLife3D', url: 'https://sketchfab.com/3d-models/eb02e57f17d741329a66844a3a8d2094' },
 ];

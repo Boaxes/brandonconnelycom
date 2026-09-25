@@ -331,8 +331,9 @@ export class World implements Habitat {
     }, 0.3);
   }
 
-  /** Visitors driven by the director: a pool of scripted bodies per species, hidden until used. */
-  private buildScriptedPools() {
+  /** Visitors driven by the director: a pool of scripted bodies per species, hidden until used.
+   *  Called again once the late-loading visitors arrive; species already pooled are left alone. */
+  buildScriptedPools() {
     const pools: [string, number, ConstructorParameters<typeof Scripted>[1]][] = [
       ['seal', 2, { maxSpeed: 4, maxForce: 3.2, cruise: 1.5, turnRate: 2.4, clearance: 0.8, bankAmount: 0.8, size: 1.6 }],
       ['orca', 4, { maxSpeed: 4, maxForce: 2.2, cruise: 2.6, turnRate: 0.8, clearance: 3, bankAmount: 0.6, size: 7 }],
@@ -341,6 +342,7 @@ export class World implements Habitat {
       ['octopus', 1, { maxSpeed: 0.6, maxForce: 1, cruise: 0.12, size: 1.2 }],
     ];
     for (const [key, n, opts] of pools) {
+      if (this.pops.get(key)?.agents.length) continue;
       if (!this.pop(key, n)) continue;
       for (let i = 0; i < n; i++) {
         const s = new Scripted(key, opts);

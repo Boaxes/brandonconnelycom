@@ -110,11 +110,33 @@ async function loadSet(loader: GLTFLoader, key: string, url: string) {
   });
 }
 
-/** Load every model; resolves when all geometries are ready. Reports progress 0..1. */
+/** Visitors that don't appear in the first ~40 s: fetched after the scene is already showing. */
+export const LATE = new Set(['orca', 'humpback', 'harbor_porpoise']);
+
+/** Fetch the late visitors in the background. */
+export async function loadLate(): Promise<void> {
+  const loader = new GLTFLoader();
+  const base = import.meta.env.BASE_URL + 'models/';
+  await Promise.all([...LATE].map((key) => loadScan(loader, base, key)));
+}
+
+async function loadScan(loader: GLTFLoader, base: string, key: string) {
+  try {
+    const { geo, mat } = await loadOne(loader, base + 'scan_' + key + '.glb');
+    geo.deleteAttribute('color');
+    computeSwim(geo, SCANS[key].swim, SCANS[key].core);
+    geo.computeBoundingSphere();
+    assets.set('scan:' + key, { geometry: geo, map: mat?.map ?? undefined, normalMap: mat?.normalMap ?? undefined });
+  } catch (e) {
+    console.warn('scan missing', key, e);
+  }
+}
+
+/** Load everything needed for the opening; resolves when those geometries are ready. Reports progress 0..1. */
 export async function loadAll(onProgress?: (p: number) => void): Promise<void> {
   const loader = new GLTFLoader();
   const base = import.meta.env.BASE_URL + 'models/';
-  const scanKeys = Object.keys(SCANS);
+  const scanKeys = Object.keys(SCANS).filter((k) => !LATE.has(k));
   const total = scanKeys.length + Object.keys(SCAN_SETS).length;
   let done = 0;
   const tick = () => onProgress?.(++done / total);
@@ -128,15 +150,7 @@ export async function loadAll(onProgress?: (p: number) => void): Promise<void> {
       tick();
     }),
     ...scanKeys.map(async (key) => {
-      try {
-        const { geo, mat } = await loadOne(loader, base + 'scan_' + key + '.glb');
-        geo.deleteAttribute('color');
-        computeSwim(geo, SCANS[key].swim, SCANS[key].core);
-        geo.computeBoundingSphere();
-        assets.set('scan:' + key, { geometry: geo, map: mat?.map ?? undefined, normalMap: mat?.normalMap ?? undefined });
-      } catch (e) {
-        console.warn('scan missing, falling back to procedural', key, e);
-      }
+      await loadScan(loader, base, key);
       tick();
     }),
   ]);

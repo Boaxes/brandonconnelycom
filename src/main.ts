@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Ocean } from './scene/Ocean';
 import { CameraRig } from './scene/CameraRig';
-import { loadAll } from './scene/Assets';
+import { loadAll, loadLate } from './scene/Assets';
 import { buildUI, loaderDone, loaderProgress, showFallback } from './ui/overlay';
 import { World } from './sim/World';
 import { Ambience } from './audio/Ambience';
@@ -72,6 +72,8 @@ async function boot() {
   ocean.render(0, 1 / 60);
   loaderProgress(1, 'ready');
   setTimeout(loaderDone, 250);
+  // the big visitors aren't due for a while: fetch them behind the scenes
+  loadLate().then(() => world.buildScriptedPools());
 
   let last = performance.now();
   let hudTimer = 0;
