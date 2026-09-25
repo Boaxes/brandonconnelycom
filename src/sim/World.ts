@@ -134,7 +134,9 @@ export class World implements Habitat {
         if (!place(_v)) continue;
         floorNormal(_v.x, _v.z, up);
         const size = key === 'bullkelp' ? 3 : key === 'sugarkelp' ? 1.2 : key === 'sunflowerstar' ? 0.8 : 0.4;
-        const a = new Sessile(key, { maxSpeed: 0, maxForce: 0, cruise: 0, size }, _v, up, rnd() * Math.PI * 2, doing);
+        // kelp blades trail down-current, so all kelp shares a heading (+ a little scatter)
+        const yaw = key === 'bullkelp' || key === 'sugarkelp' ? 0.4 + (rnd() - 0.5) * 0.7 : rnd() * Math.PI * 2;
+        const a = new Sessile(key, { maxSpeed: 0, maxForce: 0, cruise: 0, size }, _v, up, yaw, doing);
         this.addAgent(key, a);
         made++;
       }
@@ -155,12 +157,12 @@ export class World implements Habitat {
   private buildFish() {
     const herringCfg: SchoolConfig = { neighbor: 1.6, separation: 0.45, cohesion: 0.9, alignment: 1.3, sepWeight: 0.9, fleeRadius: 6, predators: ['seal', 'sealion', 'dolphin', 'porpoise', 'lingcod', 'humpback'], homeAbove: [2.5, 9] };
     const salmonCfg: SchoolConfig = { neighbor: 4, separation: 1.1, cohesion: 0.6, alignment: 1.0, sepWeight: 0.8, fleeRadius: 12, predators: ['orca', 'sealion', 'seal'], homeAbove: [3, 12] };
-    const herringN = 420;
+    const herringN = 480;
     this.pop('herring', herringN);
-    for (let s = 0; s < 3; s++) {
+    for (let s = 0; s < 4; s++) {
       const school = new School(herringCfg, 'herring');
       this.schools.push(school);
-      for (let i = 0; i < herringN / 3; i++) {
+      for (let i = 0; i < herringN / 4; i++) {
         const f = new SchoolFish('herring', school, { maxSpeed: 3.2, maxForce: 9, cruise: 1.1, turnRate: 6, clearance: 0.6, size: 0.28 });
         school.members.push(f);
         this.addAgent('herring', f);
@@ -177,8 +179,8 @@ export class World implements Habitat {
         this.addAgent('chinook', f);
       }
     }
-    this.pop('rockfish', 14);
-    for (let i = 0; i < 14; i++) {
+    this.pop('rockfish', 20);
+    for (let i = 0; i < 20; i++) {
       this.addAgent('rockfish', new BenthicFish('rockfish', { maxSpeed: 1.6, maxForce: 3, cruise: 0.35, turnRate: 3, clearance: 0.3, size: 0.45 }, [], { idle: 'hovering by its rock', hunt: '', eat: '' }, [0.4, 1.6]));
     }
     this.pop('lingcod', 5);
@@ -192,8 +194,8 @@ export class World implements Habitat {
       this.pop(key, n);
       for (let i = 0; i < n; i++) this.addAgent(key, new Crab(key, { maxSpeed: speed * 2.2, maxForce: 1, cruise: speed, size: 0.2 }, bury));
     };
-    crab('dungeness', 14, 0.35, true);
-    crab('redrock', 10, 0.3, false);
+    crab('dungeness', 18, 0.35, true);
+    crab('redrock', 12, 0.3, false);
     crab('kelpcrab', 8, 0.2, false);
     crab('decorator', 6, 0.15, false);
     this.pop('octopus', 2);
@@ -212,7 +214,7 @@ export class World implements Habitat {
       this.pop(key, n);
       for (let i = 0; i < n; i++) this.addAgent(key, new Jelly(key, { maxSpeed: 0.5, maxForce: 0.5, cruise: 0.1, size: 0.4 }, band, rate, lift));
     };
-    jelly('moonjelly', 26, [1.5, 14], 1.6, 0.16);
+    jelly('moonjelly', 36, [1.5, 14], 1.6, 0.16);
     jelly('lionsmane', 4, [4, 15], 0.9, 0.18);
     jelly('seanettle', 9, [3, 14], 1.2, 0.17);
   }
@@ -224,8 +226,8 @@ export class World implements Habitat {
   }
 
   private buildResidents() {
-    this.pop('seal', 4);
-    for (let i = 0; i < 4; i++) {
+    this.pop('seal', 5);
+    for (let i = 0; i < 5; i++) {
       this.hunter('seal', {
         prey: ['herring', 'chinook'], huntRange: 16, catchDist: 0.7, airBreather: true, oxygen: [70, 140], restOnBottom: true, cruiseAbove: [1.5, 10], eatTime: 3,
         verbs: { cruise: 'patrolling', hunt: 'chasing herring', eat: 'eating', breathe: 'surfacing to breathe', rest: 'resting on the bottom' },

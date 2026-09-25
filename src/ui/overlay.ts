@@ -15,6 +15,8 @@ export interface UICallbacks {
 
 export function buildUI(cb: UICallbacks) {
   const c = content;
+  // site-relative links get the deploy base path (e.g. /repo/ on GitHub Pages)
+  const resume = c.links.resume.startsWith('/') ? import.meta.env.BASE_URL + c.links.resume.slice(1) : c.links.resume;
   const root = document.getElementById('ui')!;
 
   const topbar = el(`
@@ -28,7 +30,7 @@ export function buildUI(cb: UICallbacks) {
         <a href="#contact">Contact</a>
       </nav>
       <div class="spacer"></div>
-      <a class="btn primary" href="${esc(c.links.resume)}" target="_blank" rel="noopener">Resume ↗</a>
+      <a class="btn primary" href="${esc(resume)}" target="_blank" rel="noopener">Resume ↗</a>
     </header>`);
 
   const column = el(`

@@ -658,9 +658,10 @@ def bull_kelp(name='bull_kelp', H=6.0):
         side = Vector((-d.y, d.x, 0))
         ln = 3.2 + 1.1 * math.sin(j * 1.9)
         base = top + Vector((0, 0, 0.1 + 0.04 * (j % 3))) + d * 0.1
-        p1 = base + d * ln * 0.3 - Vector((0, 0, ln * 0.04)) + side * 0.1 * math.sin(j)
-        p2 = base + d * ln * 0.65 - Vector((0, 0, ln * 0.16)) + side * 0.2 * math.sin(j * 2.1)
-        p3 = base + d * ln * 0.95 - Vector((0, 0, ln * 0.3)) + side * 0.25 * math.sin(j * 1.3)
+        # blades hang from the bulb and stream down-current: mostly downward, drifting sideways
+        p1 = base + d * ln * 0.22 - Vector((0, 0, ln * 0.2)) + side * 0.08 * math.sin(j)
+        p2 = base + d * ln * 0.45 - Vector((0, 0, ln * 0.5)) + side * 0.18 * math.sin(j * 2.1)
+        p3 = base + d * ln * 0.62 - Vector((0, 0, ln * 0.78)) + side * 0.22 * math.sin(j * 1.3)
         ribbon(mb, [base, p1, p2, p3], lambda u: 0.04 + 0.09 * math.sin(math.pi * min(1, u * 1.1)) ** 0.7, blade,
                part=0.5, u_fn=lambda v: min(1.0, 0.97 + 0.03 * (v - top).length / ln))
     obj = mb.build(name)
