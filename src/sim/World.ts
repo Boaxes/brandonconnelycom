@@ -150,12 +150,34 @@ export class World implements Habitat {
         made++;
       }
     };
-    // kelp grows in patches on the shallower (+z) side and on rocky ground
-    const kelpField = (p: THREE.Vector3) => noise2(p.x * 0.04 + 3, p.z * 0.04) > 0.15 && p.z > -50 && p.y > -3;
-    sessile('bullkelp', 90, kelpField, 'swaying in the current');
+    // bull kelp grows in groves: pick grove centres near the camera loop, then scatter stipes around them
+    const groves: THREE.Vector3[] = [];
+    for (let i = 0; i < 14; i++) groves.push(randomFloorNearPath(16, new THREE.Vector3(), rnd));
+    let gi = 0;
+    const kelpField = (p: THREE.Vector3) => {
+      const g = groves[gi++ % groves.length];
+      const a = rnd() * Math.PI * 2;
+      const d = Math.sqrt(rnd()) * (3 + rnd() * 4);
+      p.set(g.x + Math.cos(a) * d, 0, g.z + Math.sin(a) * d);
+      p.y = floorHeight(p.x, p.z);
+      return true;
+    };
+    sessile('bullkelp', 150, kelpField, 'swaying in the current');
     sessile('sugarkelp', 120, (p) => noise2(p.x * 0.05 + 9, p.z * 0.05 + 2) > 0.1, 'swaying in the current');
     // anemones cluster on and around rocks
-    sessile('anemone', 140, (p) => this.rocks.some((r) => r.pos.distanceTo(p) < r.r * 1.9), 'filter feeding');
+    // anemones crowd the boulders: place them on rock surfaces (raised by the rock's height)
+    let ai = 0;
+    const onRock = (p: THREE.Vector3) => {
+      const rk = this.rocks[ai++ % this.rocks.length];
+      const a = rnd() * Math.PI * 2;
+      const d = rnd() * rk.r * 0.9;
+      p.set(rk.pos.x + Math.cos(a) * d, 0, rk.pos.z + Math.sin(a) * d);
+      // approximate the boulder's dome height at this point
+      const h = Math.sqrt(Math.max(0, 1 - (d / rk.r) * (d / rk.r))) * rk.r * 0.55;
+      p.y = rk.pos.y + h - 0.05;
+      return rk.r > 0.8;
+    };
+    sessile('anemone', 220, onRock, 'filter feeding');
     sessile('ochrestar', 40, () => true, 'grazing on mussels');
     sessile('sunflowerstar', 10, () => true, 'hunting urchins, slowly');
     sessile('urchin', 60, (p) => noise2(p.x * 0.06 + 20, p.z * 0.06) > 0.05, 'grazing kelp');

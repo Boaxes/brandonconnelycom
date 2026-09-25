@@ -44,6 +44,16 @@ def vnoise3(x, y, z):
     return l(l(c00, c10, fy), l(c01, c11, fy), fz)
 
 
+def mixc(a, b, t):
+    t = max(0.0, min(1.0, t))
+    return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
+
+
+def soft(x, edge, w):
+    """0 below edge-w, 1 above edge+w, smooth between. Use for anti-aliased colour boundaries."""
+    return smoothstep(edge - w, edge + w, x)
+
+
 def darken(c, f=0.35):
     return tuple(x * f for x in c)
 
@@ -125,25 +135,23 @@ def orca():
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        # eye patch
-        ex, ez = 2.05, 0.28
-        if ((x - ex) / 0.55) ** 2 + ((z - ez) / 0.16) ** 2 < 1 and abs(y) > 0.15:
-            return WHITE
-        # belly / chin
-        belly = -0.25 * h
-        if x > 1.5:
-            belly = 0.05 * h
-        # flank lobe behind dorsal
+        w = 0.035  # boundary softness (m)
+        col = BLACK
+        # saddle patch (grey) behind the dorsal fin, on the back
+        sad = soft(x, -1.35, 0.12) * (1 - soft(x, -0.15, 0.12)) * soft(z, 0.35 * h, 0.08)
+        col = mixc(col, GREY, sad)
+        # belly / chin: white below a boundary that rises at the chin and in a lobe behind the dorsal
+        belly = -0.25 * h + 0.3 * h * soft(x, 1.5, 0.25)
         lobe = smoothstep(-2.3, -1.1, x) * smoothstep(0.2, -0.8, x)
         belly += lobe * 0.55 * h
-        if z < belly + (abs(y) < 0.02) * 0:
-            return WHITE
-        # saddle patch
-        if -1.35 < x < -0.15 and z > 0.35 * h:
-            return GREY
-        return BLACK
+        col = mixc(col, WHITE, 1 - soft(z, belly, w))
+        # eye patch: soft ellipse
+        ex, ez = 2.05, 0.28
+        e = ((x - ex) / 0.55) ** 2 + ((z - ez) / 0.16) ** 2
+        col = mixc(col, WHITE, (1 - soft(e, 1.0, 0.25)) * soft(abs(y), 0.15, 0.05))
+        return col
     return cetacean('orca', L, prof, dorsal=(0.6, -0.6, 1.8, 0.3), pec=(1.6, 1.0, 1.5, 0.35),
-                    fluke=(2.4, 0.7, 0.45), color_fn=color, pec_tilt=15, eye=(0.16, -0.05, 0.03), mouth=(0.17, 0.2, 0.035))
+                    fluke=(2.4, 0.7, 0.45), color_fn=color, pec_tilt=15, eye=(0.16, -0.05, 0.03), mouth=(0.17, 0.2, 0.035), subdiv=2)
 
 
 def humpback():
@@ -155,11 +163,9 @@ def humpback():
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[2]
-        if z < -0.3 * h + 0.15 * abs(math.sin(x * 1.3)):
-            return (0.85, 0.85, 0.82)
-        if u < 0.1 and z < 0.4 * h and abs(y) > 0.2:
-            return (0.2, 0.2, 0.22)
-        return DARK
+        col = DARK
+        col = mixc(col, (0.2, 0.2, 0.22), (1 - soft(u, 0.1, 0.03)) * (1 - soft(z, 0.4 * h, 0.1)))
+        return mixc(col, (0.85, 0.85, 0.82), 1 - soft(z, -0.3 * h + 0.15 * abs(math.sin(x * 1.3)), 0.12))
     return cetacean('humpback', L, prof, dorsal=(-1.4, -2.8, 0.7, 0.4), pec=(3.0, 1.2, 4.8, 1.3),
                     fluke=(5.2, 1.4, 0.8), color_fn=color, pec_tilt=10, rings=18, stations=34, eye=(0.14, -0.35, 0.018), mouth=(0.24, 0.05, 0.03),
                     head_z=lambda u: -0.25 * smoothstep(0.25, 0.0, u) + 0.35 * math.exp(-((u - 0.62) / 0.12) ** 2))
@@ -174,14 +180,11 @@ def dolphin(name='dolphin_pws', L=2.3):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        if z < -0.3 * h:
-            return WHITE
-        # light grey side stripe (suspenders)
-        if abs(z) < 0.35 * h and -0.7 < x < 0.9:
-            return (0.65, 0.68, 0.7)
-        if x < -0.7 and z < 0.4 * h:
-            return (0.7, 0.72, 0.74)
-        return (0.16, 0.17, 0.2)
+        col = (0.16, 0.17, 0.2)
+        stripe = (1 - soft(abs(z), 0.35 * h, 0.04)) * soft(x, -0.7, 0.1) * (1 - soft(x, 0.9, 0.1))
+        col = mixc(col, (0.65, 0.68, 0.7), stripe)
+        col = mixc(col, (0.7, 0.72, 0.74), (1 - soft(x, -0.7, 0.1)) * (1 - soft(z, 0.4 * h, 0.04)))
+        return mixc(col, WHITE, 1 - soft(z, -0.3 * h, 0.03))
     return cetacean(name, L, prof, dorsal=(0.15, -0.2, 0.42, 0.22), pec=(0.55, 0.2, 0.5, 0.14),
                     fluke=(0.66, 0.2, 0.14), color_fn=color, pec_tilt=25, rings=14, stations=26, eye=(0.11, -0.15, 0.028), mouth=(0.13, 0.2, 0.03))
 
@@ -193,9 +196,7 @@ def porpoise(name='dalls_porpoise', L=2.0):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[2]
-        if x < 0.25 and z < 0.05 * h + (0.25 - x) * 0.1:
-            return WHITE
-        return BLACK
+        return mixc(BLACK, WHITE, (1 - soft(x, 0.25, 0.05)) * (1 - soft(z, 0.05 * h + (0.25 - x) * 0.1, 0.03)))
     return cetacean(name, L, prof, dorsal=(0.05, -0.25, 0.25, 0.06), pec=(0.5, 0.18, 0.36, 0.08),
                     fluke=(0.6, 0.18, 0.12), color_fn=color, pec_tilt=25, rings=14, stations=24, eye=(0.1, -0.15, 0.028), mouth=(0.1, 0.25, 0.03))
 
@@ -276,13 +277,12 @@ def salmon(name='chinook', L=0.9):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        if z < -0.25 * h:
-            return (0.85, 0.86, 0.85)
-        if z < 0.3 * h:
-            return (0.62, 0.66, 0.66)
-        if u < 0.22:
-            return (0.2, 0.26, 0.28)
-        return (0.16, 0.26, 0.3)
+        col = mixc((0.16, 0.26, 0.3), (0.2, 0.26, 0.28), 1 - soft(u, 0.22, 0.03))
+        col = mixc(col, (0.62, 0.66, 0.66), 1 - soft(z, 0.3 * h, 0.012))
+        col = mixc(col, (0.85, 0.86, 0.85), 1 - soft(z, -0.25 * h, 0.01))
+        # scattered dark spots on the back
+        sp = vnoise3(x * 40, y * 40, z * 40)
+        return mixc(col, (0.12, 0.16, 0.18), soft(sp, 0.72, 0.03) * soft(z, 0.1 * h, 0.01))
     return fish(name, L, prof, color, dorsal_outline=[(0.38, 0.0), (0.44, 0.07), (0.56, 0.05), (0.6, 0.0)],
                 tail_span=0.28, tail_fork=0.35, pec=(0.25, 0.14, 0.4), anal=(0.7, 0.82, 0.06), pelvic=(0.55, 0.08),
                 second_dorsal=[(0.78, 0.0), (0.8, 0.03), (0.86, 0.02), (0.87, 0.0)])
@@ -295,9 +295,7 @@ def herring(name='herring', L=0.28):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        if z < 0.15 * h:
-            return (0.82, 0.86, 0.88)
-        return (0.2, 0.32, 0.42)
+        return mixc((0.2, 0.32, 0.42), (0.82, 0.86, 0.88), 1 - soft(z, 0.15 * h, 0.006))
     return fish(name, L, prof, color, dorsal_outline=[(0.42, 0.0), (0.46, 0.022), (0.56, 0.018), (0.58, 0.0)],
                 tail_span=0.09, tail_fork=0.45, pec=(0.25, 0.04, 0.3), anal=(0.7, 0.85, 0.014), rings=10, stations=16, eye=(0.1, 0.25, 0.045))
 
@@ -309,13 +307,11 @@ def rockfish(name='copper_rockfish', L=0.45):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        if z < -0.3 * h:
-            return (0.85, 0.8, 0.7)
-        if 0.25 < u < 0.7 and abs(z) < 0.25 * h:
-            return (0.55, 0.42, 0.3)
-        if z > 0.2 * h and (int((u * 9)) % 2 == 0):
-            return (0.55, 0.32, 0.22)
-        return (0.72, 0.5, 0.33)
+        col = (0.72, 0.5, 0.33)
+        bands = 0.5 + 0.5 * math.sin(u * 9 * math.pi)
+        col = mixc(col, (0.55, 0.32, 0.22), soft(bands, 0.5, 0.2) * soft(z, 0.2 * h, 0.01))
+        col = mixc(col, (0.55, 0.42, 0.3), soft(u, 0.25, 0.03) * (1 - soft(u, 0.7, 0.03)) * (1 - soft(abs(z), 0.25 * h, 0.01)))
+        return mixc(col, (0.85, 0.8, 0.7), 1 - soft(z, -0.3 * h, 0.01))
     spiky = [(0.22, 0.0)] + [(0.24 + i * 0.04, 0.035 if i % 2 == 0 else 0.02) for i in range(11)] + [(0.7, 0.05), (0.78, 0.04), (0.8, 0.0)]
     return fish(name, L, prof, color, dorsal_outline=spiky, tail_span=0.15, tail_fork=0.08,
                 pec=(0.28, 0.1, 0.2), anal=(0.62, 0.78, 0.04), pelvic=(0.35, 0.06), rings=12, stations=20, eye=(0.12, 0.35, 0.07))
@@ -328,10 +324,10 @@ def lingcod(name='lingcod', L=0.9):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        if z < -0.3 * h:
-            return (0.75, 0.78, 0.72)
-        k = int(u * 14 + (z > 0) * 1) % 3
-        return [(0.3, 0.36, 0.3), (0.42, 0.45, 0.35), (0.25, 0.3, 0.28)][k]
+        m = vnoise3(x * 14, y * 14, z * 14)
+        col = mixc((0.3, 0.36, 0.3), (0.45, 0.47, 0.36), soft(m, 0.5, 0.08))
+        col = mixc(col, (0.22, 0.27, 0.25), soft(vnoise3(x * 30 + 5, y * 30, z * 30), 0.62, 0.05))
+        return mixc(col, (0.75, 0.78, 0.72), 1 - soft(z, -0.3 * h, 0.015))
     outline = [(0.16, 0.0)] + [(0.2 + i * 0.05, 0.04 + 0.01 * (i % 2)) for i in range(13)] + [(0.87, 0.0)]
     return fish(name, L, prof, color, dorsal_outline=outline, tail_span=0.2, tail_fork=0.05,
                 pec=(0.22, 0.14, 0.15), anal=(0.5, 0.85, 0.05), pelvic=(0.25, 0.08), rings=12, stations=22, eye=(0.08, 0.4, 0.05), mouth=(0.12, 0.15, 0.06))
@@ -347,9 +343,7 @@ def sixgill(name='sixgill', L=4.0):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        if z < -0.35 * h:
-            return (0.55, 0.55, 0.52)
-        return (0.28, 0.3, 0.3)
+        return mixc((0.28, 0.3, 0.3), (0.55, 0.55, 0.52), 1 - soft(z, -0.35 * h, 0.05))
     sts = spine_stations(_line(L / 2, -L / 2, 5), lambda u: dict(zip(('rx', 'rt', 'rb', 'n'), prof(u))), 30)
     loft(mb, sts, rings=16, color_fn=color)
     def paint(p, u, part, n):
@@ -435,13 +429,13 @@ def harbor_seal(name='harbor_seal', L=1.6):
         h = prof(u)[1]
         # spotted grey
         if z < -0.35 * h:
-            return (0.72, 0.72, 0.68)
+            return (0.5, 0.5, 0.47)
         n = vnoise3(x * 9.0, y * 9.0, z * 9.0) * 0.65 + vnoise3(x * 22.0 + 3, y * 22.0, z * 22.0) * 0.35
         if n > 0.62:
-            return (0.3, 0.32, 0.34)
+            return (0.16, 0.17, 0.19)
         if n > 0.52:
-            return (0.42, 0.44, 0.45)
-        return (0.56, 0.58, 0.58)
+            return (0.26, 0.28, 0.29)
+        return (0.38, 0.4, 0.4)
     return pinniped(name, L, prof, color, fore=(0.32, 0.28, 0.14), hind=(0.22, 0.2),
                     head_z=lambda u: 0.02 * smoothstep(0.3, 0.0, u))
 
@@ -455,11 +449,9 @@ def steller_sea_lion(name='steller_sea_lion', L=3.0):
     def color(p, u, v, n):
         x, y, z = p
         h = prof(u)[1]
-        if z < -0.3 * h:
-            return (0.75, 0.62, 0.45)
-        return (0.6, 0.47, 0.32)
-    return pinniped(name, L, prof, color, fore=(0.36, 0.7, 0.28), hind=(0.45, 0.4), rings=16, stations=30,
-                    head_z=lambda u: 0.08 * smoothstep(0.35, 0.0, u), eye=(0.07, 0.3, 0.03))
+        return mixc((0.6, 0.47, 0.32), (0.75, 0.62, 0.45), 1 - soft(z, -0.3 * h, 0.05))
+    return pinniped(name, L, prof, color, fore=(0.34, 0.85, 0.3), hind=(0.5, 0.42), rings=16, stations=30,
+                    head_z=lambda u: 0.1 * smoothstep(0.35, 0.0, u), eye=(0.06, 0.35, 0.03))
 
 
 # ---------------------------------------------------------------- invertebrates
@@ -531,11 +523,11 @@ def crab(name, W=0.2, body_col=(0.6, 0.25, 0.15), leg_col=None, claw_scale=1.0, 
 
 
 def dungeness():
-    return crab('dungeness_crab', W=0.2, body_col=(0.55, 0.33, 0.2), leg_col=(0.6, 0.38, 0.22), claw_scale=1.0)
+    return crab('dungeness_crab', W=0.2, body_col=(0.36, 0.22, 0.16), leg_col=(0.42, 0.26, 0.17), claw_scale=1.0)
 
 
 def red_rock_crab():
-    return crab('red_rock_crab', W=0.15, body_col=(0.55, 0.12, 0.08), leg_col=(0.5, 0.1, 0.06), claw_scale=1.4)
+    return crab('red_rock_crab', W=0.15, body_col=(0.42, 0.08, 0.05), leg_col=(0.36, 0.06, 0.04), claw_scale=1.4)
 
 
 def kelp_crab():
@@ -704,13 +696,14 @@ def plumose_anemone(name='plumose_anemone', H=0.4):
     for i in range(len(mb.uvs)):
         mb.uvs[i] = (mb.verts[i].z / H, 0.0)
     # crown of feathery tentacles: many small tapered cones
-    for j in range(26):
-        th = 2 * math.pi * j / 26
-        rr = H * 0.17 * (1 if j % 2 == 0 else 0.7)
-        base = Vector((math.cos(th) * rr * 0.5, math.sin(th) * rr * 0.5, H * 0.8))
-        tip = base + Vector((math.cos(th) * rr * 1.2, math.sin(th) * rr * 1.2, H * 0.18 + (j % 3) * H * 0.03))
-        tube(mb, [base, (base + tip) / 2 + Vector((0, 0, H * 0.05)), tip], lambda u: H * 0.02 * (1 - u * 0.8), rings=3, segs=3,
-             color=(0.95, 0.94, 0.9), part=1.0, u_offset=0.8, u_scale=0.2, cap_start=False)
+    for ring_i, (cnt, rr_f, lift) in enumerate(((30, 0.2, 0.12), (22, 0.13, 0.2), (12, 0.06, 0.26))):
+        for j in range(cnt):
+            th = 2 * math.pi * j / cnt + ring_i * 0.3
+            rr = H * rr_f
+            base = Vector((math.cos(th) * rr * 0.6, math.sin(th) * rr * 0.6, H * 0.8))
+            tip = base + Vector((math.cos(th) * rr * 1.6, math.sin(th) * rr * 1.6, H * lift + (j % 3) * H * 0.03))
+            tube(mb, [base, (base + tip) / 2 + Vector((0, 0, H * 0.06)), tip], lambda u: H * 0.022 * (1 - u * 0.7), rings=3, segs=3,
+                 color=(0.95, 0.94, 0.9), part=1.0, u_offset=0.8, u_scale=0.2, cap_start=False)
     obj = mb.build(name)
     return finish(obj, name)
 

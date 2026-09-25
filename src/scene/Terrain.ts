@@ -79,8 +79,9 @@ export function attachGround(u: UnderwaterUniforms) {
 }
 
 export function buildTerrain(): THREE.Mesh {
-  const size = WORLD.size;
-  const seg = 200;
+  // the mesh extends well past the simulated area so the edge is never seen through the fog
+  const size = WORLD.size * 2.4;
+  const seg = 220;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;

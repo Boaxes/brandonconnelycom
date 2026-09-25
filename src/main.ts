@@ -91,6 +91,18 @@ async function boot() {
   (window as unknown as { world: World }).world = world;
   (window as unknown as { rig: CameraRig }).rig = rig;
   (window as unknown as { THREE: typeof THREE }).THREE = THREE;
+  if (import.meta.env.DEV) {
+    // dev helper: render one frame and save it through the vite shot plugin
+    (window as unknown as { shot: (name: string) => Promise<string> }).shot = async (name: string) => {
+      const t = ocean.clock.getElapsedTime();
+      rig.update(1 / 60, t);
+      world.update(1 / 60, t);
+      ocean.render(t, 1 / 60);
+      const data = ocean.renderer.domElement.toDataURL('image/jpeg', 0.88);
+      const r = await fetch('/__shot?name=' + encodeURIComponent(name), { method: 'POST', body: data });
+      return r.text();
+    };
+  }
 }
 
 boot();

@@ -208,6 +208,7 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
           float slope = 1.0 - clamp(normalize(vWorldNormal).y, 0.0, 1.0);
           blend = clamp(blend + slope * 1.5, 0.0, 1.0);
           vec3 sand = mix(texture2D(tSand, uv1).rgb, texture2D(tSand, uv2).rgb, 0.5);
+          sand *= 0.85 + 0.3 * texture2D(tSand, p * 1.1 + 0.37).g;  // close-range grain
           vec3 grav = mix(texture2D(tGravel, uv1).rgb, texture2D(tGravel, uv2 * 1.7).rgb, 0.5);
           vec3 tex = mix(sand, grav, blend);
           // cold silt tint, keep vertex colour as broad variation

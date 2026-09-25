@@ -38,12 +38,15 @@ export async function loadAll(onProgress?: (p: number) => void): Promise<void> {
       const g = geo as THREE.BufferGeometry;
       // vertex colours arrive as COLOR_0 (vec4). Keep only rgb for our material.
       const col = g.getAttribute('color');
-      if (col && col.itemSize === 4) {
+      if (col) {
+        // authored as display (sRGB) values in the generator; the renderer wants linear
         const rgb = new Float32Array(col.count * 3);
+        const c = new THREE.Color();
         for (let i = 0; i < col.count; i++) {
-          rgb[i * 3] = col.getX(i);
-          rgb[i * 3 + 1] = col.getY(i);
-          rgb[i * 3 + 2] = col.getZ(i);
+          c.setRGB(col.getX(i), col.getY(i), col.getZ(i), THREE.SRGBColorSpace);
+          rgb[i * 3] = c.r;
+          rgb[i * 3 + 1] = c.g;
+          rgb[i * 3 + 2] = c.b;
         }
         g.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
       }

@@ -238,8 +238,8 @@ export function buildParticles(count = 2600): THREE.Points {
 }
 
 export function buildLights(): THREE.Object3D[] {
-  const hemi = new THREE.HemisphereLight(0x9fd8e6, 0x3b4a3c, 1.5);
-  const sun = new THREE.DirectionalLight(0xe8f8ff, 2.2);
+  const hemi = new THREE.HemisphereLight(0x9fd8e6, 0x3b4a3c, 1.15);
+  const sun = new THREE.DirectionalLight(0xe8f8ff, 1.7);
   sun.position.copy(shared.sunDir.value).multiplyScalar(80);
   const fill = new THREE.DirectionalLight(0x2b6b7a, 0.35);
   fill.position.set(-40, 10, -30);

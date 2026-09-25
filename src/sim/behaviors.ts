@@ -409,6 +409,10 @@ export class BenthicFish extends Agent implements Behavior {
     }
     this.contain(0.3, WORLD.surfaceY - 2, 15);
     this.integrate(dt);
+    // bottom fish hold a level posture even when nudging up or down
+    this.forward.y *= 0.25;
+    this.forward.normalize();
+    this.orient(this.forward, new THREE.Vector3(0, 1, 0));
     this.speedMul = Math.max(0.4, this.speedMul);
   }
 }
