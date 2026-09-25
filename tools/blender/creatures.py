@@ -24,8 +24,42 @@ def body(u, nose=0.35, peak=0.4, tail_min=0.14, head_pow=0.8, tail_pow=1.1):
 
 # ---------------------------------------------------------------- cetaceans
 
+def _h3(ix, iy, iz):
+    n = (ix * 374761393 + iy * 668265263 + iz * 2147483647) & 0xffffffff
+    n = (n ^ (n >> 13)) * 1274126177 & 0xffffffff
+    return ((n ^ (n >> 16)) & 0xffff) / 65535.0
+
+
+def vnoise3(x, y, z):
+    """Smooth 3D value noise in 0..1."""
+    ix, iy, iz = math.floor(x), math.floor(y), math.floor(z)
+    fx, fy, fz = x - ix, y - iy, z - iz
+    fx, fy, fz = fx * fx * (3 - 2 * fx), fy * fy * (3 - 2 * fy), fz * fz * (3 - 2 * fz)
+    def l(a, b, t):
+        return a + (b - a) * t
+    c00 = l(_h3(ix, iy, iz), _h3(ix + 1, iy, iz), fx)
+    c10 = l(_h3(ix, iy + 1, iz), _h3(ix + 1, iy + 1, iz), fx)
+    c01 = l(_h3(ix, iy, iz + 1), _h3(ix + 1, iy, iz + 1), fx)
+    c11 = l(_h3(ix, iy + 1, iz + 1), _h3(ix + 1, iy + 1, iz + 1), fx)
+    return l(l(c00, c10, fy), l(c01, c11, fy), fz)
+
+
+def darken(c, f=0.35):
+    return tuple(x * f for x in c)
+
+
+def add_eyes(mb, L, prof, eye_u, z_frac, r, up=0.0):
+    """Pair of dark eyes on the flanks at spine fraction eye_u. part=0.25 marks fixed dark detail."""
+    rx, rt, rb, n = prof(eye_u)
+    x = L / 2 - eye_u * L
+    z = (rt if z_frac >= 0 else rb) * z_frac + up
+    for side in (1, -1):
+        sphere(mb, (x, side * rx * 0.96, z), r, (0.02, 0.02, 0.025), part=0.25, u=eye_u, seg=8, rings=5)
+
+
 def cetacean(name, L, prof, dorsal, pec, fluke, color_fn, head_z=lambda u: 0.0,
-             rings=12, stations=18, pec_tilt=25, notch=True):
+             rings=16, stations=30, pec_tilt=25, notch=True, eye=(0.13, -0.1, 0.03), mouth=(0.14, 0.15, 0.03),
+             subdiv=1):
     """Generic whale/dolphin body. prof(u)->(rx, rt, rb, n). dorsal: (x0,x1,h,sweep)
     pec: (x, w_root, length, sweep) fluke: (span, chord, sweep)."""
     mb = MeshBuilder()
@@ -35,6 +69,20 @@ def cetacean(name, L, prof, dorsal, pec, fluke, color_fn, head_z=lambda u: 0.0,
         return dict(rx=rx, rt=rt, rb=rb, n=n)
     sts = spine_stations(spine, profile, stations)
     loft(mb, sts, rings=rings, color_fn=color_fn)
+    # final-resolution paint: species colour + mouth line + fixed dark details (eyes)
+    def paint(p, u, part, n):
+        if abs(part - 0.25) < 0.05:
+            return (0.02, 0.02, 0.025)
+        col = color_fn(p, u, part, n)
+        if mouth and part < 0.2 and u < mouth[0]:
+            rb = prof(u)[2]
+            mz = -rb * mouth[1] + head_z(u)
+            if abs(p.z - mz) < mouth[2] * L / 7 and abs(p.y) > 0.02:
+                col = darken(col, 0.45)
+        return col
+    mb.paint = paint
+    if eye:
+        add_eyes(mb, L, prof, eye[0], eye[1], eye[2] * L / 7, up=head_z(eye[0]))
     # dorsal fin
     x0, x1, h, sweep = dorsal
     top_r = prof((0.5 - (x0 + x1) / 2 / L))[1]
@@ -43,7 +91,7 @@ def cetacean(name, L, prof, dorsal, pec, fluke, color_fn, head_z=lambda u: 0.0,
                (x0 - sweep * 0.2, base_z + h * 0.6),
                (x0 - sweep, base_z + h),
                (x1 - sweep * 0.55, base_z + h * 0.45)]
-    plate(mb, outline, thickness=0.06 * L / 7, color_fn=lambda p, u: color_fn(p, u, 0, Vector((0, 0, 1))),
+    plate(mb, outline, thickness=0.09 * L / 7, color_fn=lambda p, u: color_fn(p, u, 0, Vector((0, 0, 1))),
           u_fn=lambda a, b: 0.5 - a / L)
     # pectorals
     px, w, ln, sw = pec
@@ -52,7 +100,7 @@ def cetacean(name, L, prof, dorsal, pec, fluke, color_fn, head_z=lambda u: 0.0,
     for side in (1, -1):
         m = trans(px, side * rx * 0.85, -rb * 0.35) @ rot('X', -side * (90 - pec_tilt)) @ rot('Z', side * 0)  # plate in X-Z plane rotated to stick out along Y
         outline = [(w * 0.5, 0), (-w * 0.5, 0), (-w * 0.5 - sw, ln), (-sw + w * 0.05, ln * 1.02), (w * 0.35 - sw * 0.6, ln * 0.6)]
-        plate(mb, outline, thickness=0.05 * L / 7, matrix=m,
+        plate(mb, outline, thickness=0.08 * L / 7, matrix=m,
               color_fn=lambda p, u: color_fn(p, u, 0.5, Vector((0, 0, -1))),
               u_fn=lambda a, b: 0.5 - px / L)
     # flukes
@@ -65,7 +113,7 @@ def cetacean(name, L, prof, dorsal, pec, fluke, color_fn, head_z=lambda u: 0.0,
             pts = [(chord * 0.15, 0)] + pts[1:]
         plate(mb, pts, thickness=0.05 * L / 7, matrix=m,
               color_fn=lambda p, u: color_fn(p, u, 0.5, Vector((0, 0, 1))), u_fn=lambda a, b: 0.97)
-    obj = mb.build(name)
+    obj = mb.build(name, subdiv=subdiv)
     return finish(obj, name)
 
 
@@ -95,7 +143,7 @@ def orca():
             return GREY
         return BLACK
     return cetacean('orca', L, prof, dorsal=(0.6, -0.6, 1.8, 0.3), pec=(1.6, 1.0, 1.5, 0.35),
-                    fluke=(2.4, 0.7, 0.45), color_fn=color, pec_tilt=15)
+                    fluke=(2.4, 0.7, 0.45), color_fn=color, pec_tilt=15, eye=(0.16, -0.05, 0.03), mouth=(0.17, 0.2, 0.035))
 
 
 def humpback():
@@ -113,14 +161,15 @@ def humpback():
             return (0.2, 0.2, 0.22)
         return DARK
     return cetacean('humpback', L, prof, dorsal=(-1.4, -2.8, 0.7, 0.4), pec=(3.0, 1.2, 4.8, 1.3),
-                    fluke=(5.2, 1.4, 0.8), color_fn=color, pec_tilt=10, rings=12, stations=20,
+                    fluke=(5.2, 1.4, 0.8), color_fn=color, pec_tilt=10, rings=18, stations=34, eye=(0.14, -0.35, 0.018), mouth=(0.24, 0.05, 0.03),
                     head_z=lambda u: -0.25 * smoothstep(0.25, 0.0, u) + 0.35 * math.exp(-((u - 0.62) / 0.12) ** 2))
 
 
 def dolphin(name='dolphin_pws', L=2.3):
     """Pacific white-sided dolphin."""
     def prof(u):
-        w = 0.24 * body(u, nose=0.22, peak=0.4, tail_min=0.12, head_pow=0.75)
+        w = 0.24 * body(u, nose=0.3, peak=0.4, tail_min=0.12, head_pow=0.75)
+        w *= lerp(0.5, 1.0, smoothstep(0.0, 0.07, u))  # short beak
         return (w * 0.95, w, w, 2.2)
     def color(p, u, v, n):
         x, y, z = p
@@ -134,7 +183,7 @@ def dolphin(name='dolphin_pws', L=2.3):
             return (0.7, 0.72, 0.74)
         return (0.16, 0.17, 0.2)
     return cetacean(name, L, prof, dorsal=(0.15, -0.2, 0.42, 0.22), pec=(0.55, 0.2, 0.5, 0.14),
-                    fluke=(0.66, 0.2, 0.14), color_fn=color, pec_tilt=25, rings=10, stations=16)
+                    fluke=(0.66, 0.2, 0.14), color_fn=color, pec_tilt=25, rings=14, stations=26, eye=(0.11, -0.15, 0.028), mouth=(0.13, 0.2, 0.03))
 
 
 def porpoise(name='dalls_porpoise', L=2.0):
@@ -148,14 +197,14 @@ def porpoise(name='dalls_porpoise', L=2.0):
             return WHITE
         return BLACK
     return cetacean(name, L, prof, dorsal=(0.05, -0.25, 0.25, 0.06), pec=(0.5, 0.18, 0.36, 0.08),
-                    fluke=(0.6, 0.18, 0.12), color_fn=color, pec_tilt=25, rings=10, stations=14)
+                    fluke=(0.6, 0.18, 0.12), color_fn=color, pec_tilt=25, rings=14, stations=24, eye=(0.1, -0.15, 0.028), mouth=(0.1, 0.25, 0.03))
 
 
 # ---------------------------------------------------------------- fish
 
-def fish(name, L, prof, color_fn, dorsal_outline, tail_span, tail_fork, rings=8,
-         stations=12, pec=(0.35, 0.28, 0.5), anal=(0.7, 0.8, 0.2), pelvic=None, tail_upper=None,
-         tail_chord=None, second_dorsal=None):
+def fish(name, L, prof, color_fn, dorsal_outline, tail_span, tail_fork, rings=12,
+         stations=22, pec=(0.35, 0.28, 0.5), anal=(0.7, 0.8, 0.2), pelvic=None, tail_upper=None,
+         tail_chord=None, second_dorsal=None, eye=(0.1, 0.25, 0.05), gill=0.2, mouth=(0.07, 0.3, 0.06)):
     """Generic fish. prof(u)->(rx, rt, rb, n). dorsal_outline: list of (u, height) pairs.
     pec: (u, len, sweep-ish). anal: (u0, u1, h)."""
     mb = MeshBuilder()
@@ -165,7 +214,22 @@ def fish(name, L, prof, color_fn, dorsal_outline, tail_span, tail_fork, rings=8,
         return dict(rx=rx, rt=rt, rb=rb, n=n)
     sts = spine_stations(spine, profile, stations)
     loft(mb, sts, rings=rings, color_fn=color_fn)
-    fin_col = lambda p, u: color_fn(p, u, 0.25, Vector((0, 0, 1)))
+    def paint(p, u, part, n):
+        if abs(part - 0.25) < 0.05:
+            return (0.02, 0.02, 0.025)
+        col = color_fn(p, u, part, n)
+        if part < 0.2:
+            if gill and abs(u - gill) < 0.012 and abs(p.y) > 0.01 and p.z > -prof(u)[2] * 0.6:
+                col = darken(col, 0.55)
+            if mouth and u < mouth[0]:
+                mz = -prof(u)[2] * mouth[1]
+                if abs(p.z - mz) < mouth[2] * L / 0.9 * 0.02:
+                    col = darken(col, 0.5)
+        return col
+    mb.paint = paint
+    if eye:
+        add_eyes(mb, L, prof, eye[0], eye[1], eye[2] * L / 0.9 * 0.02 + 0.004)
+    fin_col = lambda p, u: color_fn(p, u, 0.5, Vector((0, 0, 1)))
     ux = lambda u: L / 2 - u * L
     # dorsal
     outline = []
@@ -201,7 +265,7 @@ def fish(name, L, prof, color_fn, dorsal_outline, tail_span, tail_fork, rings=8,
     outline = [(tx + tc * 0.2, prof(0.98)[1] * 0.9), (tx - tc, tu * 0.5), (tx - tc * (1 - tail_fork), 0.0),
                (tx - tc, -tail_span * 0.5), (tx + tc * 0.2, -prof(0.98)[2] * 0.9)]
     plate(mb, outline, thickness=0.02 * L, color_fn=fin_col, u_fn=lambda a, b: 0.5 - a / L)
-    obj = mb.build(name)
+    obj = mb.build(name, subdiv=1)
     return finish(obj, name)
 
 
@@ -235,7 +299,7 @@ def herring(name='herring', L=0.28):
             return (0.82, 0.86, 0.88)
         return (0.2, 0.32, 0.42)
     return fish(name, L, prof, color, dorsal_outline=[(0.42, 0.0), (0.46, 0.022), (0.56, 0.018), (0.58, 0.0)],
-                tail_span=0.09, tail_fork=0.45, pec=(0.25, 0.04, 0.3), anal=(0.7, 0.85, 0.014), rings=7, stations=10)
+                tail_span=0.09, tail_fork=0.45, pec=(0.25, 0.04, 0.3), anal=(0.7, 0.85, 0.014), rings=10, stations=16, eye=(0.1, 0.25, 0.045))
 
 
 def rockfish(name='copper_rockfish', L=0.45):
@@ -254,7 +318,7 @@ def rockfish(name='copper_rockfish', L=0.45):
         return (0.72, 0.5, 0.33)
     spiky = [(0.22, 0.0)] + [(0.24 + i * 0.04, 0.035 if i % 2 == 0 else 0.02) for i in range(11)] + [(0.7, 0.05), (0.78, 0.04), (0.8, 0.0)]
     return fish(name, L, prof, color, dorsal_outline=spiky, tail_span=0.15, tail_fork=0.08,
-                pec=(0.28, 0.1, 0.2), anal=(0.62, 0.78, 0.04), pelvic=(0.35, 0.06), rings=8, stations=11)
+                pec=(0.28, 0.1, 0.2), anal=(0.62, 0.78, 0.04), pelvic=(0.35, 0.06), rings=12, stations=20, eye=(0.12, 0.35, 0.07))
 
 
 def lingcod(name='lingcod', L=0.9):
@@ -270,7 +334,7 @@ def lingcod(name='lingcod', L=0.9):
         return [(0.3, 0.36, 0.3), (0.42, 0.45, 0.35), (0.25, 0.3, 0.28)][k]
     outline = [(0.16, 0.0)] + [(0.2 + i * 0.05, 0.04 + 0.01 * (i % 2)) for i in range(13)] + [(0.87, 0.0)]
     return fish(name, L, prof, color, dorsal_outline=outline, tail_span=0.2, tail_fork=0.05,
-                pec=(0.22, 0.14, 0.15), anal=(0.5, 0.85, 0.05), pelvic=(0.25, 0.08), rings=8, stations=12)
+                pec=(0.22, 0.14, 0.15), anal=(0.5, 0.85, 0.05), pelvic=(0.25, 0.08), rings=12, stations=22, eye=(0.08, 0.4, 0.05), mouth=(0.12, 0.15, 0.06))
 
 
 # ---------------------------------------------------------------- shark
@@ -286,9 +350,22 @@ def sixgill(name='sixgill', L=4.0):
         if z < -0.35 * h:
             return (0.55, 0.55, 0.52)
         return (0.28, 0.3, 0.3)
-    sts = spine_stations(_line(L / 2, -L / 2, 5), lambda u: dict(zip(('rx', 'rt', 'rb', 'n'), prof(u))), 16)
-    loft(mb, sts, rings=10, color_fn=color)
-    fin_col = lambda p, u: color(p, u, 0.25, Vector((0, 0, 1)))
+    sts = spine_stations(_line(L / 2, -L / 2, 5), lambda u: dict(zip(('rx', 'rt', 'rb', 'n'), prof(u))), 30)
+    loft(mb, sts, rings=16, color_fn=color)
+    def paint(p, u, part, n):
+        if abs(part - 0.25) < 0.05:
+            return (0.02, 0.02, 0.025)
+        col = color(p, u, part, n)
+        if part < 0.2 and abs(p.y) > 0.05 and p.z > -prof(u)[2] * 0.5:
+            for k in range(6):
+                if abs(u - (0.19 + k * 0.022)) < 0.005:
+                    col = darken(col, 0.5)
+        if part < 0.2 and u < 0.12 and abs(p.z + prof(u)[2] * 0.35) < 0.05:
+            col = darken(col, 0.5)
+        return col
+    mb.paint = paint
+    add_eyes(mb, L, prof, 0.09, 0.1, 0.05)
+    fin_col = lambda p, u: color(p, u, 0.5, Vector((0, 0, 1)))
     ux = lambda u: L / 2 - u * L
     # single dorsal far back
     outline = [(ux(0.62), prof(0.62)[1] * 0.85), (ux(0.72), prof(0.72)[1] * 0.85), (ux(0.78), prof(0.72)[1] + 0.32), (ux(0.68), prof(0.68)[1] + 0.3)]
@@ -313,11 +390,23 @@ def sixgill(name='sixgill', L=4.0):
 
 # ---------------------------------------------------------------- pinnipeds
 
-def pinniped(name, L, prof, color_fn, fore=(0.28, 0.35, 0.16), hind=(0.14, 0.12), rings=10, stations=14, head_z=None):
+def pinniped(name, L, prof, color_fn, fore=(0.28, 0.35, 0.16), hind=(0.14, 0.12), rings=16, stations=28, head_z=None,
+             eye=(0.08, 0.25, 0.035)):
     mb = MeshBuilder()
     hz = head_z or (lambda u: 0.0)
     sts = spine_stations(_line(L / 2, -L / 2, 7, z_fn=hz), lambda u: dict(zip(('rx', 'rt', 'rb', 'n'), prof(u))), stations)
     loft(mb, sts, rings=rings, color_fn=color_fn)
+    def paint(p, u, part, n):
+        if abs(part - 0.25) < 0.05:
+            return (0.02, 0.02, 0.025)
+        col = color_fn(p, u, part, n)
+        if part < 0.2 and u < 0.03:
+            col = darken(col, 0.4)  # nose
+        if part < 0.2 and u < 0.1 and abs(p.z - hz(u) + prof(u)[2] * 0.3) < 0.02 * L and abs(p.y) > 0.02:
+            col = darken(col, 0.6)  # mouth line
+        return col
+    mb.paint = paint
+    add_eyes(mb, L, prof, eye[0], eye[1], eye[2] * L / 1.6, up=hz(eye[0]))
     fin_col = lambda p, u: color_fn(p, u, 0.5, Vector((0, 0, -1)))
     ux = lambda u: L / 2 - u * L
     fu, fl, fw = fore
@@ -347,10 +436,12 @@ def harbor_seal(name='harbor_seal', L=1.6):
         # spotted grey
         if z < -0.35 * h:
             return (0.72, 0.72, 0.68)
-        spot = (math.sin(x * 37.0 + z * 51.0) * math.cos(y * 43.0 - x * 29.0)) > 0.35
-        if spot:
-            return (0.28, 0.3, 0.32)
-        return (0.5, 0.52, 0.52)
+        n = vnoise3(x * 9.0, y * 9.0, z * 9.0) * 0.65 + vnoise3(x * 22.0 + 3, y * 22.0, z * 22.0) * 0.35
+        if n > 0.62:
+            return (0.3, 0.32, 0.34)
+        if n > 0.52:
+            return (0.42, 0.44, 0.45)
+        return (0.56, 0.58, 0.58)
     return pinniped(name, L, prof, color, fore=(0.32, 0.28, 0.14), hind=(0.22, 0.2),
                     head_z=lambda u: 0.02 * smoothstep(0.3, 0.0, u))
 
@@ -367,8 +458,8 @@ def steller_sea_lion(name='steller_sea_lion', L=3.0):
         if z < -0.3 * h:
             return (0.75, 0.62, 0.45)
         return (0.6, 0.47, 0.32)
-    return pinniped(name, L, prof, color, fore=(0.36, 0.7, 0.28), hind=(0.45, 0.4), rings=10, stations=16,
-                    head_z=lambda u: 0.06 * smoothstep(0.35, 0.0, u))
+    return pinniped(name, L, prof, color, fore=(0.36, 0.7, 0.28), hind=(0.45, 0.4), rings=16, stations=30,
+                    head_z=lambda u: 0.08 * smoothstep(0.35, 0.0, u), eye=(0.07, 0.3, 0.03))
 
 
 # ---------------------------------------------------------------- invertebrates

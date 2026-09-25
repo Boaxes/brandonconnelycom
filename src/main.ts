@@ -73,6 +73,7 @@ async function boot() {
     hudTimer += dt;
     if (hudTimer > 0.25) {
       hudTimer = 0;
+      while (world.observed.length) ui.markObserved(world.observed.shift()!);
       const depth = WORLD.surfaceY - ocean.camera.position.y;
       ui.setHud({
         depth,

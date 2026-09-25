@@ -30,7 +30,9 @@ export class Agent {
   quat = new THREE.Quaternion();
   scale = 1;
   phase = Math.random() * Math.PI * 2;
-  speedMul = 1;         // animation speed multiplier
+  speedMul = 1;         // animation speed multiplier (target)
+  animSpeed = 1;        // smoothed multiplier actually used
+  swimPhase = Math.random() * Math.PI * 2; // integrated wave phase
   state = 'cruise';
   doing = 'cruising';
   timer = 0;            // generic per-state timer

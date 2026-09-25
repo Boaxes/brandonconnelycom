@@ -5,8 +5,9 @@ import {
   BenthicFish, Crab, Hunter, Jelly, Octopus, Pod, School, SchoolFish, Sessile, currentAt,
   type Behavior, type Habitat, type HunterConfig, type SchoolConfig,
 } from './behaviors';
-import { floorHeight, floorNormal } from '../scene/Terrain';
+import { cameraPath, floorHeight, floorNormal, randomFloorNearPath } from '../scene/Terrain';
 import { makeMaterial } from '../scene/UnderwaterMaterial';
+import { attachGround } from '../scene/Terrain';
 import { mulberry32, noise2 } from '../util/noise';
 import { hideLabel, showLabel } from '../ui/overlay';
 
@@ -27,6 +28,9 @@ export class World implements Habitat {
   pods: Pod[] = [];
   watchMode = false;
   visibleCount = 0;
+  /** species keys seen close to the camera this session (drained by the UI) */
+  observed: string[] = [];
+  private observedSet = new Set<string>();
   private herringGrid = new Grid<SchoolFish>(2.5);
   private salmonGrid = new Grid<SchoolFish>(4);
   private respawnQueue: { agent: Agent; at: number }[] = [];
@@ -82,13 +86,16 @@ export class World implements Habitat {
 
   private buildRocks() {
     const rnd = mulberry32(42);
-    const geo = new THREE.IcosahedronGeometry(1, 1);
+    const geo = new THREE.IcosahedronGeometry(1, 3);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
-      const s = 0.75 + rnd() * 0.5;
-      pos.setXYZ(i, pos.getX(i) * s, pos.getY(i) * s * 0.7, pos.getZ(i) * s);
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      // low-frequency lumps + a little grit, squashed and flattened underneath
+      const s = 1 + noise2(x * 1.1 + 5, z * 1.1 + y * 0.8) * 0.28 + noise2(x * 3 + 1, (y + z) * 3) * 0.06;
+      const yy = y < 0 ? y * 0.35 : y * 0.75;
+      pos.setXYZ(i, x * s, yy * s, z * s);
     }
-    const flat = geo.toNonIndexed();
+    const flat = geo;
     flat.computeVertexNormals();
     const cols = new Float32Array(flat.attributes.position.count * 3);
     const base = new THREE.Color(0x4d5148);
@@ -100,7 +107,9 @@ export class World implements Habitat {
     flat.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     const uv = flat.attributes.uv as THREE.BufferAttribute;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, 0, 0);
-    const { mat } = makeMaterial({ amp: 0 }, { roughness: 0.95 });
+    const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.9, detail: 2 });
+    attachGround(uniforms);
+    mat.flatShading = false;
     const count = 70;
     const mesh = new THREE.InstancedMesh(flat, mat, count);
     mesh.name = 'rocks';
@@ -109,7 +118,7 @@ export class World implements Habitat {
     const p = new THREE.Vector3();
     const s = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
-      randomFloorPoint(15, p);
+      if (i % 2 === 0) randomFloorNearPath(14, p, rnd); else randomFloorPoint(15, p);
       const r = 0.6 + Math.pow(rnd(), 2) * 2.4;
       p.y -= r * 0.25;
       q.setFromEuler(new THREE.Euler(0, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.3));
@@ -192,17 +201,22 @@ export class World implements Habitat {
   private buildBenthos() {
     const crab = (key: string, n: number, speed: number, bury: boolean) => {
       this.pop(key, n);
-      for (let i = 0; i < n; i++) this.addAgent(key, new Crab(key, { maxSpeed: speed * 2.2, maxForce: 1, cruise: speed, size: 0.2 }, bury));
+      for (let i = 0; i < n; i++) {
+        const c = new Crab(key, { maxSpeed: speed * 2.2, maxForce: 1, cruise: speed, size: 0.2 }, bury);
+        randomFloorNearPath(9, c.pos);
+        c.goal.copy(c.pos);
+        this.addAgent(key, c);
+      }
     };
-    crab('dungeness', 18, 0.35, true);
-    crab('redrock', 12, 0.3, false);
-    crab('kelpcrab', 8, 0.2, false);
-    crab('decorator', 6, 0.15, false);
+    crab('dungeness', 40, 0.35, true);
+    crab('redrock', 26, 0.3, false);
+    crab('kelpcrab', 16, 0.2, false);
+    crab('decorator', 12, 0.15, false);
     this.pop('octopus', 2);
     for (let i = 0; i < 2; i++) {
       // den at a large rock
-      const big = this.rocks.filter((r) => r.r > 1.6);
-      const rk = big[Math.floor(Math.random() * big.length)] ?? this.rocks[0];
+      const big = this.rocks.filter((r) => r.r > 1.4).sort((a, b) => this.pathDistance(a.pos) - this.pathDistance(b.pos));
+      const rk = big[i] ?? this.rocks[0];
       const den = rk.pos.clone().add(new THREE.Vector3(rk.r * 1.1, 0, 0));
       den.y = floorHeight(den.x, den.z);
       this.addAgent('octopus', new Octopus('octopus', { maxSpeed: 1.6, maxForce: 1, cruise: 0.45, size: 1.2 }, den));
@@ -307,6 +321,18 @@ export class World implements Habitat {
     this.pods.splice(this.pods.indexOf(pod), 1);
   }
 
+  private pathDistance(p: THREE.Vector3): number {
+    const path = (this as unknown as { _pathPts?: THREE.Vector3[] })._pathPts ?? ((this as unknown as { _pathPts?: THREE.Vector3[] })._pathPts = cameraPath().getSpacedPoints(60));
+    let best = Infinity;
+    for (const q of path) {
+      const dx = q.x - p.x;
+      const dz = q.z - p.z;
+      const d = dx * dx + dz * dz;
+      if (d < best) best = d;
+    }
+    return Math.sqrt(best);
+  }
+
   // ---------------------------------------------------------------- habitat api
 
   preyNear(keys: string[], pos: THREE.Vector3, radius: number): Agent | null {
@@ -366,7 +392,8 @@ export class World implements Habitat {
         agent.pos.copy(agent.school.anchor).add(new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 6));
         agent.vel.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(agent.opts.cruise);
       } else if (agent instanceof Crab) {
-        randomFloorPoint(22, agent.pos);
+        randomFloorNearPath(9, agent.pos);
+        agent.goal.copy(agent.pos);
         agent.state = 'forage';
         agent.buried = 0;
       } else {
@@ -429,9 +456,23 @@ export class World implements Habitat {
     this.frustum.setFromProjectionMatrix(this.projView);
     let vis = 0;
     for (const p of this.pops.values()) {
-      p.renderer.sync();
-      if (p.key === 'bullkelp' || p.key === 'sugarkelp' || p.key === 'anemone' || p.key === 'urchin' || p.key === 'ochrestar' || p.key === 'sunflowerstar') continue;
-      for (const a of p.agents) if (a.alive && a.pos.distanceToSquared(camPos) < 60 * 60 && this.frustum.containsPoint(a.pos)) vis++;
+      p.renderer.sync(dt);
+      const sessile = p.key === 'bullkelp' || p.key === 'sugarkelp' || p.key === 'anemone' || p.key === 'urchin' || p.key === 'ochrestar' || p.key === 'sunflowerstar';
+      if (sessile) {
+        if (!this.observedSet.has(p.key)) for (const a of p.agents) if (a.pos.distanceToSquared(camPos) < 20 * 20 && this.frustum.containsPoint(a.pos)) { this.observedSet.add(p.key); this.observed.push(p.key); break; }
+        continue;
+      }
+      for (const a of p.agents) {
+        if (!a.alive) continue;
+        const d2 = a.pos.distanceToSquared(camPos);
+        if (d2 < 60 * 60 && this.frustum.containsPoint(a.pos)) {
+          vis++;
+          if (d2 < 30 * 30 && !this.observedSet.has(p.key)) {
+            this.observedSet.add(p.key);
+            this.observed.push(p.key);
+          }
+        }
+      }
     }
     this.visibleCount = vis;
 

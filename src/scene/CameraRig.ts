@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { floorHeight, WORLD } from './Terrain';
+import { cameraPath, floorHeight } from './Terrain';
 
 /**
  * Camera drifts along a closed loop a few metres above the seafloor.
@@ -21,17 +21,7 @@ export class CameraRig {
   private bob = 0;
 
   constructor(private camera: THREE.PerspectiveCamera) {
-    const r = WORLD.size * 0.32;
-    const pts: THREE.Vector3[] = [];
-    const n = 10;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const rr = r * (0.8 + 0.25 * Math.sin(i * 2.3));
-      const x = Math.cos(a) * rr;
-      const z = Math.sin(a) * rr * 0.8;
-      pts.push(new THREE.Vector3(x, 0, z));
-    }
-    this.path = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
+    this.path = cameraPath();
     window.addEventListener('mousemove', (e) => {
       this.mouse.set((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1);
     });
@@ -61,13 +51,13 @@ export class CameraRig {
     const h = floorHeight(this.pos.x, this.pos.z);
     const hAhead = floorHeight(this.ahead.x, this.ahead.z);
     this.bob = Math.sin(t * 0.35) * 0.35 + Math.sin(t * 0.21 + 1.3) * 0.25;
-    const y = Math.max(h, hAhead) + 4.2 + this.bob;
+    const y = Math.max(h, hAhead) + 3.1 + this.bob;
     this.camera.position.set(this.pos.x, y, this.pos.z);
 
     this.lookTarget.set(this.mouse.x * 0.25, -this.mouse.y * 0.12);
     this.look.lerp(this.lookTarget, Math.min(1, dt * 2.5));
 
-    const target = new THREE.Vector3(this.ahead.x, Math.max(h, hAhead) + 3.2 + this.bob * 0.6, this.ahead.z);
+    const target = new THREE.Vector3(this.ahead.x, Math.max(h, hAhead) + 2.0 + this.bob * 0.6, this.ahead.z);
     // rotate look direction around the camera by mouse
     const dir = target.sub(this.camera.position).normalize();
     const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -this.look.x);

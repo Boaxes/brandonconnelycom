@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { fbm2, noise2, mulberry32 } from '../util/noise';
-import { makeMaterial } from './UnderwaterMaterial';
+import { makeMaterial, type UnderwaterUniforms } from './UnderwaterMaterial';
 
 export const WORLD = {
   size: 170,          // metres, square, centred at origin
@@ -20,6 +20,33 @@ export function floorHeight(x: number, z: number): number {
   return h;
 }
 
+/** The loop the camera drifts along; benthic life is seeded near it so it is seen. */
+let _path: THREE.CatmullRomCurve3 | null = null;
+export function cameraPath(): THREE.CatmullRomCurve3 {
+  if (_path) return _path;
+  const r = WORLD.size * 0.32;
+  const pts: THREE.Vector3[] = [];
+  const n = 10;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const rr = r * (0.8 + 0.25 * Math.sin(i * 2.3));
+    pts.push(new THREE.Vector3(Math.cos(a) * rr, 0, Math.sin(a) * rr * 0.8));
+  }
+  _path = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
+  return _path;
+}
+
+/** Random floor point within `spread` metres of the camera loop. */
+export function randomFloorNearPath(spread: number, out = new THREE.Vector3(), rnd: () => number = Math.random): THREE.Vector3 {
+  cameraPath().getPointAt(rnd(), out);
+  const a = rnd() * Math.PI * 2;
+  const d = Math.sqrt(rnd()) * spread;
+  out.x += Math.cos(a) * d;
+  out.z += Math.sin(a) * d;
+  out.y = floorHeight(out.x, out.z);
+  return out;
+}
+
 export function floorNormal(x: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {
   const e = 0.5;
   const hx = floorHeight(x + e, z) - floorHeight(x - e, z);
@@ -27,9 +54,33 @@ export function floorNormal(x: number, z: number, out = new THREE.Vector3()): TH
   return out.set(-hx / (2 * e), 1, -hz / (2 * e)).normalize();
 }
 
+const _texLoader = new THREE.TextureLoader();
+function tex(name: string, srgb: boolean): THREE.Texture {
+  const t = _texLoader.load(import.meta.env.BASE_URL + 'textures/' + name + '.jpg');
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+let _ground: Pick<UnderwaterUniforms, 'tSand' | 'tSandN' | 'tGravel' | 'tGravelN' | 'tRock' | 'tRockN'> | null = null;
+/** Shared ground/rock textures (loaded once). */
+export function groundTextures() {
+  if (!_ground) {
+    _ground = {
+      tSand: { value: tex('sand_01_diff', true) }, tSandN: { value: tex('sand_01_nor_gl', false) },
+      tGravel: { value: tex('sandy_gravel_02_diff', true) }, tGravelN: { value: tex('sandy_gravel_02_nor_gl', false) },
+      tRock: { value: tex('rock_06_diff', true) }, tRockN: { value: tex('rock_06_nor_gl', false) },
+    };
+  }
+  return _ground;
+}
+export function attachGround(u: UnderwaterUniforms) {
+  Object.assign(u, groundTextures());
+}
+
 export function buildTerrain(): THREE.Mesh {
   const size = WORLD.size;
-  const seg = 110;
+  const seg = 200;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -67,7 +118,8 @@ export function buildTerrain(): THREE.Mesh {
   // zero the uv so the swim shader does nothing to the floor
   const uv = flat.attributes.uv as THREE.BufferAttribute;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, 0, 0);
-  const { mat } = makeMaterial({ amp: 0 }, { roughness: 0.95, detail: true });
+  const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.95, detail: 1 });
+  attachGround(uniforms);
   const mesh = new THREE.Mesh(flat, mat);
   mesh.receiveShadow = false;
   mesh.name = 'terrain';

@@ -59,6 +59,8 @@ class MeshBuilder:
         self.uvs = []      # per vertex (u, v)
         self.cols = []     # per vertex (r, g, b)
         self.face_cols = []  # per face (r, g, b) or None -> average of verts
+        # optional paint(pos, u, part, normal) -> colour, re-evaluated per face after subdivision
+        self.paint = None
 
     def add_vert(self, p, uv=(0, 0), col=(1, 1, 1)):
         self.verts.append(Vector(p))
@@ -84,7 +86,7 @@ class MeshBuilder:
         for fi, f in enumerate(other.faces):
             self.add_face([i + off for i in f], other.face_cols[fi])
 
-    def build(self, name, flat=True):
+    def build(self, name, flat=False, subdiv=1):
         me = bpy.data.meshes.new(name)
         me.from_pydata([tuple(v) for v in self.verts], [], self.faces)
         me.update()
@@ -101,17 +103,34 @@ class MeshBuilder:
                 fc = tuple(sum(c[k] for c in vs) / len(vs) for k in range(3))
             for li in poly.loop_indices:
                 ca.data[li].color = (fc[0], fc[1], fc[2], 1.0)
-        for p in me.polygons:
-            p.use_smooth = not flat
         obj = bpy.data.objects.new(name, me)
         bpy.context.collection.objects.link(obj)
-        # recompute normals outward
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.mesh.normals_make_consistent(inside=False)
         bpy.ops.object.mode_set(mode='OBJECT')
+        if subdiv > 0:
+            mod = obj.modifiers.new('Subd', 'SUBSURF')
+            mod.levels = subdiv
+            mod.render_levels = subdiv
+            mod.subdivision_type = 'CATMULL_CLARK'
+            bpy.ops.object.modifier_apply(modifier='Subd')
+            me = obj.data
+        # re-paint at the final resolution so colour boundaries are crisp and follow the surface
+        if self.paint is not None:
+            uvl = me.uv_layers.active.data
+            ca = me.color_attributes.get('Col') or me.color_attributes.new(name='Col', type='FLOAT_COLOR', domain='CORNER')
+            verts = me.vertices
+            for poly in me.polygons:
+                part = sum(uvl[li].uv.y for li in poly.loop_indices) / len(poly.loop_indices)
+                for li in poly.loop_indices:
+                    v = verts[me.loops[li].vertex_index]
+                    col = self.paint(v.co, uvl[li].uv.x, part, v.normal)
+                    ca.data[li].color = (col[0], col[1], col[2], 1.0)
+        for p in me.polygons:
+            p.use_smooth = not flat
         obj.select_set(False)
         return obj
 
@@ -234,6 +253,14 @@ def plate(mb, outline, thickness=0.02, matrix=None, color=(0.5, 0.5, 0.5),
         area += a0 * b1 - a1 * b0
     if area < 0:
         outline = list(reversed(outline))
+    dense = []
+    for i in range(len(outline)):
+        a0, b0 = outline[i]
+        a1, b1 = outline[(i + 1) % len(outline)]
+        dense.append((a0, b0))
+        dense.append(((a0 * 2 + a1) / 3, (b0 * 2 + b1) / 3))
+        dense.append(((a0 + a1 * 2) / 3, (b0 + b1 * 2) / 3))
+    outline = dense
     m = matrix if matrix is not None else Matrix.Identity(4)
     ca = sum(o[0] for o in outline) / len(outline)
     cb = sum(o[1] for o in outline) / len(outline)

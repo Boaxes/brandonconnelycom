@@ -12,10 +12,10 @@ import * as THREE from 'three';
 export const shared = {
   time: { value: 0 },
   surfaceY: { value: 22 },
-  waterColor: { value: new THREE.Color(0x1c6f80) },
-  deepColor: { value: new THREE.Color(0x0a3947) },
-  fogDensity: { value: 0.019 },
-  causticStrength: { value: 0.7 },
+  waterColor: { value: new THREE.Color(0x2a8593) },
+  deepColor: { value: new THREE.Color(0x0e4a54) },
+  fogDensity: { value: 0.0155 },
+  causticStrength: { value: 0.8 },
   sunDir: { value: new THREE.Vector3(0.3, 1, 0.2).normalize() },
 };
 
@@ -32,7 +32,13 @@ export interface UnderwaterUniforms {
   uSwim2: { value: THREE.Vector4 }; // bodyStart, phase, appendageAmp, speedMul
   uTint: { value: THREE.Color };
   uEmissive: { value: THREE.Vector4 }; // rgb glow, strength
-  uDetail: { value: number };          // 1 = seafloor: procedural ripples + mottling
+  uDetail: { value: number };          // 1 = seafloor (textured), 2 = rock (triplanar)
+  tSand: { value: THREE.Texture | null };
+  tSandN: { value: THREE.Texture | null };
+  tGravel: { value: THREE.Texture | null };
+  tGravelN: { value: THREE.Texture | null };
+  tRock: { value: THREE.Texture | null };
+  tRockN: { value: THREE.Texture | null };
 }
 
 const vertexHead = /* glsl */ `
@@ -47,7 +53,9 @@ varying vec3 vWorldNormal;
 vec3 swimOffset(vec3 p, vec2 uv, float phase, float speedMul) {
   float u = uv.x;
   float part = uv.y;
-  float t = uTime * uSwim.z * speedMul + phase;
+  // phase is integrated on the CPU per instance (speed changes stay continuous);
+  // non-instanced meshes fall back to clock time
+  float t = phase + uTime * uSwim.z * speedMul;
   float amp = uSwim.x;
   float bodyStart = uSwim2.x;
   vec3 o = vec3(0.0);
@@ -82,8 +90,24 @@ uniform vec3 uSunDir;
 uniform vec3 uTint;
 uniform vec4 uEmissive;
 uniform float uDetail;
+uniform sampler2D tSand;
+uniform sampler2D tSandN;
+uniform sampler2D tGravel;
+uniform sampler2D tGravelN;
+uniform sampler2D tRock;
+uniform sampler2D tRockN;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
+vec3 gNormalOverride = vec3(0.0);
+
+// perturb a world normal with a tangent-space normal map sample on a horizontal surface
+vec3 perturbUp(vec3 n, vec3 tn, float strength) {
+  vec3 helper = abs(n.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+  vec3 t = normalize(cross(n, helper));
+  vec3 b = normalize(cross(t, n));
+  vec3 d = normalize(t * tn.x + b * tn.y + n * max(tn.z, 0.05) / max(strength, 0.001));
+  return d;
+}
 
 float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -120,6 +144,12 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
     shader.uniforms.uTint = u.uTint;
     shader.uniforms.uEmissive = u.uEmissive;
     shader.uniforms.uDetail = u.uDetail;
+    shader.uniforms.tSand = u.tSand;
+    shader.uniforms.tSandN = u.tSandN;
+    shader.uniforms.tGravel = u.tGravel;
+    shader.uniforms.tGravelN = u.tGravelN;
+    shader.uniforms.tRock = u.tRock;
+    shader.uniforms.tRockN = u.tRockN;
 
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + vertexHead)
@@ -129,7 +159,7 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
         #include <begin_vertex>
         #ifdef USE_INSTANCING
           float phase_ = instPhase + uSwim2.y;
-          float speedMul_ = instSpeed;
+          float speedMul_ = 0.0;
         #else
           float phase_ = uSwim2.y;
           float speedMul_ = uSwim2.w;
@@ -164,15 +194,45 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
         /* glsl */ `
         #include <color_fragment>
         diffuseColor.rgb *= uTint;
-        if (uDetail > 0.5) {
-          // sand ripples: bands warped by low-frequency noise, plus dark silt mottling
+        if (uDetail < 0.5) {
+          // creature skin: fine mottle and a faint darker top-to-bottom gradient in model space
+          float m = vnoise(vWorldPos.xz * 9.0 + vWorldPos.y * 5.0) * 0.5 + vnoise(vWorldPos.xy * 23.0) * 0.5;
+          diffuseColor.rgb *= 0.9 + m * 0.2;
+        }
+        if (uDetail > 0.5 && uDetail < 1.5) {
+          // seafloor: sand / gravel blended by noise, tiled at two scales to hide repetition
           vec2 p = vWorldPos.xz;
-          float warp = vnoise(p * 0.15) * 4.0;
-          float ripple = sin(p.x * 2.6 + p.y * 0.9 + warp) * 0.5 + 0.5;
-          ripple = smoothstep(0.2, 0.9, ripple);
-          float mottle = vnoise(p * 0.35 + 7.0) * 0.6 + vnoise(p * 1.3) * 0.4;
-          diffuseColor.rgb *= 0.86 + ripple * 0.18;
-          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.72, 0.78, 0.7), smoothstep(0.55, 0.8, mottle));
+          vec2 uv1 = p * 0.22;
+          vec2 uv2 = p * 0.045 + 3.1;
+          float blend = smoothstep(0.35, 0.65, vnoise(p * 0.06 + 11.0) * 0.7 + vnoise(p * 0.2) * 0.3);
+          float slope = 1.0 - clamp(normalize(vWorldNormal).y, 0.0, 1.0);
+          blend = clamp(blend + slope * 1.5, 0.0, 1.0);
+          vec3 sand = mix(texture2D(tSand, uv1).rgb, texture2D(tSand, uv2).rgb, 0.5);
+          vec3 grav = mix(texture2D(tGravel, uv1).rgb, texture2D(tGravel, uv2 * 1.7).rgb, 0.5);
+          vec3 tex = mix(sand, grav, blend);
+          // cold silt tint, keep vertex colour as broad variation
+          tex *= vec3(0.78, 0.82, 0.74);
+          diffuseColor.rgb = tex * mix(vec3(1.0), diffuseColor.rgb * 1.7, 0.45);
+          vec3 tn = mix(texture2D(tSandN, uv1).xyz, texture2D(tGravelN, uv1).xyz, blend) * 2.0 - 1.0;
+          gNormalOverride = perturbUp(normalize(vWorldNormal), tn, 0.9);
+        } else if (uDetail > 1.5) {
+          // rocks: triplanar rock texture
+          vec3 n = abs(normalize(vWorldNormal));
+          n = n / (n.x + n.y + n.z);
+          vec3 p = vWorldPos * 0.35;
+          vec3 tx = texture2D(tRock, p.zy).rgb * n.x + texture2D(tRock, p.xz).rgb * n.y + texture2D(tRock, p.xy).rgb * n.z;
+          diffuseColor.rgb = tx * vec3(0.7, 0.74, 0.7) * mix(vec3(1.0), diffuseColor.rgb * 2.0, 0.3);
+          vec3 tn = (texture2D(tRockN, p.zy).xyz * n.x + texture2D(tRockN, p.xz).xyz * n.y + texture2D(tRockN, p.xy).xyz * n.z) * 2.0 - 1.0;
+          gNormalOverride = perturbUp(normalize(vWorldNormal), tn, 0.7);
+        }
+        `,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        /* glsl */ `
+        #include <normal_fragment_maps>
+        if (uDetail > 0.5) {
+          normal = normalize((viewMatrix * vec4(gNormalOverride, 0.0)).xyz);
         }
         `,
       )
@@ -191,7 +251,11 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
           vec3 caustic = vec3(0.8, 0.97, 1.0) * c * up * uCausticStrength * depthAtt * 1.6;
           reflectedLight.directDiffuse += diffuseColor.rgb * caustic;
           // ambient darkens with depth
-          reflectedLight.indirectDiffuse *= mix(1.0, 0.45, depth);
+          reflectedLight.indirectDiffuse *= mix(1.0, 0.55, depth);
+          // fresnel rim: light wrapping around wet bodies
+          vec3 vdir = normalize(cameraPosition - vWorldPos);
+          float rim = pow(1.0 - clamp(dot(n, vdir), 0.0, 1.0), 3.0);
+          reflectedLight.indirectDiffuse += uWaterColor * rim * 0.35 * (uDetail < 0.5 ? 1.0 : 0.3);
         }
         `,
       )
@@ -224,13 +288,15 @@ export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.C
     uTint: { value: opts?.tint ?? new THREE.Color(1, 1, 1) },
     uEmissive: { value: new THREE.Vector4(0, 0, 0, 0) },
     uDetail: { value: 0 },
+    tSand: { value: null }, tSandN: { value: null }, tGravel: { value: null }, tGravelN: { value: null },
+    tRock: { value: null }, tRockN: { value: null },
   };
 }
 
 export function makeMaterial(swim?: Partial<SwimParams>, opts?: {
   tint?: THREE.Color; appendageAmp?: number; roughness?: number; transparent?: boolean; opacity?: number;
   vertexColors?: boolean; color?: THREE.ColorRepresentation; side?: THREE.Side; emissive?: THREE.ColorRepresentation;
-  detail?: boolean;
+  detail?: number;
 }) {
   const mat = new THREE.MeshStandardMaterial({
     flatShading: true,
@@ -244,7 +310,7 @@ export function makeMaterial(swim?: Partial<SwimParams>, opts?: {
     emissive: opts?.emissive ?? 0x000000,
   });
   const uniforms = makeUniforms(swim, opts);
-  if (opts?.detail) uniforms.uDetail.value = 1;
+  if (opts?.detail) uniforms.uDetail.value = opts.detail;
   patchMaterial(mat, uniforms);
   return { mat, uniforms };
 }

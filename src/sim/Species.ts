@@ -41,9 +41,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
   ochrestar: { key: 'ochrestar', model: 'ochre_star', name: 'Ochre sea star', latin: 'Pisaster ochraceus', scale: [0.8, 1.4], swim: { amp: 0 } },
   sunflowerstar: { key: 'sunflowerstar', model: 'sunflower_star', name: 'Sunflower sea star', latin: 'Pycnopodia helianthoides', scale: [0.8, 1.3], swim: { amp: 0 } },
   urchin: { key: 'urchin', model: 'red_urchin', name: 'Red sea urchin', latin: 'Mesocentrotus franciscanus', scale: [0.8, 1.4], swim: { amp: 0 } },
-  anemone: { key: 'anemone', model: 'plumose_anemone', name: 'Plumose anemone', latin: 'Metridium farcimen', scale: [0.7, 1.6], swim: { amp: 0 }, appendageAmp: 0.02 },
-  bullkelp: { key: 'bullkelp', model: 'bull_kelp', name: 'Bull kelp', latin: 'Nereocystis luetkeana', scale: [0.8, 1.35], swim: { amp: 0.55, freq: 0.25, speed: 0.55, axis: 0, bodyStart: 0.0 }, appendageAmp: 0.25, side: THREE.DoubleSide },
-  sugarkelp: { key: 'sugarkelp', model: 'sugar_kelp', name: 'Sugar kelp', latin: 'Saccharina latissima', scale: [0.8, 1.4], swim: { amp: 0.18, freq: 0.3, speed: 0.7, axis: 0, bodyStart: 0.0 }, side: THREE.DoubleSide },
+  anemone: { key: 'anemone', model: 'plumose_anemone', name: 'Plumose anemone', latin: 'Metridium farcimen', scale: [0.7, 1.6], swim: { amp: 0 }, appendageAmp: 0.02, emissive: { color: 0xfff4e0, strength: 0.12 } },
+  bullkelp: { key: 'bullkelp', model: 'bull_kelp', name: 'Bull kelp', latin: 'Nereocystis luetkeana', scale: [0.8, 1.35], swim: { amp: 0.55, freq: 0.25, speed: 0.55, axis: 0, bodyStart: 0.0 }, appendageAmp: 0.25, side: THREE.DoubleSide, tint: 0xd8c874, emissive: { color: 0x6a6a20, strength: 0.18 } },
+  sugarkelp: { key: 'sugarkelp', model: 'sugar_kelp', name: 'Sugar kelp', latin: 'Saccharina latissima', scale: [0.8, 1.4], swim: { amp: 0.18, freq: 0.3, speed: 0.7, axis: 0, bodyStart: 0.0 }, side: THREE.DoubleSide, tint: 0xd0c070, emissive: { color: 0x5a5a1a, strength: 0.15 } },
 };
 
 const _m = new THREE.Matrix4();
@@ -74,6 +74,7 @@ export class SpeciesRenderer {
     this.mesh.name = def.key;
     this.mesh.count = 0;
     this.phaseAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
+    this.phaseAttr.setUsage(THREE.DynamicDrawUsage);
     this.speedAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
     this.speedAttr.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('instPhase', this.phaseAttr);
@@ -85,16 +86,19 @@ export class SpeciesRenderer {
     this.agents.push(a);
   }
 
-  /** Push agent transforms to the GPU. */
-  sync() {
+  /** Advance swim phases and push agent transforms to the GPU. */
+  sync(dt: number) {
     const n = Math.min(this.agents.length, this.mesh.instanceMatrix.count);
+    const rate = this.def.swim.speed ?? 4;
     for (let i = 0; i < n; i++) {
       const a = this.agents[i];
+      a.animSpeed += (a.speedMul - a.animSpeed) * Math.min(1, dt * 4);
+      a.swimPhase += dt * rate * a.animSpeed;
       _s.setScalar(a.scale);
       _m.compose(a.pos, a.quat, _s);
       this.mesh.setMatrixAt(i, _m);
-      this.phaseAttr.setX(i, a.phase);
-      this.speedAttr.setX(i, a.speedMul);
+      this.phaseAttr.setX(i, a.swimPhase);
+      this.speedAttr.setX(i, a.animSpeed);
     }
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;
