@@ -111,14 +111,48 @@ function tex(name: string, srgb: boolean): THREE.Texture {
   t.anisotropy = 8;
   return t;
 }
-let _ground: Pick<UnderwaterUniforms, 'tSand' | 'tSandN' | 'tGravel' | 'tGravelN' | 'tRock' | 'tRockN'> | null = null;
+/**
+ * Where the floor is sand and where it's gravel: rotated, domain-warped fbm (thresholded plain value
+ * noise made grid-aligned squares), baked once into a texture over the terrain patch so the floor
+ * shader only does one lookup.
+ */
+const BLEND_SIZE = 96;
+const BLEND_RES = 512;
+function blendMask() {
+  const s = stage();
+  const x0 = s.cam.x - BLEND_SIZE / 2;
+  const z0 = s.cam.z - BLEND_SIZE / 2;
+  const data = new Uint8Array(BLEND_RES * BLEND_RES);
+  const c = 0.8, sn = 0.6;
+  for (let j = 0; j < BLEND_RES; j++) {
+    for (let i = 0; i < BLEND_RES; i++) {
+      const x = x0 + (i / BLEND_RES) * BLEND_SIZE;
+      const z = z0 + (j / BLEND_RES) * BLEND_SIZE;
+      let qx = (c * x - sn * z) * 0.07;
+      let qz = (sn * x + c * z) * 0.07;
+      qx += noise2(qx * 1.7 + 3.1, qz * 1.7) * 1.3;
+      qz += noise2(qx * 1.7 - 5.3, qz * 1.7 + 2) * 1.3;
+      const n = fbm2(qx, qz, 4) * 0.5 + 0.5;
+      data[j * BLEND_RES + i] = Math.max(0, Math.min(255, Math.round(n * 255)));
+    }
+  }
+  const t = new THREE.DataTexture(data, BLEND_RES, BLEND_RES, THREE.RedFormat);
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return { t, rect: new THREE.Vector4(x0, z0, 1 / BLEND_SIZE, 0) };
+}
+
+let _ground: Pick<UnderwaterUniforms, 'tSand' | 'tSandN' | 'tGravel' | 'tGravelN' | 'tRock' | 'tRockN' | 'tBlend' | 'uBlendRect'> | null = null;
 /** Shared ground/rock textures (loaded once). */
 export function groundTextures() {
   if (!_ground) {
+    const b = blendMask();
     _ground = {
       tSand: { value: tex('sand_01_diff', true) }, tSandN: { value: tex('sand_01_nor_gl', false) },
       tGravel: { value: tex('sandy_gravel_02_diff', true) }, tGravelN: { value: tex('sandy_gravel_02_nor_gl', false) },
       tRock: { value: tex('rock_06_diff', true) }, tRockN: { value: tex('rock_06_nor_gl', false) },
+      tBlend: { value: b.t }, uBlendRect: { value: b.rect },
     };
   }
   return _ground;

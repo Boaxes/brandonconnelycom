@@ -1,8 +1,8 @@
 # Puget Sound portfolio
 
-A personal site whose background is a living stretch of Puget Sound seafloor, seen from a diver hanging still near the bottom: photoscanned animals with their own behaviour (hunting, fleeing, curiosity, burying), a scripted first minute of visits, and a notebook page down the middle carrying the portfolio.
+A portfolio you read on the floor of Puget Sound. You arrive in the dark about thirty feet down; the light comes up on a red leather book lying on a rock in front of you. Click it and it rises into your hands and opens: the portfolio, with real page turns. Around you the water is alive — photoscanned animals with their own behaviour, a scripted first minute of visits (a curious rockfish, an octopus, a harbor seal, orcas passing overhead), and a field log you fill in by clicking animals.
 
-Plain **Vite + TypeScript + Three.js**. No React, no framework. Everything renders in one WebGL canvas; the UI is a page of notebook paper in ordinary HTML/CSS, centred, with the scene visible either side.
+Plain **Vite + TypeScript + Three.js**. No React, no framework. Everything renders in one WebGL canvas, including both books; the controls are ordinary HTML/CSS, and a visually hidden HTML copy of the portfolio keeps it readable for screen readers and search engines.
 
 ## Run it
 
@@ -15,74 +15,76 @@ npm run preview    # serve dist/ locally
 
 ## Editing the portfolio
 
-All text lives in [`src/content.ts`](src/content.ts): name, tagline, about paragraphs, projects, experience, skills, links. Nothing in the 3D scene depends on it.
+All text lives in [`src/content.ts`](src/content.ts): name, tagline, about paragraphs, projects, experience, skills, links. The book lays it out across as many pages as it needs ([`src/book/portfolio.ts`](src/book/portfolio.ts)).
 
-- The **Resume** button points at `/resume.pdf` — drop your PDF into `public/resume.pdf`.
-- Section layout and styling: [`src/ui/overlay.ts`](src/ui/overlay.ts), [`src/ui/style.css`](src/ui/style.css).
+- The résumé link points at `/resume.pdf` — drop your PDF into `public/resume.pdf`.
+- Species notes in the field log are `TO DO` for now ([`src/book/fieldlog.ts`](src/book/fieldlog.ts)).
 
 ## Controls
 
 | Action | Effect |
 | --- | --- |
-| Scroll | Scrolls the notebook; the camera stays put and the animals come to it |
-| Mouse | Slight look-around |
-| Click an animal | Name, Latin name and what it is doing right now (the tag follows it for a few seconds) |
-| `W` / *Watch the water* | Hides the notebook so only the scene is visible (`Esc` to come back) |
-| Field log | The species list at the foot of the notebook ticks itself as animals pass the camera |
-| *Sound* | Synthesised underwater ambience with calls from nearby orcas, whales and seals. Off by default |
+| Click the book | Pick it up and open it; click the right page to turn, the left to go back (← → , PageUp/PageDown, space and the scroll wheel work too); links on the pages open |
+| Click an animal | Logs it in the field log the first time (sound, a specimen card flies into the log) |
+| Look pad, `A`/`D`/`W`/`S`, arrow keys, drag | Turn the view in steps: 45° left/right all the way round, 30° up/down from straight down to straight up |
+| Book button / `B` | Raise or lower the portfolio |
+| Log button / `L` | Open the field log: an index of species (click one to read its page) |
+| Waves / speaker buttons | Sound (water and animals) and effects (book, pages, logging), separately |
+| Eye / `H` | Watch the water: the book drops out of view and the controls fold away |
+| `Esc` | Lower the book you're reading |
 
 ## How it is put together
 
 ```
 src/
-  main.ts                 boot, render loop, loader, fallback
-  content.ts              portfolio copy
+  main.ts                 boot, the intro, input, the render loop
+  content.ts, credits.ts  portfolio copy; attributions (also shown in the book)
+  book/
+    Page.ts               canvas typesetting: flow layout, page breaks, link hit areas
+    Book3D.ts             a 3D book: hinged leather covers, page blocks, a curling leaf, rest/held/lowered poses
+    portfolio.ts          the red book's pages
+    fieldlog.ts           the field log's pages and what's been logged (kept in localStorage)
   scene/
-    Ocean.ts              renderer, post: depth of field, volumetric torch beam, bloom, lens (distortion, grain)
-    UnderwaterMaterial.ts one shared shader patch: swim deformation, water absorption, caustics, contact AO, translucency
-    Terrain.ts            heightfield seafloor (also queried by the sim), the stage: fixed viewpoint + placement helpers
-    Environment.ts        backdrop, silt and plankton cloud, daylight, the diver's torch (aimed at what's being watched)
-    CameraRig.ts          fixed diver camera: breathing, handheld drift, mouse parallax
-    Assets.ts             GLB loader for the baked scans
+    Ocean.ts              renderer, post: depth of field, volumetric torch beam, bloom, lens; the fade-in
+    UnderwaterMaterial.ts shared shader patch: swim deformation, water absorption, caustics, contact AO
+    Terrain.ts            heightfield seafloor and the stage: the fixed viewpoint and heading-based placement
+    Environment.ts        backdrop, silt, daylight, the surface overhead, the diver's torch
+    CameraRig.ts          stepped look-around with breathing and handheld drift
+    Assets.ts             GLB loader for the baked scans (the big visitors load after the reveal)
   sim/
-    Agent.ts              steering, integration, orientation, spatial grid
-    behaviors.ts          schools (boids), hunters, benthic fish, bottom walkers, sessile life, scripted routes
-    Species.ts            species table (names, swim parameters, look) + per-species InstancedMesh
-    World.ts              lays out the stage, predator/prey lookups, respawn, click-to-name
+    Agent.ts, behaviors.ts   steering; schools, hunters, rockfish, bottom walkers, fixed life, scripted routes
+    Species.ts            species table + one InstancedMesh per species
+    World.ts              the ring of scenery, populations, soft collisions, picking
     Director.ts           the scripted first minute, then randomised visits with cooldowns
-  ui/                     HTML overlay, HUD, labels, loader
-  audio/Ambience.ts       Web Audio ambience and vocalisations (no audio files)
-tools/blender/            scan pipeline (and the older procedural creature generator), run inside Blender
+  audio/Sound.ts          sound and effects buses; recordings from public/sounds if present, synth otherwise
+  ui/                     controls, discovery animation, hints, loader
+tools/blender/            scan pipeline (and the older procedural generator), run inside Blender
 public/models/            baked photogrammetry GLBs; see CREDITS.md
-public/textures/          CC0 sand / gravel / rock textures from Poly Haven (1K, ~3 MB)
+public/textures/          CC0 sand / gravel / rock / leather textures from Poly Haven
 ```
 
-### Look
+### The place
 
-The water is real Puget Sound water: 4–6 m of visibility, green-brown gloom, a cloud of silt and plankton, and a diver's torch that eases toward whatever the diver is watching (and otherwise sweeps between the two sides). Nothing beyond ~18 m is drawn.
+About 30 ft down on a rocky Puget Sound bottom, 4–6 m of visibility. The camera never moves; the view turns in steps, so the scenery is a ring with a landmark in each direction: the book on its rock with the octopus's boulder behind (N), a rockfish reef (NE), a wooden wreck (E), a sand flat with sand dollars and moon snails (SE), a pile of big boulders up a rising slope (S, SW), an old anchor where the floor drops away (W), sunken logs (SW, NW). Overhead is the surface: Snell's window, bright and moving with the waves, seen through nine metres of green water.
 
-Everything alive, plus the boulders, logs and shells, is a photogrammetry scan (CC0 / CC BY / CC BY-NC, see `public/models/CREDITS.md`), each cleaned up and re-baked to a single colour + normal map at 1.5–10k faces. The seafloor blends two photo-scanned CC0 textures (sand, sandy gravel) by warped noise and slope, with normal mapping.
-
-### The stage
-
-The camera never travels. The notebook page covers the middle of the screen, so the scene is composed for the two strips either side of it: set pieces, residents and visitor routes are all placed by camera-relative yaw and distance (`stageFloor`, `randomFloorInMargins` in `Terrain.ts`), recomputed from the window size. Behind the page nothing is rendered: a depth-only card in front of the camera rejects the geometry there, and the post passes skip those pixels. *Watch the water* removes both, so the whole frame fills in.
+Everything alive, and every rock, log and prop, is a photogrammetry scan (CC0 / CC BY / CC BY-NC, see `public/models/CREDITS.md`), cleaned up and re-baked to a single colour + normal map. Land scans are tinted down into the water's palette.
 
 ### The first minute
 
-`Director.ts` scripts what a visitor actually sees: a rockfish drifts over to look at the lens (~3 s), the octopus creeps in and settles by its boulder (~6 s), a harbor seal comes out of the murk, hangs in front of the camera, circles and leaves (~15 s), and orcas pass as shapes at the edge of visibility (~40 s). After that, visits are drawn at random with cooldowns: seals, herring and salmon sweeps, porpoises, orcas, rarely a humpback, the octopus taking a walk. Routes are steered, not railed, so they keep banking and body bend.
+`Director.ts` scripts what a visitor actually sees, relative to wherever they're looking: a rockfish comes to look at the lens (~4 s), the octopus creeps in and settles by its boulder (~9 s), a harbor seal comes out of the murk and hangs beside the book looking at you before circling off (~20 s), and at ~38 s orca calls, then the pod passes above. After that visits are drawn at random with cooldowns: seals, herring and salmon, porpoises, orcas (sometimes straight overhead — look up), rarely a humpback singing as it passes over, the octopus taking a walk.
 
-### Animation without rigs
+### The books
 
-Each scan gets swim coordinates derived from its geometry (position along the body, appendage vs. core). The shared vertex shader bends bodies with a travelling wave and sways the octopus's arms; walkers (crabs, prawns) stay rigid and rock a little with each step. Only the sim decides *where* things go.
+Pages are canvases typeset at load (fonts are waited for) and shown as textures. The leaf that turns is a strip of 28 segments bent around the spine each frame, with the free edge lagging behind so it curls. Clicks on a page are mapped back to canvas coordinates to find links. The portfolio book is held at 0.5 m and the depth of field focuses on it; lowering it hands focus back to the water.
 
 ### Behaviour
 
-- **Herring and salmon** school with boids on a spatial grid around an anchor the director steers through the frame.
-- **Rockfish** hold station by their rocks or hang in the water column; now and then one swims over to hang in front of the lens.
-- **Dogfish** patrol low over the bottom and hunt prawns and herring.
-- **Crabs, prawns, flounder, sculpin, sea cucumbers** forage around a home spot, flee octopus and seals; Dungeness and flounder bury themselves.
-- **Seals, orcas, porpoises, the humpback, the octopus** are the director's: scripted routes with lingering and gaze.
-- Eaten animals respawn out of sight a while later.
+- **Herring and salmon** school with boids around an anchor the director steers through the view.
+- **Rockfish** hold station on the reef or hang over the wreck; now and then one swims over to hang beside the lens.
+- **Dogfish** patrol low and hunt prawns and herring.
+- **Crabs, prawns, flounder, sculpin, sea cucumbers** forage around a home spot and flee octopus and seals; Dungeness and flounder bury.
+- **Seals, orcas, porpoises, the humpback, the octopus** follow the director's steered routes, with lingering and gaze.
+- Bodies push apart when they overlap, and swimmers slide around rocks and props.
 
 ## Regenerating the models
 
@@ -109,13 +111,17 @@ The site is fully static. `npm run build` puts everything in `dist/`.
 - **GitHub Pages**: a workflow is included at `.github/workflows/deploy.yml`. Enable Pages (Settings → Pages → Source: GitHub Actions). If the site is served from `https://<user>.github.io/<repo>/`, add a repository variable `BASE_PATH` = `/<repo>/`.
 - **Cloudflare Pages / Netlify / Vercel**: build command `npm run build`, output directory `dist`.
 
+## Sounds
+
+`src/audio/Sound.ts` plays a recording for each effect and call if one exists: put `<name>.mp3` files in `public/sounds/` and list the names in `public/sounds/manifest.json` (`pickup`, `open`, `close`, `page`, `lower`, `raise`, `discover`, `click`, `ambience-loop`, `orca`, `humpback`, `seal`). Anything missing falls back to a small synthesised version.
+
 ## Development helpers
 
-- `window.world`, `window.ocean`, `window.rig` are exposed in the console.
-- `rig.override = { pos, look }` pins the camera anywhere.
+- `window.world`, `window.ocean`, `window.rig`, `window.portfolio`, `window.logBook`, `window.field` are exposed in the console.
+- `rig.override = { pos, look }` pins the camera anywhere; `rig.step(yaw, pitch)` turns.
 - `advance(seconds)` (dev server only) fast-forwards the simulation, e.g. to a moment in the scripted first minute.
-- `await shot('name')` (dev server only) renders one frame and saves it to `.shots/name.jpg` through a tiny Vite plugin, with a paper-coloured block where the page is.
+- `await shot('name')` (dev server only) renders one frame and saves it to `.shots/name.jpg` through a tiny Vite plugin.
 
 ## Performance notes
 
-Target is 60 fps on integrated graphics. Every species is one `InstancedMesh`, the sim is small (~300 agents), and the page covers roughly half of the frame that is never shaded. Pixel ratio starts at 1.5 and steps down (never back up) if a machine can't hold ~48 fps. `prefers-reduced-motion` slows the whole scene down; if WebGL 2 is unavailable the portfolio renders on a still gradient.
+Target is 60 fps on integrated graphics; about 11 ms a frame at 1440×900 on an M-series laptop. Every species is one `InstancedMesh`, the sim is ~350 agents (under 1 ms), the sand/gravel mask is baked to a texture, and the orca, humpback and porpoise load after the reveal. Pixel ratio starts at 1.5 and steps down (never back up) if a machine can't hold ~48 fps. `prefers-reduced-motion` slows the scene; without WebGL 2 the portfolio shows as plain text.

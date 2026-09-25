@@ -20,6 +20,11 @@ sea cucumber, starry flounder, sculpin, prawn, dogfish, bat star, scallop.
 | scan_orca.glb | [Orca Killer Whale](https://sketchfab.com/3d-models/7c01c438ff03401d8e77127154c041c7) | LostPlaces |
 | scan_humpback.glb | [High-Poly Humpback Whale](https://sketchfab.com/3d-models/5a6a09f1c27e4d0f890f2a30c10d7a81) | K9239 |
 | scan_rockset.glb | [Rocks Set Stone Collection Scan](https://sketchfab.com/3d-models/b45a40fd145c4b9ba7bc5351d344db17) | perz_scans |
+| scan_wreck.glb | [Wooden boat wreck 500k](https://sketchfab.com/3d-models/595934a89fb04653932eebcdabb78cc7) | lightdatavision |
+| scan_anchor.glb | [Heavy Rusty Anchor](https://sketchfab.com/3d-models/3f95a9814ab14cf78e4999e990ac82ff) | incg5764 |
+| scan_barrel.glb | [Crumpled Rusty Metal Barrel](https://sketchfab.com/3d-models/114510c79c0f44479350d6b2902035f7) | hoxsvl |
+| scan_moon_snail.glb | [Lewis' Moon Snail (Euspira lewisii)](https://sketchfab.com/3d-models/3021c842f9fd4772bbd52bb0fea729ab) | RosarioBeachMarineLab |
+| scan_sand_dollar.glb | [Sand Dollar](https://sketchfab.com/3d-models/644cd300b35746df8b6245f9aca132f6) | RISDNaturelab |
 | scan_log.glb | [Log](https://sketchfab.com/3d-models/86272f8b02bc4de1af5626e00c474edb) | megalitharchive |
 
 License: https://creativecommons.org/licenses/by/4.0/

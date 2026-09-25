@@ -93,10 +93,10 @@ const WaterPostShader = {
       // ---- depth of field (gather along a golden-angle spiral)
       vec3 col = texture2D(tDiffuse, vUv).rgb;
       float c0 = cocPx(d);
-      if (c0 > 0.6) {
+      if (c0 > 1.0) {
         vec3 acc = col;
         float wsum = 1.0;
-        const int TAPS = 24;
+        const int TAPS = 14;
         for (int i = 1; i < TAPS; i++) {
           float fi = float(i);
           float r = sqrt(fi / float(TAPS)) * c0;
@@ -117,7 +117,7 @@ const WaterPostShader = {
       // ---- torch beam: in-scattering along the view ray
       vec3 rd = normalize(viewPos);
       float tMax = min(dist, 14.0);
-      const int STEPS = 22;
+      const int STEPS = 12;
       float stepLen = tMax / float(STEPS);
       // interleaved-gradient jitter, fixed per pixel: a per-frame jitter shimmered
       float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
@@ -130,8 +130,7 @@ const WaterPostShader = {
         float cone = smoothstep(uTorchCos.x, uTorchCos.y, dot(L / dl, uTorchDir));
         if (cone <= 0.0) continue;
         vec3 wp = (uCamWorld * vec4(p, 1.0)).xyz;
-        float silt = 0.45 + 1.1 * noise3(wp * 1.3 + vec3(uTime * 0.05, -uTime * 0.03, uTime * 0.04));
-        silt *= 0.7 + 0.6 * noise3(wp * 4.1 - uTime * 0.1);
+        float silt = 0.35 + 1.3 * noise3(wp * 1.6 + vec3(uTime * 0.05, -uTime * 0.03, uTime * 0.04));
         beam += cone * silt * waterTransmit(dl + t) / (1.0 + dl * dl * 0.3);
       }
       col += uTorchColor * beam * stepLen * uBeam;
