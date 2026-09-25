@@ -685,7 +685,10 @@ export class Jelly extends Agent implements Behavior {
     this.up.set(this.vel.x * 0.35, 1, this.vel.z * 0.35).normalize();
     _a.set(Math.cos(this.phase), 0, Math.sin(this.phase));
     this.orient(_a, this.up);
-    this.speedMul = 0.6 + beat * 0.8;
+    // the renderer advances swimPhase at pulseRate; lock it to the behaviour's pulse so lift matches the bell
+    this.speedMul = 1;
+    this.animSpeed = 1;
+    this.swimPhase = this.pulse;
     this.doing = beat > 0.8 ? 'pulsing' : 'drifting with the current';
   }
 }

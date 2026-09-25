@@ -33,6 +33,7 @@ export class Agent {
   speedMul = 1;         // animation speed multiplier (target)
   animSpeed = 1;        // smoothed multiplier actually used
   swimPhase = Math.random() * Math.PI * 2; // integrated wave phase
+  bend = 0;             // smoothed yaw rate (rad/s), curves the body into turns
   state = 'cruise';
   doing = 'cruising';
   timer = 0;            // generic per-state timer
@@ -126,7 +127,13 @@ export class Agent {
     if (sp > 0.05) {
       _fwd.copy(this.vel).normalize();
       const rate = (this.opts.turnRate ?? 2.5) * dt;
+      _v2.copy(this.forward);
       this.forward.lerp(_fwd, Math.min(1, rate)).normalize();
+      // signed yaw rate: positive = turning left
+      const yaw = (_v2.z * this.forward.x - _v2.x * this.forward.z) / Math.max(dt, 1e-4);
+      this.bend += (THREE.MathUtils.clamp(yaw, -3, 3) - this.bend) * Math.min(1, dt * 5);
+    } else {
+      this.bend *= 1 - Math.min(1, dt * 3);
     }
     // banking from lateral acceleration
     _right.crossVectors(this.forward, UP);

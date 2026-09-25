@@ -558,6 +558,35 @@ export class World implements Habitat {
     shared.occCount.value = n;
   }
 
+  // ---------------------------------------------------------------- camera attention
+
+  private static ATTN: Record<string, number> = {
+    octopus: 3, seal: 2.5, sealion: 2.5, orca: 3, humpback: 3, dolphin: 2, porpoise: 2, sixgill: 2.5,
+    lingcod: 1.5, rockfish: 1.2, dungeness: 1.3, redrock: 1.3, kelpcrab: 1.1, decorator: 1.1, chinook: 1.2,
+    lionsmane: 1.6, seanettle: 1.3, moonjelly: 1,
+  };
+
+  /** Something worth looking at in front of the camera, weighted by interest and proximity. */
+  attentionTarget(pos: THREE.Vector3, fwd: THREE.Vector3): THREE.Vector3 | null {
+    let best: Agent | null = null;
+    let bestScore = 0;
+    for (const [key, w] of Object.entries(World.ATTN)) {
+      const p = this.pops.get(key);
+      if (!p) continue;
+      for (const a of p.agents) {
+        if (!a.alive) continue;
+        _v.subVectors(a.pos, pos);
+        const d = _v.length();
+        if (d > 7 || d < 1) continue;
+        const facing = _v.dot(fwd) / d;
+        if (facing < 0.55) continue; // only things already roughly in view
+        const score = w * facing / (1 + d * 0.35);
+        if (score > bestScore) { bestScore = score; best = a; }
+      }
+    }
+    return best ? best.pos : null;
+  }
+
   // ---------------------------------------------------------------- autofocus
 
   /** Distance to what the camera is looking at: the nearest animal near screen centre, else the floor. */

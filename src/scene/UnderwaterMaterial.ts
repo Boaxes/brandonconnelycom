@@ -62,6 +62,7 @@ export interface SwimParams {
 export interface UnderwaterUniforms {
   uSwim: { value: THREE.Vector4 };  // amp, freq, speed, axis
   uSwim2: { value: THREE.Vector4 }; // bodyStart, phase, appendageAmp, speedMul
+  uSwim3: { value: THREE.Vector4 }; // body length (m), bend gain, mode (0 swim, 1 crab gait, 2 jelly bell), unused
   uTint: { value: THREE.Color };
   uEmissive: { value: THREE.Vector4 }; // rgb glow, strength
   uDetail: { value: number };          // 1 = seafloor (textured), 2 = rock (triplanar)
@@ -77,10 +78,14 @@ const SWIM_GLSL = /* glsl */ `
 uniform float uTime;
 uniform vec4 uSwim;
 uniform vec4 uSwim2;
+uniform vec4 uSwim3;
 attribute vec2 swim;
 attribute float instPhase;
+attribute float instSpeed;
+attribute float instBend;
 
-vec3 swimOffset(vec2 s, float phase, float speedMul) {
+// p: model-space position, s: swim coords, walk: 0..1 locomotion intensity, bend: turn rate
+vec3 swimOffset(vec3 p, vec2 s, float phase, float speedMul, float walk, float bend) {
   float u = s.x;
   float part = s.y;
   // phase is integrated on the CPU per instance (speed changes stay continuous);
@@ -88,7 +93,23 @@ vec3 swimOffset(vec2 s, float phase, float speedMul) {
   float t = phase + uTime * uSwim.z * speedMul;
   float amp = uSwim.x;
   float bodyStart = uSwim2.x;
+  float mode = uSwim3.z;
   vec3 o = vec3(0.0);
+  if (mode > 1.5) {
+    // jelly: the bell contracts on each pulse, tentacles trail
+    float c = max(0.0, sin(t));
+    c = c * c;
+    if (part < 0.75) {
+      o.xz -= p.xz * 0.16 * c;
+      o.y += p.y * 0.12 * c;
+    } else {
+      float a = uSwim2.z * u * u;
+      o.x += sin(t * 0.5 + phase * 3.0 + u * 3.0) * a;
+      o.z += cos(t * 0.4 + phase * 2.0 + u * 2.5) * a;
+      o.y += (c * 0.15 - 0.05) * u * a * 4.0;
+    }
+    return o;
+  }
   if (part < 0.75) {
     // body + fins: travelling wave increasing toward the tail
     float f = smoothstep(bodyStart, 1.0, u);
@@ -98,8 +119,21 @@ vec3 swimOffset(vec2 s, float phase, float speedMul) {
     // gentle counter-yaw of the head
     float h = (1.0 - smoothstep(0.0, bodyStart, u)) * amp * 0.12 * sin(-t);
     if (uSwim.w > 0.5) o.y += h; else o.z += h;
+    // curve the whole body into turns: head and tail swing toward the inside of the arc
+    float k = u - 0.4;
+    o.z -= bend * uSwim3.y * uSwim3.x * k * k;
+  } else if (mode > 0.5) {
+    // crab legs: alternating stepping when walking, a slight idle twitch otherwise
+    float side = p.z > 0.0 ? 1.0 : -1.0;
+    float legPhase = side * 1.5708 + p.x * 40.0;
+    float step_ = t * 1.6 + legPhase;
+    float lift = max(0.0, sin(step_));
+    float a = uSwim2.z * u;
+    o.y += lift * a * 5.0 * walk;
+    o.x += cos(step_) * a * 3.0 * walk;
+    o.y += sin(t * 0.8 + legPhase) * a * 0.4 * (1.0 - walk);
   } else {
-    // appendages: tentacles, legs, blades. sway with u, both axes
+    // appendages: tentacles, kelp blades. sway with u, both axes
     float a = uSwim2.z * u * u;
     o.x += sin(t * 0.7 + phase * 3.0 + u * 3.0) * a;
     o.z += cos(t * 0.55 + phase * 2.0 + u * 2.5) * a;
@@ -114,11 +148,15 @@ const SWIM_BEGIN = /* glsl */ `
 #ifdef USE_INSTANCING
   float phase_ = instPhase + uSwim2.y;
   float speedMul_ = 0.0;
+  float walk_ = clamp(instSpeed - 0.7, 0.0, 1.0);
+  float bend_ = instBend;
 #else
   float phase_ = uSwim2.y;
   float speedMul_ = uSwim2.w;
+  float walk_ = 0.0;
+  float bend_ = 0.0;
 #endif
-transformed += swimOffset(swim, phase_, speedMul_);
+transformed += swimOffset(position, swim, phase_, speedMul_, walk_, bend_);
 `;
 
 const fragmentHead = /* glsl */ `
@@ -295,25 +333,26 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
         `,
       );
   };
-  mat.customProgramCacheKey = () => 'underwater-v2';
+  mat.customProgramCacheKey = () => 'underwater-v3';
 }
 
 /** Depth material for the torch's shadow map that deforms exactly like the colour pass. */
 export function makeDepthMaterial(u: UnderwaterUniforms) {
   const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { uTime: shared.time, uSwim: u.uSwim, uSwim2: u.uSwim2 });
+    Object.assign(shader.uniforms, { uTime: shared.time, uSwim: u.uSwim, uSwim2: u.uSwim2, uSwim3: u.uSwim3 });
     shader.vertexShader = injectVertex(shader.vertexShader, false);
   };
-  m.customProgramCacheKey = () => 'underwater-depth-v2';
+  m.customProgramCacheKey = () => 'underwater-depth-v3';
   return m;
 }
 
-export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.Color; appendageAmp?: number }): UnderwaterUniforms {
+export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.Color; appendageAmp?: number; mode?: number }): UnderwaterUniforms {
   const s: SwimParams = { amp: 0, freq: 0.9, speed: 4, axis: 0, bodyStart: 0.3, ...swim };
   return {
     uSwim: { value: new THREE.Vector4(s.amp, s.freq, s.speed, s.axis) },
     uSwim2: { value: new THREE.Vector4(s.bodyStart, 0, opts?.appendageAmp ?? 0, 1) },
+    uSwim3: { value: new THREE.Vector4(1, 0, opts?.mode ?? 0, 0) },
     uTint: { value: opts?.tint ?? new THREE.Color(1, 1, 1) },
     uEmissive: { value: new THREE.Vector4(0, 0, 0, 0) },
     uDetail: { value: 0 },
@@ -325,7 +364,7 @@ export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.C
 export function makeMaterial(swim?: Partial<SwimParams>, opts?: {
   tint?: THREE.Color; appendageAmp?: number; roughness?: number; transparent?: boolean; opacity?: number;
   vertexColors?: boolean; color?: THREE.ColorRepresentation; side?: THREE.Side; emissive?: THREE.ColorRepresentation;
-  detail?: number; flat?: boolean;
+  detail?: number; flat?: boolean; mode?: number;
 }) {
   const mat = new THREE.MeshStandardMaterial({
     flatShading: opts?.flat ?? false,

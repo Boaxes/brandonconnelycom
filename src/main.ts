@@ -34,6 +34,7 @@ async function boot() {
 
   const rig = new CameraRig(ocean.camera);
   const world = new World(ocean.scene, ocean.camera);
+  rig.attention = (pos, fwd) => world.attentionTarget(pos, fwd);
   loaderProgress(0.9, 'waking everything up…');
   world.populate();
 

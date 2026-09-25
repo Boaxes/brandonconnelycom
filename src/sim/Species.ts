@@ -17,6 +17,8 @@ export interface SpeciesDef {
   side?: THREE.Side;
   large?: boolean; // counts as a "large animal" for audio cues
   roughness?: number;
+  mode?: number;      // 0 swim, 1 crab gait, 2 jelly bell
+  bendGain?: number;  // how much the body curves into turns
 }
 
 export const SPECIES: Record<string, SpeciesDef> = {
@@ -31,14 +33,14 @@ export const SPECIES: Record<string, SpeciesDef> = {
   sixgill: { key: 'sixgill', roughness: 0.6, model: 'sixgill', name: 'Bluntnose sixgill shark', latin: 'Hexanchus griseus', scale: [1, 1], swim: { amp: 0.35, freq: 0.6, speed: 1.6, axis: 0, bodyStart: 0.35 }, large: true },
   seal: { key: 'seal', roughness: 0.5, model: 'harbor_seal', name: 'Harbor seal', latin: 'Phoca vitulina', scale: [0.9, 1.1], swim: { amp: 0.09, freq: 0.6, speed: 4.5, axis: 0, bodyStart: 0.5 }, large: true },
   sealion: { key: 'sealion', roughness: 0.5, model: 'steller_sea_lion', name: 'Steller sea lion', latin: 'Eumetopias jubatus', scale: [0.95, 1.05], swim: { amp: 0.12, freq: 0.6, speed: 3.5, axis: 1, bodyStart: 0.55 }, large: true },
-  dungeness: { key: 'dungeness', model: 'dungeness_crab', name: 'Dungeness crab', latin: 'Metacarcinus magister', scale: [0.9, 1.2], swim: { amp: 0 }, appendageAmp: 0.012 },
-  redrock: { key: 'redrock', model: 'red_rock_crab', name: 'Red rock crab', latin: 'Cancer productus', scale: [0.9, 1.2], swim: { amp: 0 }, appendageAmp: 0.01 },
-  kelpcrab: { key: 'kelpcrab', model: 'kelp_crab', name: 'Northern kelp crab', latin: 'Pugettia producta', scale: [0.9, 1.3], swim: { amp: 0 }, appendageAmp: 0.008 },
-  decorator: { key: 'decorator', model: 'decorator_crab', name: 'Decorator crab', latin: 'Oregonia gracilis', scale: [0.9, 1.3], swim: { amp: 0 }, appendageAmp: 0.008 },
+  dungeness: { key: 'dungeness', mode: 1, model: 'dungeness_crab', name: 'Dungeness crab', latin: 'Metacarcinus magister', scale: [0.9, 1.2], swim: { amp: 0 }, appendageAmp: 0.012 },
+  redrock: { key: 'redrock', mode: 1, model: 'red_rock_crab', name: 'Red rock crab', latin: 'Cancer productus', scale: [0.9, 1.2], swim: { amp: 0 }, appendageAmp: 0.01 },
+  kelpcrab: { key: 'kelpcrab', mode: 1, model: 'kelp_crab', name: 'Northern kelp crab', latin: 'Pugettia producta', scale: [0.9, 1.3], swim: { amp: 0 }, appendageAmp: 0.008 },
+  decorator: { key: 'decorator', mode: 1, model: 'decorator_crab', name: 'Decorator crab', latin: 'Oregonia gracilis', scale: [0.9, 1.3], swim: { amp: 0 }, appendageAmp: 0.008 },
   octopus: { key: 'octopus', roughness: 0.5, model: 'giant_pacific_octopus', name: 'Giant Pacific octopus', latin: 'Enteroctopus dofleini', scale: [1.1, 1.4], swim: { amp: 0 }, appendageAmp: 0.09, large: true },
-  moonjelly: { key: 'moonjelly', model: 'moon_jelly', name: 'Moon jelly', latin: 'Aurelia labiata', scale: [0.7, 1.3], swim: { amp: 0 }, appendageAmp: 0.03, opacity: 0.72, emissive: { color: 0x9fd8ff, strength: 0.08 }, side: THREE.DoubleSide },
-  lionsmane: { key: 'lionsmane', model: 'lions_mane', name: "Lion's mane jelly", latin: 'Cyanea capillata', scale: [0.9, 1.4], swim: { amp: 0 }, appendageAmp: 0.14, opacity: 0.85, emissive: { color: 0xff8a4a, strength: 0.05 }, side: THREE.DoubleSide },
-  seanettle: { key: 'seanettle', model: 'sea_nettle', name: 'Pacific sea nettle', latin: 'Chrysaora fuscescens', scale: [0.8, 1.3], swim: { amp: 0 }, appendageAmp: 0.1, opacity: 0.85, emissive: { color: 0xffb060, strength: 0.05 }, side: THREE.DoubleSide },
+  moonjelly: { key: 'moonjelly', model: 'moon_jelly', name: 'Moon jelly', latin: 'Aurelia labiata', scale: [0.7, 1.3], mode: 2, swim: { amp: 0, speed: 1.6 }, appendageAmp: 0.03, opacity: 0.72, emissive: { color: 0x9fd8ff, strength: 0.08 }, side: THREE.DoubleSide },
+  lionsmane: { key: 'lionsmane', model: 'lions_mane', name: "Lion's mane jelly", latin: 'Cyanea capillata', scale: [0.9, 1.4], mode: 2, swim: { amp: 0, speed: 0.9 }, appendageAmp: 0.14, opacity: 0.85, emissive: { color: 0xff8a4a, strength: 0.05 }, side: THREE.DoubleSide },
+  seanettle: { key: 'seanettle', model: 'sea_nettle', name: 'Pacific sea nettle', latin: 'Chrysaora fuscescens', scale: [0.8, 1.3], mode: 2, swim: { amp: 0, speed: 1.2 }, appendageAmp: 0.1, opacity: 0.85, emissive: { color: 0xffb060, strength: 0.05 }, side: THREE.DoubleSide },
   ochrestar: { key: 'ochrestar', model: 'ochre_star', name: 'Ochre sea star', latin: 'Pisaster ochraceus', scale: [0.8, 1.4], swim: { amp: 0 } },
   sunflowerstar: { key: 'sunflowerstar', model: 'sunflower_star', name: 'Sunflower sea star', latin: 'Pycnopodia helianthoides', scale: [0.8, 1.3], swim: { amp: 0 } },
   urchin: { key: 'urchin', model: 'red_urchin', name: 'Red sea urchin', latin: 'Mesocentrotus franciscanus', scale: [0.8, 1.4], swim: { amp: 0 } },
@@ -56,6 +58,7 @@ export class SpeciesRenderer {
   agents: Agent[] = [];
   private phaseAttr: THREE.InstancedBufferAttribute;
   private speedAttr: THREE.InstancedBufferAttribute;
+  private bendAttr: THREE.InstancedBufferAttribute;
 
   constructor(public def: SpeciesDef, capacity: number) {
     const geo = geometry(def.model);
@@ -67,7 +70,13 @@ export class SpeciesRenderer {
       side: def.side,
       emissive: def.emissive?.color,
       roughness: def.roughness,
+      mode: def.mode,
     });
+    // body length along the swim axis, used to scale turn bending
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox!;
+    uniforms.uSwim3.value.x = bb.max.x - bb.min.x;
+    uniforms.uSwim3.value.y = def.bendGain ?? (def.swim.amp ? 0.12 : 0);
     if (def.emissive) mat.emissiveIntensity = def.emissive.strength;
     if (def.opacity !== undefined) mat.depthWrite = false;
     this.mesh = new THREE.InstancedMesh(geo, mat, capacity);
@@ -84,8 +93,11 @@ export class SpeciesRenderer {
     this.phaseAttr.setUsage(THREE.DynamicDrawUsage);
     this.speedAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
     this.speedAttr.setUsage(THREE.DynamicDrawUsage);
+    this.bendAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
+    this.bendAttr.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('instPhase', this.phaseAttr);
     geo.setAttribute('instSpeed', this.speedAttr);
+    geo.setAttribute('instBend', this.bendAttr);
     this.mesh.userData.species = this;
   }
 
@@ -108,11 +120,13 @@ export class SpeciesRenderer {
       this.mesh.setMatrixAt(n, _m);
       this.phaseAttr.setX(n, a.swimPhase);
       this.speedAttr.setX(n, a.animSpeed);
+      this.bendAttr.setX(n, a.bend);
       n++;
     }
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;
     this.phaseAttr.needsUpdate = true;
     this.speedAttr.needsUpdate = true;
+    this.bendAttr.needsUpdate = true;
   }
 }
