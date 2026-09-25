@@ -62,7 +62,7 @@ export interface SwimParams {
 export interface UnderwaterUniforms {
   uSwim: { value: THREE.Vector4 };  // amp, freq, speed, axis
   uSwim2: { value: THREE.Vector4 }; // bodyStart, phase, appendageAmp, speedMul
-  uSwim3: { value: THREE.Vector4 }; // body length (m), bend gain, mode (0 swim, 1 crab gait, 2 jelly bell), unused
+  uSwim3: { value: THREE.Vector4 }; // body length (m), bend gain, mode (0 swim, 1 crab gait, 2 jelly bell), translucency
   uTint: { value: THREE.Color };
   uEmissive: { value: THREE.Vector4 }; // rgb glow, strength
   uDetail: { value: number };          // 1 = seafloor (textured), 2 = rock (triplanar)
@@ -167,6 +167,7 @@ uniform vec3 uSunDir;
 uniform vec3 uTint;
 uniform vec4 uEmissive;
 uniform float uDetail;
+uniform vec4 uSwim3;
 uniform sampler2D tSand;
 uniform sampler2D tSandN;
 uniform sampler2D tGravel;
@@ -322,6 +323,15 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
           vec3 vdir = normalize(cameraPosition - vWorldPos);
           float rim = pow(1.0 - clamp(dot(n, vdir), 0.0, 1.0), 3.0);
           reflectedLight.indirectDiffuse += uWaterColor * rim * (uDetail < 0.5 ? 0.3 : 0.08);
+          // thin living tissue (jellies, kelp, tentacles): light passes through instead of stopping at
+          // the surface. Undersides glow with the down-welling water light, and silhouettes (more tissue
+          // along the ray) brighten, which is what makes a jelly's rim or a kelp blade read as translucent.
+          if (uSwim3.w > 0.0) {
+            float through = clamp(-dot(n, uSunDir), 0.0, 1.0);
+            float edge = pow(1.0 - abs(dot(n, vdir)), 1.5);
+            vec3 lit = uWaterColor * (0.55 + 1.3 * through) + reflectedLight.directDiffuse * 0.35;
+            reflectedLight.indirectDiffuse += diffuseColor.rgb * lit * uSwim3.w * (0.45 + 1.1 * edge);
+          }
         }
         `,
       )
@@ -329,6 +339,11 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
         '#include <fog_fragment>',
         /* glsl */ `
         gl_FragColor.rgb += uEmissive.rgb * uEmissive.w;
+        if (uSwim3.z > 1.5) {
+          // jelly: glassy, you see through the middle of the bell and the tissue shows at the silhouette
+          float facing = abs(dot(normalize(vWorldNormal), normalize(cameraPosition - vWorldPos)));
+          gl_FragColor.a *= mix(1.0, 0.22, facing * facing);
+        }
         gl_FragColor.rgb = applyWater(gl_FragColor.rgb, vWorldPos - cameraPosition);
         `,
       );
@@ -347,12 +362,12 @@ export function makeDepthMaterial(u: UnderwaterUniforms) {
   return m;
 }
 
-export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.Color; appendageAmp?: number; mode?: number }): UnderwaterUniforms {
+export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.Color; appendageAmp?: number; mode?: number; translucency?: number }): UnderwaterUniforms {
   const s: SwimParams = { amp: 0, freq: 0.9, speed: 4, axis: 0, bodyStart: 0.3, ...swim };
   return {
     uSwim: { value: new THREE.Vector4(s.amp, s.freq, s.speed, s.axis) },
     uSwim2: { value: new THREE.Vector4(s.bodyStart, 0, opts?.appendageAmp ?? 0, 1) },
-    uSwim3: { value: new THREE.Vector4(1, 0, opts?.mode ?? 0, 0) },
+    uSwim3: { value: new THREE.Vector4(1, 0, opts?.mode ?? 0, opts?.translucency ?? 0) },
     uTint: { value: opts?.tint ?? new THREE.Color(1, 1, 1) },
     uEmissive: { value: new THREE.Vector4(0, 0, 0, 0) },
     uDetail: { value: 0 },
@@ -364,7 +379,7 @@ export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.C
 export function makeMaterial(swim?: Partial<SwimParams>, opts?: {
   tint?: THREE.Color; appendageAmp?: number; roughness?: number; transparent?: boolean; opacity?: number;
   vertexColors?: boolean; color?: THREE.ColorRepresentation; side?: THREE.Side; emissive?: THREE.ColorRepresentation;
-  detail?: number; flat?: boolean; mode?: number; map?: THREE.Texture; normalMap?: THREE.Texture;
+  detail?: number; flat?: boolean; mode?: number; map?: THREE.Texture; normalMap?: THREE.Texture; translucency?: number;
 }) {
   const mat = new THREE.MeshStandardMaterial({
     flatShading: opts?.flat ?? false,

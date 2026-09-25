@@ -20,6 +20,7 @@ export interface SpeciesDef {
   mode?: number;      // 0 swim, 1 crab gait, 2 jelly bell
   scan?: string;      // baked photogrammetry model to use when available
   bendGain?: number;  // how much the body curves into turns
+  translucency?: number; // light passing through thin tissue (jellies, kelp, tentacles)
 }
 
 export const SPECIES: Record<string, SpeciesDef> = {
@@ -39,17 +40,17 @@ export const SPECIES: Record<string, SpeciesDef> = {
   kelpcrab: { key: 'kelpcrab', scan: 'crab_kelp', mode: 1, model: 'kelp_crab', name: 'Northern kelp crab', latin: 'Pugettia producta', scale: [0.9, 1.3], swim: { amp: 0 }, appendageAmp: 0.008 },
   decorator: { key: 'decorator', scan: 'crab_decorator', mode: 1, model: 'decorator_crab', name: 'Decorator crab', latin: 'Oregonia gracilis', scale: [0.9, 1.3], swim: { amp: 0 }, appendageAmp: 0.008 },
   octopus: { key: 'octopus', scan: 'giant_pacific_octopus', tint: 0xffb8a0, roughness: 0.5, model: 'giant_pacific_octopus', name: 'Giant Pacific octopus', latin: 'Enteroctopus dofleini', scale: [1.1, 1.4], swim: { amp: 0 }, appendageAmp: 0.09, large: true },
-  moonjelly: { key: 'moonjelly', model: 'moon_jelly', name: 'Moon jelly', latin: 'Aurelia labiata', scale: [0.7, 1.3], mode: 2, swim: { amp: 0, speed: 1.6 }, appendageAmp: 0.03, opacity: 0.72, emissive: { color: 0x9fd8ff, strength: 0.08 }, side: THREE.DoubleSide },
-  lionsmane: { key: 'lionsmane', model: 'lions_mane', name: "Lion's mane jelly", latin: 'Cyanea capillata', scale: [0.9, 1.4], mode: 2, swim: { amp: 0, speed: 0.9 }, appendageAmp: 0.14, opacity: 0.85, emissive: { color: 0xff8a4a, strength: 0.05 }, side: THREE.DoubleSide },
-  seanettle: { key: 'seanettle', model: 'sea_nettle', name: 'Pacific sea nettle', latin: 'Chrysaora fuscescens', scale: [0.8, 1.3], mode: 2, swim: { amp: 0, speed: 1.2 }, appendageAmp: 0.1, opacity: 0.85, emissive: { color: 0xffb060, strength: 0.05 }, side: THREE.DoubleSide },
+  moonjelly: { key: 'moonjelly', translucency: 0.7, model: 'moon_jelly', name: 'Moon jelly', latin: 'Aurelia labiata', scale: [0.7, 1.3], mode: 2, swim: { amp: 0, speed: 1.6 }, appendageAmp: 0.03, opacity: 0.72, emissive: { color: 0x9fd8ff, strength: 0.08 }, side: THREE.DoubleSide },
+  lionsmane: { key: 'lionsmane', translucency: 0.8, model: 'lions_mane', name: "Lion's mane jelly", latin: 'Cyanea capillata', scale: [0.9, 1.4], mode: 2, swim: { amp: 0, speed: 0.9 }, appendageAmp: 0.14, opacity: 0.85, emissive: { color: 0xff8a4a, strength: 0.05 }, side: THREE.DoubleSide },
+  seanettle: { key: 'seanettle', translucency: 0.8, model: 'sea_nettle', name: 'Pacific sea nettle', latin: 'Chrysaora fuscescens', scale: [0.8, 1.3], mode: 2, swim: { amp: 0, speed: 1.2 }, appendageAmp: 0.1, opacity: 0.85, emissive: { color: 0xffb060, strength: 0.05 }, side: THREE.DoubleSide },
   ochrestar: { key: 'ochrestar', model: 'ochre_star', name: 'Ochre sea star', latin: 'Pisaster ochraceus', scale: [0.8, 1.4], swim: { amp: 0 } },
   sunflowerstar: { key: 'sunflowerstar', scan: 'sunflower_star', appendageAmp: 0.012, model: 'sunflower_star', name: 'Sunflower sea star', latin: 'Pycnopodia helianthoides', scale: [0.8, 1.3], swim: { amp: 0 } },
   urchin: { key: 'urchin', model: 'red_urchin', scan: 'urchin', name: 'Purple sea urchin', latin: 'Strongylocentrotus purpuratus', scale: [0.8, 1.4], swim: { amp: 0 } },
-  anemone: { key: 'anemone', model: 'plumose_anemone', name: 'Plumose anemone', latin: 'Metridium farcimen', scale: [0.7, 1.6], swim: { amp: 0 }, appendageAmp: 0.02, emissive: { color: 0xfff4e0, strength: 0.12 } },
-  bullkelp: { key: 'bullkelp', model: 'bull_kelp', name: 'Bull kelp', latin: 'Nereocystis luetkeana', scale: [0.8, 1.35], swim: { amp: 0.55, freq: 0.25, speed: 0.55, axis: 0, bodyStart: 0.0 }, appendageAmp: 0.25, side: THREE.DoubleSide, tint: 0xc4b06a, emissive: { color: 0x5a5a20, strength: 0.28 } },
-  seapen: { key: 'seapen', model: 'orange_sea_pen', name: 'Orange sea pen', latin: 'Ptilosarcus gurneyi', scale: [0.7, 1.3], swim: { amp: 0.035, freq: 0.25, speed: 0.6, axis: 0, bodyStart: 0.0 }, roughness: 0.55, emissive: { color: 0xff7a2a, strength: 0.08 } },
-  tubeanemone: { key: 'tubeanemone', model: 'tube_anemone', name: 'Tube-dwelling anemone', latin: 'Pachycerianthus fimbriatus', scale: [0.8, 1.5], swim: { amp: 0 }, appendageAmp: 0.035, emissive: { color: 0xfff0dc, strength: 0.1 } },
-  sugarkelp: { key: 'sugarkelp', model: 'sugar_kelp', name: 'Sugar kelp', latin: 'Saccharina latissima', scale: [0.8, 1.4], swim: { amp: 0.18, freq: 0.3, speed: 0.7, axis: 0, bodyStart: 0.0 }, side: THREE.DoubleSide, tint: 0x9c9250, emissive: { color: 0x40401a, strength: 0.22 } },
+  anemone: { key: 'anemone', translucency: 0.45, model: 'plumose_anemone', name: 'Plumose anemone', latin: 'Metridium farcimen', scale: [0.7, 1.6], swim: { amp: 0 }, appendageAmp: 0.02, emissive: { color: 0xfff4e0, strength: 0.12 } },
+  bullkelp: { key: 'bullkelp', translucency: 0.55, model: 'bull_kelp', name: 'Bull kelp', latin: 'Nereocystis luetkeana', scale: [0.8, 1.35], swim: { amp: 0.55, freq: 0.25, speed: 0.55, axis: 0, bodyStart: 0.0 }, appendageAmp: 0.25, side: THREE.DoubleSide, tint: 0xc4b06a, emissive: { color: 0x5a5a20, strength: 0.28 } },
+  seapen: { key: 'seapen', translucency: 0.3, model: 'orange_sea_pen', name: 'Orange sea pen', latin: 'Ptilosarcus gurneyi', scale: [0.7, 1.3], swim: { amp: 0.035, freq: 0.25, speed: 0.6, axis: 0, bodyStart: 0.0 }, roughness: 0.55, emissive: { color: 0xff7a2a, strength: 0.08 } },
+  tubeanemone: { key: 'tubeanemone', translucency: 0.6, model: 'tube_anemone', name: 'Tube-dwelling anemone', latin: 'Pachycerianthus fimbriatus', scale: [0.8, 1.5], swim: { amp: 0 }, appendageAmp: 0.035, emissive: { color: 0xfff0dc, strength: 0.1 } },
+  sugarkelp: { key: 'sugarkelp', translucency: 0.6, model: 'sugar_kelp', name: 'Sugar kelp', latin: 'Saccharina latissima', scale: [0.8, 1.4], swim: { amp: 0.18, freq: 0.3, speed: 0.7, axis: 0, bodyStart: 0.0 }, side: THREE.DoubleSide, tint: 0x9c9250, emissive: { color: 0x40401a, strength: 0.22 } },
   blackrockfish: { key: 'blackrockfish', scan: 'rockfish_black', roughness: 0.6, model: 'copper_rockfish', name: 'Black rockfish', latin: 'Sebastes melanops', scale: [0.85, 1.15], swim: { amp: 0.03, freq: 0.7, speed: 3.5, axis: 0, bodyStart: 0.45 } },
   flounder: { key: 'flounder', scan: 'starry_flounder', roughness: 0.65, model: 'copper_rockfish', name: 'Starry flounder', latin: 'Platichthys stellatus', scale: [0.8, 1.2], swim: { amp: 0.025, freq: 0.7, speed: 4, axis: 1, bodyStart: 0.3 } },
   sculpin: { key: 'sculpin', scan: 'sculpin', roughness: 0.7, model: 'lingcod', name: 'Buffalo sculpin', latin: 'Enophrys bison', scale: [0.8, 1.2], swim: { amp: 0.02, freq: 0.7, speed: 4, axis: 0, bodyStart: 0.4 } },
@@ -86,6 +87,7 @@ export class SpeciesRenderer {
       emissive: def.emissive?.color,
       roughness: def.roughness,
       mode: def.mode,
+      translucency: def.translucency,
     });
     // body length along the swim axis, used to scale turn bending
     geo.computeBoundingBox();

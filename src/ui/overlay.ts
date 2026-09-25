@@ -2,6 +2,17 @@ import { content } from '../content';
 import { ICONS } from './icons';
 import { SPECIES } from '../sim/Species';
 
+/** CC BY 4.0 models used in the scene (the rest are CC0). Keep in sync with public/models/CREDITS.md. */
+const CREDITS = [
+  { title: 'Northern Kelp Crab (Pugettia producta)', author: 'RosarioBeachMarineLab', url: 'https://sketchfab.com/3d-models/be6a8ff47c0447b49d36473db0f5a782' },
+  { title: 'Sunflower Sea Star', author: 'RISDNaturelab', url: 'https://sketchfab.com/3d-models/cc973ed5fcd748c8aab5f37ae6b7b6f1' },
+  { title: 'Unknown Rock (127.5A)', author: 'RISDNaturelab', url: 'https://sketchfab.com/3d-models/781e3bb90e0f4c1ca81ab9aafab2bf76' },
+  { title: 'Spotted Harbor Seal', author: 'c4rn4g3', url: 'https://sketchfab.com/3d-models/eff1b6181eca4a8aaca2cb0a19a1df38' },
+  { title: 'Orca Killer Whale', author: 'LostPlaces', url: 'https://sketchfab.com/3d-models/7c01c438ff03401d8e77127154c041c7' },
+  { title: 'High-Poly Humpback Whale', author: 'K9239', url: 'https://sketchfab.com/3d-models/5a6a09f1c27e4d0f890f2a30c10d7a81' },
+  { title: 'Log', author: 'megalitharchive', url: 'https://sketchfab.com/3d-models/86272f8b02bc4de1af5626e00c474edb' },
+];
+
 function el(html: string): HTMLElement {
   const t = document.createElement('template');
   t.innerHTML = html.trim();
@@ -128,7 +139,14 @@ export function buildUI(cb: UICallbacks) {
         <h2>Say hello</h2>
         <p>Email is fastest: <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>.</p>
         <p class="dim">Also on <a href="${esc(c.links.github)}" target="_blank" rel="noopener">GitHub</a> and <a href="${esc(c.links.linkedin)}" target="_blank" rel="noopener">LinkedIn</a>.</p>
-        <p class="small">Modelled procedurally in Blender, rendered with Three.js, no framework. The seals really do have to surface to breathe.</p>
+        <p class="small">Modelled in Blender, rendered with Three.js, no framework. The seals really do have to surface to breathe.</p>
+        <details class="credits">
+          <summary>Credits</summary>
+          <p class="small">Most animals are CC0 photogrammetry by <a href="https://sketchfab.com/ffishAsia-and-floraZia" target="_blank" rel="noopener">ffishAsia &amp; floraZia</a>. The scans below are CC BY 4.0; all scans were re-oriented, decimated and re-baked for this scene. Ground textures are CC0 from Poly Haven.</p>
+          <ul class="plain small">
+            ${CREDITS.map((c) => `<li><a href="${c.url}" target="_blank" rel="noopener">${esc(c.title)}</a> by ${esc(c.author)}</li>`).join('')}
+          </ul>
+        </details>
       </section>
     </main>`);
 

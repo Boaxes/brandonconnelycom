@@ -151,3 +151,8 @@ ul.plain li::before { content: '– '; color: var(--ink-3); }
   .skills, .log { grid-template-columns: 1fr; }
   #controls { right: 12px; bottom: 12px; }
 }
+
+.credits { margin-top: 0.8rem; }
+.credits summary { cursor: pointer; font-family: 'Special Elite', monospace; font-size: 0.8rem; color: var(--ink-2); }
+.credits ul { margin-top: 0.4rem; }
+.credits li { margin: 0.15rem 0; }
