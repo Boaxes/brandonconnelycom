@@ -24,7 +24,8 @@ export function floorHeight(x: number, z: number): number {
 let _path: THREE.CatmullRomCurve3 | null = null;
 export function cameraPath(): THREE.CatmullRomCurve3 {
   if (_path) return _path;
-  const r = WORLD.size * 0.32;
+  // ~160 m around: at 4-6 m visibility a longer loop just spreads the scenery too thin
+  const r = WORLD.size * 0.17;
   const pts: THREE.Vector3[] = [];
   const n = 10;
   for (let i = 0; i < n; i++) {
@@ -36,13 +37,28 @@ export function cameraPath(): THREE.CatmullRomCurve3 {
   return _path;
 }
 
-/** Random floor point within `spread` metres of the camera loop. */
-export function randomFloorNearPath(spread: number, out = new THREE.Vector3(), rnd: () => number = Math.random): THREE.Vector3 {
-  cameraPath().getPointAt(rnd(), out);
-  const a = rnd() * Math.PI * 2;
-  const d = Math.sqrt(rnd()) * spread;
-  out.x += Math.cos(a) * d;
-  out.z += Math.sin(a) * d;
+/**
+ * Random floor point within `spread` metres of the camera loop, optionally keeping a clear lane
+ * of `minDist` metres around the path itself (so set pieces flank the camera instead of blocking it).
+ * `at` pins the position along the loop (0..1) for evenly spaced placement.
+ */
+export function randomFloorNearPath(spread: number, out = new THREE.Vector3(), rnd: () => number = Math.random, minDist = 0, at?: number): THREE.Vector3 {
+  const u = at ?? rnd();
+  const path = cameraPath();
+  path.getPointAt(u, out);
+  if (minDist > 0) {
+    // offset sideways from the path direction, left or right
+    const t = path.getTangentAt(u);
+    const side = rnd() < 0.5 ? -1 : 1;
+    const d = minDist + rnd() * Math.max(0, spread - minDist);
+    out.x += -t.z * side * d + t.x * (rnd() - 0.5) * 2;
+    out.z += t.x * side * d + t.z * (rnd() - 0.5) * 2;
+  } else {
+    const a = rnd() * Math.PI * 2;
+    const d = Math.sqrt(rnd()) * spread;
+    out.x += Math.cos(a) * d;
+    out.z += Math.sin(a) * d;
+  }
   out.y = floorHeight(out.x, out.z);
   return out;
 }

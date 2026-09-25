@@ -420,48 +420,76 @@ export class BenthicFish extends Agent implements Behavior {
 
 // ------------------------------------------------------------------ crabs
 
+export interface CrawlerConfig {
+  /** how the body faces its travel direction: crabs walk sideways, prawns reverse away from threats */
+  facing: 'sideways' | 'forward';
+  canBury: boolean;
+  threats: string[];
+  threatRadius: number;
+  roam: number;           // metres per excursion
+  walkChance: number;     // per decision
+  lift: number;           // height of the body above the floor while moving (flatfish glide)
+  fleeBackward?: boolean; // tail-flip away while still facing the threat
+  verbs: { idle: string; walk: string; flee: string; bury: string };
+}
+
+const CRAB: CrawlerConfig = {
+  facing: 'sideways', canBury: false, threats: ['octopus', 'seal', 'sealion', 'lingcod'], threatRadius: 4.5,
+  roam: 8, walkChance: 0.35, lift: 0,
+  verbs: { idle: 'picking through the silt', walk: 'scuttling', flee: 'scuttling away', bury: 'buried in the sand' },
+};
+
+/** Anything that lives on the floor and walks, creeps or glides over it. */
 export class Crab extends Agent implements Behavior {
   goal = new THREE.Vector3();
   heading = Math.random() * Math.PI * 2;
   buried = 0;
+  cfg: CrawlerConfig;
   private up = new THREE.Vector3();
   private fwd = new THREE.Vector3();
-  constructor(public key: string, opts: AgentOpts, public canBury: boolean) {
+  private liftNow = 0;
+  constructor(public key: string, opts: AgentOpts, canBury: boolean, cfg?: Partial<CrawlerConfig>) {
     super(opts);
+    this.cfg = { ...CRAB, canBury, ...cfg };
     randomFloorPoint(22, this.pos);
     this.goal.copy(this.pos);
     this.timer = Math.random() * 4;
     this.state = 'forage';
   }
   update(dt: number, h: Habitat) {
+    const cfg = this.cfg;
     this.timer -= dt;
-    const threats = h.threatsNear(['octopus', 'seal', 'sealion', 'lingcod'], this.pos, 4.5, _threats);
-    if (threats.length && this.state !== 'flee') {
+    let threat: Agent | null = null;
+    if (cfg.threats.length) {
+      const threats = h.threatsNear(cfg.threats, this.pos, cfg.threatRadius, _threats);
+      threat = threats[0] ?? null;
+    }
+    if (threat && this.state !== 'flee') {
       this.state = 'flee';
       this.buried = 0;
       this.timer = 3;
-      _a.subVectors(this.pos, threats[0].pos);
+      _a.subVectors(this.pos, threat.pos);
       _a.y = 0;
       this.goal.copy(this.pos).addScaledVector(_a.normalize(), 5);
     }
     let speed = 0;
     switch (this.state) {
       case 'forage':
-        this.doing = 'picking through the silt';
+        this.doing = cfg.verbs.idle;
         if (this.timer < 0) {
           const r = Math.random();
-          if (r < 0.35) {
+          if (r < cfg.walkChance) {
             this.state = 'walk';
-            this.goal.copy(this.pos).add(new THREE.Vector3((Math.random() - 0.5) * 8, 0, (Math.random() - 0.5) * 8));
-            this.timer = 8;
-          } else if (this.canBury && r < 0.5) {
+            this.goal.copy(this.pos).add(new THREE.Vector3((Math.random() - 0.5) * cfg.roam, 0, (Math.random() - 0.5) * cfg.roam));
+            this.timer = 8 + cfg.roam;
+          } else if (cfg.canBury && r < cfg.walkChance + 0.15) {
             this.state = 'bury';
             this.timer = 10 + Math.random() * 15;
           } else this.timer = 2 + Math.random() * 4;
         }
         break;
       case 'walk':
-        this.doing = 'scuttling';
+        this.doing = cfg.verbs.walk;
         speed = this.opts.cruise;
         if (this.pos.distanceTo(this.goal) < 0.4 || this.timer < 0) {
           this.state = 'forage';
@@ -469,7 +497,7 @@ export class Crab extends Agent implements Behavior {
         }
         break;
       case 'flee':
-        this.doing = 'scuttling away';
+        this.doing = cfg.verbs.flee;
         speed = this.opts.maxSpeed;
         if (this.timer < 0) {
           this.state = 'forage';
@@ -477,7 +505,7 @@ export class Crab extends Agent implements Behavior {
         }
         break;
       case 'bury':
-        this.doing = 'buried in the sand';
+        this.doing = cfg.verbs.bury;
         this.buried = Math.min(1, this.buried + dt * 0.5);
         if (this.timer < 0) {
           this.state = 'forage';
@@ -486,7 +514,6 @@ export class Crab extends Agent implements Behavior {
         break;
     }
     if (this.state !== 'bury') this.buried = Math.max(0, this.buried - dt * 1.5);
-    // move on the floor toward goal, sideways-walking crabs face 90 degrees off their travel direction
     if (speed > 0) {
       _a.subVectors(this.goal, this.pos);
       _a.y = 0;
@@ -502,11 +529,10 @@ export class Crab extends Agent implements Behavior {
           }
         }
         _a.normalize();
-        const step = Math.min(d, speed * dt);
-        this.pos.addScaledVector(_a, step);
-        // crabs walk sideways: body faces perpendicular to travel
+        this.pos.addScaledVector(_a, Math.min(d, speed * dt));
         const travel = Math.atan2(_a.z, _a.x);
-        const face = travel + (this.key === 'kelpcrab' || this.key === 'decorator' ? 0 : Math.PI / 2);
+        let face = travel + (cfg.facing === 'sideways' ? Math.PI / 2 : 0);
+        if (cfg.fleeBackward && this.state === 'flee') face = travel + Math.PI;
         let diff = face - this.heading;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         this.heading += diff * Math.min(1, dt * 4);
@@ -515,12 +541,14 @@ export class Crab extends Agent implements Behavior {
     } else {
       this.speedMul = this.state === 'bury' ? 0.0 : 0.6;
     }
+    // flatfish lift off the sand to glide, then settle
+    this.liftNow += ((speed > 0 ? cfg.lift : 0) - this.liftNow) * Math.min(1, dt * 3);
     // keep on the floor, oriented to the slope
     const half = WORLD.size / 2 - 20;
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -half, half);
     this.pos.z = THREE.MathUtils.clamp(this.pos.z, -half, half);
     const fy = floorHeight(this.pos.x, this.pos.z);
-    this.pos.y = fy + 0.02 - this.buried * 0.06 * this.scale;
+    this.pos.y = fy + 0.02 + this.liftNow - this.buried * 0.06 * this.scale;
     floorNormal(this.pos.x, this.pos.z, this.up);
     this.fwd.set(Math.cos(this.heading), 0, Math.sin(this.heading));
     this.orient(this.fwd, this.up);
@@ -563,7 +591,7 @@ export class Octopus extends Agent implements Behavior {
         this.doing = 'prowling for crabs';
         speed = this.opts.cruise;
         this.speedMul = 1.3;
-        const p = h.preyNear(['dungeness', 'redrock', 'kelpcrab', 'decorator'], this.pos, 6);
+        const p = h.preyNear(['dungeness', 'redrock', 'kelpcrab', 'decorator', 'prawn'], this.pos, 6);
         if (p) {
           this.target = p;
           this.state = 'stalk';

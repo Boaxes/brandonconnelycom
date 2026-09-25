@@ -364,7 +364,7 @@ export function makeUniforms(swim?: Partial<SwimParams>, opts?: { tint?: THREE.C
 export function makeMaterial(swim?: Partial<SwimParams>, opts?: {
   tint?: THREE.Color; appendageAmp?: number; roughness?: number; transparent?: boolean; opacity?: number;
   vertexColors?: boolean; color?: THREE.ColorRepresentation; side?: THREE.Side; emissive?: THREE.ColorRepresentation;
-  detail?: number; flat?: boolean; mode?: number;
+  detail?: number; flat?: boolean; mode?: number; map?: THREE.Texture; normalMap?: THREE.Texture;
 }) {
   const mat = new THREE.MeshStandardMaterial({
     flatShading: opts?.flat ?? false,
@@ -376,6 +376,8 @@ export function makeMaterial(swim?: Partial<SwimParams>, opts?: {
     color: opts?.color ?? 0xffffff,
     side: opts?.side ?? THREE.FrontSide,
     emissive: opts?.emissive ?? 0x000000,
+    map: opts?.map ?? null,
+    normalMap: opts?.normalMap ?? null,
   });
   const uniforms = makeUniforms(swim, opts);
   if (opts?.detail) uniforms.uDetail.value = opts.detail;

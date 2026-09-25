@@ -683,28 +683,59 @@ def urchin(name='red_urchin', R=0.08):
     return finish(obj, name)
 
 
-def plumose_anemone(name='plumose_anemone', H=0.4):
+def plumose_anemone(name='plumose_anemone', H=0.45):
+    """Metridium farcimen: smooth column with a collar, then a wide lobed oral disc
+    carrying a dense plume of short fine tentacles. u = height fraction (tentacles sway)."""
+    import random
+    rnd = random.Random(5)
     mb = MeshBuilder()
-    col = (0.92, 0.9, 0.85)
+    col = (0.9, 0.87, 0.8)
+    # column: flared pedal disc, slim stalk, swelling toward the collar
     sts = []
-    n = 6
+    n = 12
     for i in range(n):
         u = i / (n - 1)
-        r = H * (0.11 + 0.03 * math.sin(math.pi * u)) * (1.0 if u < 0.85 else 1.6)
-        sts.append(dict(p=Vector((0, 0, u * H * 0.8)), rx=r, rt=r, rb=r, n=2.0))
-    loft(mb, sts, rings=8, color=col, part=0.0, cap_end=True, up=Vector((1, 0, 0)))
-    for i in range(len(mb.uvs)):
-        mb.uvs[i] = (mb.verts[i].z / H, 0.0)
-    # crown of feathery tentacles: many small tapered cones
-    for ring_i, (cnt, rr_f, lift) in enumerate(((30, 0.2, 0.12), (22, 0.13, 0.2), (12, 0.06, 0.26))):
-        for j in range(cnt):
-            th = 2 * math.pi * j / cnt + ring_i * 0.3
-            rr = H * rr_f
-            base = Vector((math.cos(th) * rr * 0.6, math.sin(th) * rr * 0.6, H * 0.8))
-            tip = base + Vector((math.cos(th) * rr * 1.6, math.sin(th) * rr * 1.6, H * lift + (j % 3) * H * 0.03))
-            tube(mb, [base, (base + tip) / 2 + Vector((0, 0, H * 0.06)), tip], lambda u: H * 0.022 * (1 - u * 0.7), rings=3, segs=3,
-                 color=(0.95, 0.94, 0.9), part=1.0, u_offset=0.8, u_scale=0.2, cap_start=False)
-    obj = mb.build(name)
+        r = H * (0.13 - 0.03 * math.sin(math.pi * min(1, u * 1.4)) + 0.05 * smoothstep(0.75, 1.0, u))
+        if u < 0.08:
+            r *= 1.0 + (0.08 - u) * 4.0  # pedal disc
+        sts.append(dict(p=Vector((0, 0, u * H * 0.72)), rx=r, rt=r, rb=r, n=2.0))
+    loft(mb, sts, rings=14, color=col, part=0.0, cap_start=True, cap_end=True, up=Vector((1, 0, 0)))
+    # oral disc: a wide, gently lobed saucer
+    lobes = 5
+    disc_r = H * 0.25
+    ring_n = 40
+    top = H * 0.72
+    rings = []
+    for k, f in enumerate((0.55, 1.0)):
+        row = []
+        for j in range(ring_n):
+            th = 2 * math.pi * j / ring_n
+            lob = 1.0 + 0.18 * math.sin(th * lobes)
+            rr = (H * 0.15 if k == 0 else disc_r * lob)
+            z = top + H * (-0.01 if k == 0 else 0.07 + 0.05 * math.sin(th * lobes + 1.0))
+            row.append(mb.add_vert(Vector((math.cos(th) * rr, math.sin(th) * rr, z)), (0.75 + 0.25 * k, 1.0), col))
+        rings.append(row)
+    centre = mb.add_vert(Vector((0, 0, top + H * 0.02)), (0.7, 1.0), col)
+    for j in range(ring_n):
+        j2 = (j + 1) % ring_n
+        mb.add_face([centre, rings[0][j], rings[0][j2]])
+        mb.add_face([rings[0][j], rings[1][j], rings[1][j2], rings[0][j2]])
+    # plume: short fine tentacles scattered over the disc, leaning outward and up
+    for t in range(330):
+        th = rnd.random() * 2 * math.pi
+        f = math.sqrt(rnd.random())
+        lob = 1.0 + 0.18 * math.sin(th * lobes)
+        rr = disc_r * lob * (0.35 + 0.65 * f)
+        z = top + H * (0.06 + 0.07 * f + 0.05 * math.sin(th * lobes + 1.0) * f)
+        base = Vector((math.cos(th) * rr, math.sin(th) * rr, z))
+        out = Vector((math.cos(th), math.sin(th), 0)) * (0.4 + 0.6 * f)
+        d = (out * 0.8 + Vector((0, 0, 1.3 - 0.5 * f))).normalized()
+        ln = H * (0.09 + 0.08 * rnd.random())
+        tip = base + d * ln
+        mid = base + d * ln * 0.5 + Vector((0, 0, ln * 0.12))
+        tube(mb, [base, mid, tip], lambda u: H * 0.007 * (1 - u * 0.75), rings=3, segs=2,
+             color=(0.95, 0.93, 0.88), part=1.0, u_offset=0.8, u_scale=0.2, cap_start=False)
+    obj = mb.build(name, subdiv=0)
     return finish(obj, name)
 
 
@@ -800,6 +831,109 @@ def rock(name='rock', R=1.0, seed=1):
     return finish(obj, name)
 
 
+def orange_sea_pen(name='orange_sea_pen', H=0.42):
+    """Ptilosarcus gurneyi: a fleshy orange feather standing in the mud. A pale stalk rises from the
+    sediment into a thick rachis carrying two rows of crescent leaves edged with white polyps.
+    u = height fraction (the whole feather sways from the base)."""
+    import random
+    rnd = random.Random(11)
+    mb = MeshBuilder()
+    stalk = (0.93, 0.72, 0.5)
+    rach = (0.96, 0.5, 0.16)
+    sts = []
+    n = 10
+    for i in range(n):
+        u = i / (n - 1)
+        z = u * H
+        r = H * (0.045 + 0.02 * math.sin(math.pi * min(1.0, u * 1.2)) - 0.025 * smoothstep(0.8, 1.0, u))
+        sts.append(dict(p=Vector((0, H * 0.04 * math.sin(u * 2.2), z)), rx=r, rt=r, rb=r, n=2.0))
+    loft(mb, sts, rings=10, part=0.0, cap_start=True, cap_end=True, up=Vector((1, 0, 0)),
+         color_fn=lambda p, u, v, nrm: mixc(stalk, rach, soft(u, 0.28, 0.08)))
+    # leaves: two rows, alternating, fanning slightly so the feather has body
+    leaves = 34
+    for k in range(leaves):
+        f = (k + 0.5) / leaves
+        z = H * (0.27 + 0.68 * f)
+        env = math.sin(math.pi * min(1.0, 0.1 + f * 0.95)) ** 0.7  # feather outline
+        for side in (-1, 1):
+            az = (0 if side > 0 else math.pi) + side * (rnd.random() - 0.5) * 0.35 + (0.3 if k % 2 else -0.3)
+            d = Vector((math.cos(az), math.sin(az), 0))
+            ln = H * (0.07 + 0.2 * env) * (0.9 + 0.2 * rnd.random())
+            y0 = H * 0.04 * math.sin(z / H * 2.2)
+            base = Vector((0, y0, z)) + d * H * 0.025
+            # sweeps outward then curls up toward the tip
+            p1 = base + d * ln * 0.5 + Vector((0, 0, ln * 0.08))
+            p2 = base + d * ln * 0.88 + Vector((0, 0, ln * 0.24))
+            p3 = base + d * ln + Vector((0, 0, ln * 0.42))
+            start = len(mb.verts)
+            wmax = H * (0.03 + 0.03 * env)
+            sts2 = []
+            segs = 5
+            for i in range(segs + 1):
+                u = i / segs
+                # broad crescent with a blunt, rounded outer edge
+                w = wmax * math.sin(math.pi * (0.12 + u * 0.55)) ** 0.5 * (1 - 0.35 * u ** 4)
+                sts2.append(dict(p=catmull([base, p1, p2, p3], u), rx=w, rt=H * 0.004, rb=H * 0.004, n=2.0))
+            perp = Vector((-d.y, d.x, 0))
+            loft(mb, sts2, rings=6, part=0.0, cap_start=False, cap_end=True, up=perp,
+                 color_fn=lambda p, u, v, nrm: mixc(rach, (1.0, 0.9, 0.78), soft(u, 0.72, 0.12)))
+            for vi in range(start, len(mb.verts)):
+                mb.uvs[vi] = (min(1.0, mb.verts[vi].z / H), 0.0)
+    for vi in range(len(mb.verts)):
+        mb.uvs[vi] = (min(1.0, max(0.0, mb.verts[vi].z / H)), 0.0)
+    obj = mb.build(name, subdiv=0)
+    return finish(obj, name)
+
+
+def tube_anemone(name='tube_anemone', H=0.16):
+    """Pachycerianthus fimbriatus: a felted mud-brown tube with a crown of long, slender banded
+    tentacles arching out and drooping, and short oral tentacles in the middle.
+    u: tube 0, tentacles run 0.5 at the base to 1 at the tip (part 1 = sways)."""
+    import random
+    rnd = random.Random(17)
+    mb = MeshBuilder()
+    tube_c = (0.34, 0.28, 0.22)
+    sts = []
+    n = 6
+    for i in range(n):
+        u = i / (n - 1)
+        r = H * (0.13 + 0.03 * (1 - u) + 0.02 * smoothstep(0.85, 1.0, u))
+        sts.append(dict(p=Vector((0, 0, u * H)), rx=r, rt=r, rb=r, n=2.0))
+    loft(mb, sts, rings=12, part=0.0, cap_start=False, cap_end=True, up=Vector((1, 0, 0)),
+         color_fn=lambda p, u, v, nrm: tuple(c * (0.8 + 0.4 * vnoise3(p.x * 90, p.y * 90, p.z * 90)) for c in tube_c))
+    top = H * 1.02
+    crown = H * 0.14
+    base_c = (0.92, 0.84, 0.7)
+    band_c = (0.55, 0.35, 0.2)
+    outer = 84
+    for t in range(outer):
+        th = 2 * math.pi * (t + rnd.random() * 0.4) / outer
+        d = Vector((math.cos(th), math.sin(th), 0))
+        ln = H * (1.2 + 0.5 * rnd.random())
+        lift = 0.55 + 0.35 * rnd.random()
+        b = Vector((0, 0, top)) + d * crown
+        # a smooth arch: up and out, then a long lazy droop
+        pts = [b,
+               b + d * ln * 0.25 + Vector((0, 0, ln * 0.3 * lift)),
+               b + d * ln * 0.6 + Vector((0, 0, ln * 0.3 * lift)),
+               b + d * ln * 0.92 + Vector((0, 0, ln * 0.02 * lift - ln * 0.12))]
+        banded = rnd.random() < 0.7
+        tube(mb, pts, lambda u: H * 0.024 * (1 - u * 0.85), rings=4, segs=10,
+             part=1.0, u_offset=0.5, u_scale=0.5, cap_start=False,
+             color_fn=(lambda p, u: mixc(base_c, band_c, 0.6 * soft(math.sin(u * 22.0), 0.3, 0.3))) if banded else None,
+             color=base_c)
+    for t in range(24):
+        th = 2 * math.pi * t / 24
+        d = Vector((math.cos(th), math.sin(th), 0))
+        ln = H * (0.25 + 0.1 * rnd.random())
+        b = Vector((0, 0, top)) + d * crown * 0.4
+        pts = [b, b + d * ln * 0.3 + Vector((0, 0, ln * 0.7)), b + d * ln * 0.7 + Vector((0, 0, ln * 0.9))]
+        tube(mb, pts, lambda u: H * 0.012 * (1 - u * 0.7), rings=3, segs=3,
+             color=(0.98, 0.72, 0.42), part=1.0, u_offset=0.6, u_scale=0.3, cap_start=False)
+    obj = mb.build(name, subdiv=0)
+    return finish(obj, name)
+
+
 ALL = {
     'orca': orca, 'humpback': humpback, 'dolphin_pws': dolphin, 'dalls_porpoise': porpoise,
     'chinook': salmon, 'herring': herring, 'copper_rockfish': rockfish, 'lingcod': lingcod, 'sixgill': sixgill,
@@ -807,5 +941,5 @@ ALL = {
     'dungeness_crab': dungeness, 'red_rock_crab': red_rock_crab, 'kelp_crab': kelp_crab, 'decorator_crab': decorator_crab,
     'giant_pacific_octopus': octopus, 'moon_jelly': moon_jelly, 'lions_mane': lions_mane, 'sea_nettle': sea_nettle,
     'ochre_star': ochre_star, 'sunflower_star': sunflower_star, 'red_urchin': urchin, 'plumose_anemone': plumose_anemone,
-    'bull_kelp': bull_kelp, 'sugar_kelp': sugar_kelp,
+    'bull_kelp': bull_kelp, 'sugar_kelp': sugar_kelp, 'orange_sea_pen': orange_sea_pen, 'tube_anemone': tube_anemone,
 }

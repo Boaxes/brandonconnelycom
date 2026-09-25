@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { SPECIES, SpeciesRenderer } from './Species';
-import { Agent, Grid, randomFloorPoint, randomWaterPoint } from './Agent';
+import { Agent, Grid, randomWaterPoint } from './Agent';
 import {
-  BenthicFish, Crab, Hunter, Jelly, Octopus, Pod, School, SchoolFish, Sessile, currentAt,
+  BenthicFish, Crab, type CrawlerConfig, Hunter, Jelly, Octopus, Pod, School, SchoolFish, Sessile, currentAt,
   type Behavior, type Habitat, type HunterConfig, type SchoolConfig,
 } from './behaviors';
 import { cameraPath, floorHeight, floorNormal, randomFloorNearPath } from '../scene/Terrain';
 import { ensureSwim, makeMaterial, OCC_MAX, shared } from '../scene/UnderwaterMaterial';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { attachGround } from '../scene/Terrain';
+import { asset, hasAsset } from '../scene/Assets';
 import { mulberry32, noise2 } from '../util/noise';
 import { hideLabel, showLabel } from '../ui/overlay';
 
@@ -87,8 +88,132 @@ export class World implements Habitat {
     this.spawnVisitor('orca');
   }
 
+  /** Hidden proxies of rocks and logs, used to raycast anemones and stars onto real surfaces. */
+  private surfaces: THREE.Mesh[] = [];
+  private logSurfaces: THREE.Mesh[] = [];
+
+  private scanInstances(key: string, count: number, roughness: number, place: (i: number, p: THREE.Vector3, q: THREE.Quaternion, s: THREE.Vector3) => void) {
+    const a = asset('scan:' + key);
+    const { mat } = makeMaterial({ amp: 0 }, { vertexColors: false, map: a.map, normalMap: a.normalMap, roughness });
+    const mesh = new THREE.InstancedMesh(a.geometry, mat, count);
+    mesh.name = key;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const p = new THREE.Vector3();
+    const sc = new THREE.Vector3();
+    const proxies: THREE.Mesh[] = [];
+    for (let i = 0; i < count; i++) {
+      place(i, p, q, sc);
+      m.compose(p, q, sc);
+      mesh.setMatrixAt(i, m);
+      const proxy = new THREE.Mesh(a.geometry);
+      proxy.matrixAutoUpdate = false;
+      proxy.matrix.copy(m);
+      proxy.matrixWorld.copy(m);
+      proxies.push(proxy);
+    }
+    mesh.computeBoundingSphere();
+    this.group.add(mesh);
+    this.statics.push({ mesh, mats: proxies.map((p) => p.matrix), pos: proxies.map((p) => new THREE.Vector3().setFromMatrixPosition(p.matrix)) });
+    return { mesh, proxies };
+  }
+
+  /** Scanned set pieces: all placements are kept, only the ones inside the murk are drawn. */
+  private statics: { mesh: THREE.InstancedMesh; mats: THREE.Matrix4[]; pos: THREE.Vector3[] }[] = [];
+
+  private cullStatics(cam: THREE.Vector3) {
+    const r2 = (VIEW_RANGE + 3) * (VIEW_RANGE + 3);
+    for (const s of this.statics) {
+      let n = 0;
+      for (let i = 0; i < s.pos.length; i++) if (s.pos[i].distanceToSquared(cam) < r2) s.mesh.setMatrixAt(n++, s.mats[i]);
+      s.mesh.count = n;
+      s.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  private scanBounds(key: string) {
+    const g = asset('scan:' + key).geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    return g.boundingBox!;
+  }
+
   private buildRocks() {
     const rnd = mulberry32(42);
+    if (hasAsset('scan:rock_boulder')) {
+      // photoscanned boulders, rotated and scaled so no two read the same
+      const bb = this.scanBounds('rock_boulder');
+      const n = 120;
+      const { proxies } = this.scanInstances('rock_boulder', n, 0.92, (i, p, q, sc) => {
+        const at = (i + rnd()) / n; // evenly spread along the loop so every stretch has some
+        const k = 0.3 + Math.pow(rnd(), 1.8) * 1.15;
+        sc.set(k * (0.85 + rnd() * 0.3), k * (0.7 + rnd() * 0.5), k * (0.85 + rnd() * 0.3));
+        // keep the diver's lane clear: bigger boulders sit further out
+        const half = Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 * Math.max(sc.x, sc.z);
+        const lane = 1.4 + half * 0.8;
+        if (i % 4 !== 0) randomFloorNearPath(lane + 3.5, p, rnd, lane, at); else randomFloorNearPath(lane + 9, p, rnd, lane + 2, at);
+        q.setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.25, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.25));
+        p.y -= (bb.max.y - bb.min.y) * sc.y * 0.15; // bed it into the sediment
+        const r = Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 * Math.max(sc.x, sc.z) * 0.8;
+        this.rocks.push({ pos: p.clone(), r });
+      });
+      this.surfaces.push(...proxies);
+    }
+    if (hasAsset('scan:barnacle_rock')) {
+      // low shelves of barnacle-crusted rock breaking through the sand
+      const { proxies } = this.scanInstances('barnacle_rock', 40, 0.9, (i, p, q, sc) => {
+        randomFloorNearPath(5, p, rnd, 1.2, (i + rnd()) / 40);
+        const k = 0.8 + rnd() * 0.9;
+        sc.set(k, k * (0.8 + rnd() * 0.5), k);
+        q.setFromEuler(new THREE.Euler(0, rnd() * Math.PI * 2, 0));
+        p.y -= 0.05;
+        this.rocks.push({ pos: p.clone(), r: 0.6 * k });
+      });
+      this.surfaces.push(...proxies);
+    }
+    if (hasAsset('scan:log')) {
+      // waterlogged logs: very Puget Sound, and anemones love them
+      const bb = this.scanBounds('log');
+      const { proxies } = this.scanInstances('log', 12, 0.95, (i, p, q, sc) => {
+        randomFloorNearPath(5, p, rnd, 2.2, (i + 0.3 + rnd() * 0.4) / 12);
+        const k = 0.8 + rnd() * 0.5;
+        sc.set(k, k, k);
+        const yaw = rnd() * Math.PI * 2;
+        q.setFromEuler(new THREE.Euler(0, yaw, (rnd() - 0.5) * 0.06));
+        p.y -= 0.06;
+        // treat the log as a row of small obstacles for the bottom walkers
+        const half = (bb.max.x - bb.min.x) * 0.5 * k;
+        for (let t = -half; t <= half; t += 0.7) {
+          this.rocks.push({ pos: new THREE.Vector3(p.x + Math.cos(yaw) * t, p.y, p.z - Math.sin(yaw) * t), r: 0.35 * k });
+        }
+      });
+      this.surfaces.push(...proxies);
+      this.logSurfaces.push(...proxies);
+    }
+    if (this.rocks.length === 0) this.buildProceduralRocks(rnd);
+  }
+
+  /** Point on the top surface of a random rock or log (with its surface normal), or null. */
+  private surfacePoint(rnd: () => number, out: THREE.Vector3, normal: THREE.Vector3, preferLogs = 0): boolean {
+    const pool = this.logSurfaces.length && rnd() < preferLogs ? this.logSurfaces : this.surfaces;
+    if (!pool.length) return false;
+    const m = pool[Math.floor(rnd() * pool.length)];
+    const g = m.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const bb = g.boundingBox!;
+    _v.set(bb.min.x + (bb.max.x - bb.min.x) * (0.1 + 0.8 * rnd()), bb.max.y + 1, bb.min.z + (bb.max.z - bb.min.z) * (0.1 + 0.8 * rnd())).applyMatrix4(m.matrixWorld);
+    this.surfaceRay.set(_v, _v2.set(0, -1, 0));
+    const hit = this.surfaceRay.intersectObject(m, false)[0];
+    if (!hit || !hit.face) return false;
+    normal.copy(hit.face.normal).transformDirection(m.matrixWorld);
+    if (normal.y < 0.35) return false; // too steep to hold on
+    out.copy(hit.point);
+    return true;
+  }
+  private surfaceRay = new THREE.Raycaster();
+
+  private buildProceduralRocks(rnd: () => number) {
     const geo = new THREE.IcosahedronGeometry(1, 3);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -125,7 +250,7 @@ export class World implements Habitat {
     const p = new THREE.Vector3();
     const s = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
-      if (i % 2 === 0) randomFloorNearPath(14, p, rnd); else randomFloorPoint(15, p);
+      if (i % 3 !== 0) randomFloorNearPath(6, p, rnd, 1.8); else randomFloorNearPath(14, p, rnd, 4);
       const r = 0.6 + Math.pow(rnd(), 2) * 2.4;
       p.y -= r * 0.25;
       q.setFromEuler(new THREE.Euler(0, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.3));
@@ -140,16 +265,17 @@ export class World implements Habitat {
   private buildFlora() {
     const rnd = mulberry32(99);
     const up = new THREE.Vector3();
-    const sessile = (key: string, count: number, place: (p: THREE.Vector3) => boolean, doing: string) => {
+    const sessile = (key: string, count: number, place: (p: THREE.Vector3, up: THREE.Vector3) => boolean, doing: string) => {
       this.pop(key, count);
       let tries = 0;
       let made = 0;
       while (made < count && tries < count * 20) {
         tries++;
-        randomFloorPoint(12, _v);
-        if (!place(_v)) continue;
-        floorNormal(_v.x, _v.z, up);
-        const size = key === 'bullkelp' ? 3 : key === 'sugarkelp' ? 1.2 : key === 'sunflowerstar' ? 0.8 : 0.4;
+        randomFloorNearPath(7, _v, rnd, 0.8);
+        up.set(0, 0, 0);
+        if (!place(_v, up)) continue;
+        if (up.lengthSq() === 0) floorNormal(_v.x, _v.z, up);
+        const size = key === 'bullkelp' ? 3 : key === 'sugarkelp' ? 1.2 : key === 'sunflowerstar' ? 0.8 : key === 'tubeanemone' ? 0.5 : 0.4;
         // kelp blades trail down-current, so all kelp shares a heading (+ a little scatter)
         const yaw = key === 'bullkelp' || key === 'sugarkelp' ? 0.4 + (rnd() - 0.5) * 0.7 : rnd() * Math.PI * 2;
         const a = new Sessile(key, { maxSpeed: 0, maxForce: 0, cruise: 0, size }, _v, up, yaw, doing);
@@ -159,7 +285,7 @@ export class World implements Habitat {
     };
     // bull kelp grows in groves: pick grove centres near the camera loop, then scatter stipes around them
     const groves: THREE.Vector3[] = [];
-    for (let i = 0; i < 14; i++) groves.push(randomFloorNearPath(16, new THREE.Vector3(), rnd));
+    for (let i = 0; i < 14; i++) groves.push(randomFloorNearPath(8, new THREE.Vector3(), rnd, 3, (i + rnd()) / 14));
     let gi = 0;
     const kelpField = (p: THREE.Vector3) => {
       const g = groves[gi++ % groves.length];
@@ -169,25 +295,19 @@ export class World implements Habitat {
       p.y = floorHeight(p.x, p.z);
       return true;
     };
-    sessile('bullkelp', 150, kelpField, 'swaying in the current');
+    sessile('bullkelp', 170, kelpField, 'swaying in the current');
     sessile('sugarkelp', 120, (p) => noise2(p.x * 0.05 + 9, p.z * 0.05 + 2) > 0.1, 'swaying in the current');
-    // anemones cluster on and around rocks
-    // anemones crowd the boulders: place them on rock surfaces (raised by the rock's height)
-    let ai = 0;
-    const onRock = (p: THREE.Vector3) => {
-      const rk = this.rocks[ai++ % this.rocks.length];
-      const a = rnd() * Math.PI * 2;
-      const d = rnd() * rk.r * 0.9;
-      p.set(rk.pos.x + Math.cos(a) * d, 0, rk.pos.z + Math.sin(a) * d);
-      // approximate the boulder's dome height at this point
-      const h = Math.sqrt(Math.max(0, 1 - (d / rk.r) * (d / rk.r))) * rk.r * 0.55;
-      p.y = rk.pos.y + h - 0.05;
-      return rk.r > 0.8;
-    };
-    sessile('anemone', 220, onRock, 'filter feeding');
-    sessile('ochrestar', 40, () => true, 'grazing on mussels');
+    // soft-bottom life on the open sand between the rocks: sea pens stand in loose meadows,
+    // tube anemones scattered singly
+    const clearOfRocks = (p: THREE.Vector3, r: number) => this.rocks.every((k) => (k.pos.x - p.x) ** 2 + (k.pos.z - p.z) ** 2 > (k.r + r) ** 2);
+    sessile('seapen', 260, (p) => noise2(p.x * 0.12 + 40, p.z * 0.12 - 7) > -0.05 && clearOfRocks(p, 0.3), 'filter feeding, polyps open');
+    sessile('tubeanemone', 140, (p) => clearOfRocks(p, 0.4), 'fishing with its tentacles');
+    // anemones colonise hard surfaces: rocks, shelves and especially the sunken logs
+    const onRock = (p: THREE.Vector3, up: THREE.Vector3) => this.surfacePoint(rnd, p, up, 0.45);
+    sessile('anemone', 420, onRock, 'filter feeding');
+    sessile('ochrestar', 40, (p, up) => (rnd() < 0.6 ? this.surfacePoint(rnd, p, up) : true), 'grazing on mussels');
     sessile('sunflowerstar', 10, () => true, 'hunting urchins, slowly');
-    sessile('urchin', 60, (p) => noise2(p.x * 0.06 + 20, p.z * 0.06) > 0.05, 'grazing kelp');
+    sessile('urchin', 60, (p, up) => (rnd() < 0.5 ? this.surfacePoint(rnd, p, up) : noise2(p.x * 0.06 + 20, p.z * 0.06) > 0.05), 'grazing kelp');
     // stars and urchins sit slightly into the floor so they don't hover
     for (const k of ['ochrestar', 'sunflowerstar', 'urchin']) for (const a of this.pops.get(k)!.agents) a.pos.y -= 0.01;
   }
@@ -217,9 +337,11 @@ export class World implements Habitat {
         this.addAgent('chinook', f);
       }
     }
-    this.pop('rockfish', 20);
-    for (let i = 0; i < 20; i++) {
-      this.addAgent('rockfish', new BenthicFish('rockfish', { maxSpeed: 1.6, maxForce: 3, cruise: 0.35, turnRate: 3, clearance: 0.3, size: 0.45 }, [], { idle: 'hovering by its rock', hunt: '', eat: '' }, [0.4, 1.6]));
+    for (const key of ['rockfish', 'blackrockfish']) {
+      this.pop(key, 14);
+      for (let i = 0; i < 14; i++) {
+        this.addAgent(key, new BenthicFish(key, { maxSpeed: 1.6, maxForce: 3, cruise: 0.35, turnRate: 3, clearance: 0.3, size: 0.45 }, ['prawn'], { idle: 'hovering by its rock', hunt: 'snapping at a prawn', eat: 'swallowing' }, [0.4, 1.6]));
+      }
     }
     this.pop('lingcod', 5);
     for (let i = 0; i < 5; i++) {
@@ -228,23 +350,39 @@ export class World implements Habitat {
   }
 
   private buildBenthos() {
-    const crab = (key: string, n: number, speed: number, bury: boolean) => {
+    const crab = (key: string, n: number, speed: number, bury: boolean, cfg?: Partial<CrawlerConfig>, size = 0.2) => {
       this.pop(key, n);
       for (let i = 0; i < n; i++) {
-        const c = new Crab(key, { maxSpeed: speed * 2.2, maxForce: 1, cruise: speed, size: 0.2 }, bury);
-        randomFloorNearPath(9, c.pos);
+        const c = new Crab(key, { maxSpeed: speed * 2.2, maxForce: 1, cruise: speed, size }, bury, cfg);
+        randomFloorNearPath(5, c.pos);
         c.goal.copy(c.pos);
         this.addAgent(key, c);
       }
     };
-    crab('dungeness', 40, 0.35, true);
-    crab('redrock', 26, 0.3, false);
-    crab('kelpcrab', 16, 0.2, false);
-    crab('decorator', 12, 0.15, false);
+    crab('dungeness', 30, 0.35, true);
+    crab('redrock', 22, 0.3, false);
+    crab('kelpcrab', 14, 0.2, false, { facing: 'forward' });
+    crab('decorator', 12, 0.15, false, { facing: 'forward' });
+    crab('prawn', 26, 0.25, false, {
+      facing: 'forward', fleeBackward: true, threats: ['octopus', 'rockfish', 'blackrockfish', 'lingcod', 'sculpin'], threatRadius: 1.6,
+      roam: 3, walkChance: 0.5, verbs: { idle: 'picking at the bottom', walk: 'walking on its toes', flee: 'tail-flipping away', bury: '' },
+    }, 0.2);
+    crab('flounder', 12, 0.5, true, {
+      facing: 'forward', threats: ['seal', 'sealion', 'octopus', 'dogfish'], threatRadius: 2.5, roam: 5, walkChance: 0.15, lift: 0.08,
+      verbs: { idle: 'lying flat, watching', walk: 'gliding over the sand', flee: 'bolting in a cloud of silt', bury: 'half-buried in the sand' },
+    }, 0.45);
+    crab('sculpin', 10, 0.35, false, {
+      facing: 'forward', threats: ['seal', 'octopus', 'dogfish'], threatRadius: 1.8, roam: 2, walkChance: 0.12, lift: 0.04,
+      verbs: { idle: 'sitting motionless, camouflaged', walk: 'hopping to a new spot', flee: 'darting off', bury: '' },
+    }, 0.3);
+    crab('cucumber', 14, 0.025, false, {
+      facing: 'forward', threats: [], roam: 1.5, walkChance: 0.7,
+      verbs: { idle: 'sifting detritus', walk: 'creeping along', flee: '', bury: '' },
+    }, 0.3);
     this.pop('octopus', 2);
     for (let i = 0; i < 2; i++) {
       // den at a large rock
-      const big = this.rocks.filter((r) => r.r > 1.4).sort((a, b) => this.pathDistance(a.pos) - this.pathDistance(b.pos));
+      const big = this.rocks.filter((r) => r.r > 1.0).sort((a, b) => this.pathDistance(a.pos) - this.pathDistance(b.pos));
       const rk = big[i] ?? this.rocks[0];
       const den = rk.pos.clone().add(new THREE.Vector3(rk.r * 1.1, 0, 0));
       den.y = floorHeight(den.x, den.z);
@@ -283,11 +421,14 @@ export class World implements Habitat {
         verbs: { cruise: 'cruising', hunt: 'chasing salmon', eat: 'eating', breathe: 'surfacing to breathe', rest: 'resting' },
       }, { maxSpeed: 7, maxForce: 10, cruise: 1.9, turnRate: 3, clearance: 1, size: 3 });
     }
-    this.pop('sixgill', 1);
-    this.hunter('sixgill', {
-      prey: ['chinook'], huntRange: 10, catchDist: 1.2, airBreather: false, oxygen: [1, 1], cruiseAbove: [1.2, 4], eatTime: 6,
-      verbs: { cruise: 'patrolling the bottom', hunt: 'closing on a salmon', eat: 'feeding', breathe: '', rest: '' },
-    }, { maxSpeed: 2.6, maxForce: 3, cruise: 0.8, turnRate: 1.2, clearance: 1.2, bankAmount: 0.6, size: 4 });
+    // a loose group of small sharks patrolling low over the bottom
+    this.pop('dogfish', 7);
+    for (let i = 0; i < 7; i++) {
+      this.hunter('dogfish', {
+        prey: ['herring', 'flounder', 'prawn'], huntRange: 8, catchDist: 0.5, airBreather: false, oxygen: [1, 1], cruiseAbove: [0.7, 2.5], eatTime: 4,
+        verbs: { cruise: 'patrolling the bottom', hunt: 'closing on prey', eat: 'feeding', breathe: '', rest: '' },
+      }, { maxSpeed: 2.8, maxForce: 4, cruise: 0.9, turnRate: 1.8, clearance: 0.7, bankAmount: 0.7, size: 1 });
+    }
     // pods/visitors get created on a timer
     this.pop('orca', 6);
     this.pop('dolphin', 10);
@@ -486,7 +627,7 @@ export class World implements Habitat {
     let vis = 0;
     for (const p of this.pops.values()) {
       p.renderer.sync(dt, camPos, VIEW_RANGE);
-      const sessile = p.key === 'bullkelp' || p.key === 'sugarkelp' || p.key === 'anemone' || p.key === 'urchin' || p.key === 'ochrestar' || p.key === 'sunflowerstar';
+      const sessile = p.key === 'bullkelp' || p.key === 'sugarkelp' || p.key === 'anemone' || p.key === 'seapen' || p.key === 'tubeanemone' || p.key === 'urchin' || p.key === 'ochrestar' || p.key === 'sunflowerstar';
       if (sessile) {
         if (!this.observedSet.has(p.key)) for (const a of p.agents) if (a.pos.distanceToSquared(camPos) < 7 * 7 && this.frustum.containsPoint(a.pos)) { this.observedSet.add(p.key); this.observed.push(p.key); break; }
         continue;
@@ -506,6 +647,7 @@ export class World implements Habitat {
     this.visibleCount = vis;
 
     this.updateOccluders(camPos);
+    this.cullStatics(camPos);
 
     // hover picking
     this.pickTimer -= dt;
@@ -534,8 +676,9 @@ export class World implements Habitat {
     const floorRules: Record<string, [number, number]> = {
       dungeness: [0.24, 0.6], redrock: [0.2, 0.6], kelpcrab: [0.14, 0.45], decorator: [0.12, 0.45], octopus: [0.9, 0.6],
       urchin: [0.13, 0.5], ochrestar: [0.18, 0.35], sunflowerstar: [0.45, 0.4], anemone: [0.16, 0.45], bullkelp: [0.25, 0.35],
+      flounder: [0.3, 0.45], sculpin: [0.2, 0.5], prawn: [0.1, 0.4], cucumber: [0.16, 0.5],
     };
-    const hoverRules: Record<string, [number, number]> = { rockfish: [0.3, 0.45], lingcod: [0.5, 0.5], seal: [0.8, 0.5], sixgill: [1.2, 0.45] };
+    const hoverRules: Record<string, [number, number]> = { rockfish: [0.3, 0.45], blackrockfish: [0.3, 0.45], lingcod: [0.5, 0.5], seal: [0.8, 0.5], dogfish: [0.5, 0.45] };
     for (const [key, [r, s]] of Object.entries(floorRules)) {
       const p = this.pops.get(key);
       if (!p) continue;
@@ -560,10 +703,13 @@ export class World implements Habitat {
 
   // ---------------------------------------------------------------- camera attention
 
+  private static STATIC = new Set(['bullkelp', 'sugarkelp', 'anemone', 'seapen', 'tubeanemone', 'urchin', 'ochrestar', 'sunflowerstar']);
+
   private static ATTN: Record<string, number> = {
     octopus: 3, seal: 2.5, sealion: 2.5, orca: 3, humpback: 3, dolphin: 2, porpoise: 2, sixgill: 2.5,
     lingcod: 1.5, rockfish: 1.2, dungeness: 1.3, redrock: 1.3, kelpcrab: 1.1, decorator: 1.1, chinook: 1.2,
     lionsmane: 1.6, seanettle: 1.3, moonjelly: 1,
+    blackrockfish: 1.2, flounder: 1.4, sculpin: 1.3, prawn: 1.1, cucumber: 0.9, dogfish: 2.2,
   };
 
   /** Something worth looking at in front of the camera, weighted by interest and proximity. */
@@ -604,8 +750,9 @@ export class World implements Habitat {
         break;
       }
     }
-    // animals whose body overlaps the centre of the frame
+    // animals whose body overlaps the centre of the frame (plants and fixed life don't pull focus)
     for (const p of this.pops.values()) {
+      if (World.STATIC.has(p.key)) continue;
       for (const a of p.agents) {
         if (!a.alive) continue;
         _v2.subVectors(a.pos, cam.position);
@@ -616,8 +763,7 @@ export class World implements Habitat {
         if (off < r + along * 0.06) best = along;
       }
     }
-    // like a real lens: never pull focus closer than ~1.5 m on a wide shot
-    return Math.max(1.5, best);
+    return Math.max(0.6, best);
   }
 
   private pick() {

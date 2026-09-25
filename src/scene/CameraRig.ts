@@ -63,11 +63,11 @@ export class CameraRig {
 
     const u = ((this.progress % 1) + 1) % 1;
     this.path.getPointAt(u, this.pos);
-    this.path.getPointAt((u + 0.02) % 1, this.ahead);
+    this.path.getPointAt((u + 0.016) % 1, this.ahead);
 
     // hold roughly 2.4 m above the highest ground nearby, eased so bumps don't jolt the camera
     const hFloor = Math.max(floorHeight(this.pos.x, this.pos.z), floorHeight(this.ahead.x, this.ahead.z));
-    this.height += (hFloor + 2.4 - this.height) * Math.min(1, dt * 0.8);
+    this.height += (hFloor + 1.9 - this.height) * Math.min(1, dt * 0.8);
 
     // breathing: ~5 s cycle, inhale lifts, exhale sinks
     this.breath = (t / 5.2) % 1;
@@ -77,7 +77,7 @@ export class CameraRig {
     this.camera.position.set(this.pos.x, this.height + breathLift + wander, this.pos.z);
 
     // path gaze: a point ahead, a little below eye level
-    const pathLook = new THREE.Vector3(this.ahead.x, hFloor + 1.1, this.ahead.z);
+    const pathLook = new THREE.Vector3(this.ahead.x, hFloor + 0.6, this.ahead.z);
 
     // attention: re-evaluate every ~1.5 s, ease the gaze toward it, release when it goes behind
     this.attnTimer -= dt;
