@@ -262,7 +262,7 @@ export function buildLights(): THREE.Object3D[] {
 
 /** A diver's torch: warm spot mounted on the camera. */
 export function buildTorch(): THREE.SpotLight {
-  const torch = new THREE.SpotLight(0xffe9c8, 12, 15, Math.PI * 0.27, 0.8, 1.4);
+  const torch = new THREE.SpotLight(0xffe9c8, 16, 18, Math.PI * 0.27, 0.8, 1.4);
   torch.position.set(0.15, -0.25, 0);
   torch.target.position.set(0, -0.42, -1);  // aimed a little down: the floor is what is close
   torch.name = 'torch';
