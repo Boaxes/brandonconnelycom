@@ -104,8 +104,8 @@ export function buildBackdrop(): THREE.Mesh {
       void main() {
         float up = clamp(vDir.y * 0.5 + 0.5, 0.0, 1.0);
         // must match the fog colour in UnderwaterMaterial so fogged geometry blends into the backdrop
-        vec3 c = mix(uDeepColor, uWaterColor, clamp(pow(up, 0.8) * 1.15, 0.0, 1.0));
-        c = mix(c, uSkyColor * 0.55, smoothstep(0.8, 1.0, up));
+        vec3 c = mix(uDeepColor, uWaterColor, clamp(pow(up, 1.2) * 1.05, 0.0, 1.0));
+        c = mix(c, uSkyColor * 0.12, smoothstep(0.85, 1.0, up));
         gl_FragColor = vec4(c, 1.0);
       }
     `,
@@ -181,53 +181,68 @@ export function buildGodRays(count = 28): THREE.Group {
   return g;
 }
 
-/** Marine snow / plankton particles drifting through the volume. */
-export function buildParticles(count = 2600): THREE.Points {
+/** Suspended silt and plankton: a dense cloud that follows the camera and catches the dive light. */
+export function buildParticles(count = 6000): THREE.Points {
   const geo = new THREE.BufferGeometry();
+  const box = 18; // metres, cube around the camera
   const pos = new Float32Array(count * 3);
   const seed = new Float32Array(count);
-  const size = WORLD.size;
   for (let i = 0; i < count; i++) {
-    pos[i * 3] = (Math.random() - 0.5) * size;
-    pos[i * 3 + 1] = Math.random() * WORLD.surfaceY;
-    pos[i * 3 + 2] = (Math.random() - 0.5) * size;
+    pos[i * 3] = (Math.random() - 0.5) * box;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * box;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * box;
     seed[i] = Math.random();
   }
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uTime: shared.time, uFogDensity: shared.fogDensity, uSurfaceY: shared.surfaceY },
+    uniforms: {
+      uTime: shared.time, uFogDensity: shared.fogDensity, uWaterColor: shared.waterColor,
+      uCamPos: { value: new THREE.Vector3() }, uBox: { value: box }, uTorch: { value: 1 },
+    },
     transparent: true,
     depthWrite: false,
+    blending: THREE.AdditiveBlending,
     vertexShader: /* glsl */ `
       attribute float seed;
       uniform float uTime;
       uniform float uFogDensity;
-      uniform float uSurfaceY;
+      uniform vec3 uCamPos;
+      uniform float uBox;
+      uniform float uTorch;
       varying float vA;
+      varying float vSeed;
       void main() {
         vec3 p = position;
-        float t = uTime * 0.12;
-        p.x += sin(t + seed * 40.0) * 1.2 + t * 0.6;
-        p.y += -t * 0.35 * (0.5 + seed);
-        p.z += cos(t * 0.8 + seed * 30.0) * 1.2;
-        p.y = mod(p.y, uSurfaceY);
+        float t = uTime * 0.1;
+        // slow drift + individual jitter, then wrap into the cube around the camera
+        p.x += t * 0.5 + sin(t * 1.3 + seed * 40.0) * 0.5;
+        p.y += -t * 0.25 * (0.4 + seed) + cos(t * 0.9 + seed * 17.0) * 0.3;
+        p.z += cos(t * 0.7 + seed * 30.0) * 0.5;
+        p = mod(p - uCamPos + uBox * 0.5, uBox) - uBox * 0.5 + uCamPos;
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         float d = -mv.z;
-        gl_PointSize = (1.0 + seed * 1.6) * (30.0 / max(d, 1.0)) + 0.6;
-        float f = exp(-uFogDensity * uFogDensity * d * d);
-        vA = f * (0.35 + 0.45 * seed);
+        float big = step(0.96, seed);
+        gl_PointSize = min((0.9 + seed * 1.2 + big * 1.2) * (22.0 / max(d, 0.8)) + 0.5, 14.0);
+        float f = exp(-uFogDensity * uFogDensity * d * d * 1.6);
+        // dive light cone: brighter near the view axis and close to the camera
+        float cosA = -mv.z / max(length(mv.xyz), 0.001);
+        float cone = smoothstep(0.80, 0.97, cosA) * exp(-d * 0.22) * uTorch;
+        vA = f * (0.04 + 0.08 * seed) + cone * (0.14 + 0.2 * seed);
+        vSeed = seed;
         gl_Position = projectionMatrix * mv;
       }
     `,
     fragmentShader: /* glsl */ `
       varying float vA;
+      varying float vSeed;
       void main() {
         vec2 c = gl_PointCoord - 0.5;
         float r = dot(c, c);
         if (r > 0.25) discard;
         float a = (1.0 - r * 4.0) * vA;
-        gl_FragColor = vec4(vec3(0.85, 0.95, 1.0), a);
+        vec3 col = mix(vec3(0.75, 0.85, 0.7), vec3(0.95, 0.9, 0.8), vSeed);
+        gl_FragColor = vec4(col * a, a);
       }
     `,
   });
@@ -238,10 +253,18 @@ export function buildParticles(count = 2600): THREE.Points {
 }
 
 export function buildLights(): THREE.Object3D[] {
-  const hemi = new THREE.HemisphereLight(0x9fd8e6, 0x3b4a3c, 1.15);
-  const sun = new THREE.DirectionalLight(0xe8f8ff, 1.7);
+  // dim green daylight filtering down through 18 m of plankton
+  const hemi = new THREE.HemisphereLight(0x5b8a74, 0x22302a, 0.8);
+  const sun = new THREE.DirectionalLight(0xa8d0b2, 0.75);
   sun.position.copy(shared.sunDir.value).multiplyScalar(80);
-  const fill = new THREE.DirectionalLight(0x2b6b7a, 0.35);
-  fill.position.set(-40, 10, -30);
-  return [hemi, sun, fill];
+  return [hemi, sun];
+}
+
+/** A diver's torch: warm spot mounted on the camera. */
+export function buildTorch(): THREE.SpotLight {
+  const torch = new THREE.SpotLight(0xffe9c8, 12, 15, Math.PI * 0.27, 0.8, 1.4);
+  torch.position.set(0.15, -0.25, 0);
+  torch.target.position.set(0, -0.42, -1);  // aimed a little down: the floor is what is close
+  torch.name = 'torch';
+  return torch;
 }

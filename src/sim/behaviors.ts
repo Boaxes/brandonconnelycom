@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Agent, randomFloorPoint, randomWaterPoint, type AgentOpts } from './Agent';
+import { Agent, randomFloorPoint, randomWaterNearPath, type AgentOpts } from './Agent';
 import { floorHeight, floorNormal, WORLD } from '../scene/Terrain';
 import { noise2 } from '../util/noise';
 
@@ -46,13 +46,13 @@ export class School {
   members: SchoolFish[] = [];
   panic = 0;
   constructor(public cfg: SchoolConfig, public key: string) {
-    randomWaterPoint(cfg.homeAbove[0], cfg.homeAbove[1], 30, this.anchor);
+    randomWaterNearPath(10, cfg.homeAbove[0], cfg.homeAbove[1], this.anchor);
     this.target.copy(this.anchor);
   }
   update(dt: number, t: number) {
-    // anchor slowly wanders across the field
+    // anchor slowly wanders, staying within reach of the camera loop
     if (this.target.distanceTo(this.anchor) < 4 || Math.random() < dt * 0.02) {
-      randomWaterPoint(this.cfg.homeAbove[0], this.cfg.homeAbove[1], 30, this.target);
+      randomWaterNearPath(10, this.cfg.homeAbove[0], this.cfg.homeAbove[1], this.target);
     }
     _a.subVectors(this.target, this.anchor);
     const d = _a.length();
@@ -142,8 +142,8 @@ export class Hunter extends Agent implements Behavior {
   hunger = Math.random() * 20;
   constructor(public key: string, public cfg: HunterConfig, opts: AgentOpts) {
     super(opts);
-    randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 25, this.pos);
-    randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 25, this.goal);
+    randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.pos);
+    randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.goal);
     this.oxygen = cfg.oxygen[0] + Math.random() * (cfg.oxygen[1] - cfg.oxygen[0]);
     this.vel.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(opts.cruise);
   }
@@ -156,7 +156,7 @@ export class Hunter extends Agent implements Behavior {
     switch (this.state) {
       case 'cruise': {
         this.doing = cfg.verbs.cruise;
-        if (this.pos.distanceTo(this.goal) < 5) randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 25, this.goal);
+        if (this.pos.distanceTo(this.goal) < 5) randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.goal);
         this.seek(this.goal, 0.6);
         this.wander(0.6, h.time);
         this.keepSpeed(this.opts.cruise, 0.5);
@@ -212,7 +212,7 @@ export class Hunter extends Agent implements Behavior {
           this.oxygen += dt * 25;
           if (this.oxygen > cfg.oxygen[0] + Math.random() * (cfg.oxygen[1] - cfg.oxygen[0])) {
             this.state = 'cruise';
-            randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 25, this.goal);
+            randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.goal);
           }
         }
         break;
@@ -248,11 +248,12 @@ export class Pod {
   constructor(public key: string) {}
 
   static transitPath(y0: number, y1: number, wiggle = 30): THREE.Vector3[] {
-    // enter from one side, exit the opposite, with a couple of bends
+    // cross the field through a point on the camera loop so the pod is actually seen
+    const through = randomWaterNearPath(4, y0, y0, new THREE.Vector3());
     const half = WORLD.size / 2 + 25;
     const a = Math.random() * Math.PI * 2;
-    const enter = new THREE.Vector3(Math.cos(a) * half, y0, Math.sin(a) * half);
-    const exit = new THREE.Vector3(-Math.cos(a) * half, y1, -Math.sin(a) * half);
+    const enter = new THREE.Vector3(through.x + Math.cos(a) * half, y0, through.z + Math.sin(a) * half);
+    const exit = new THREE.Vector3(through.x - Math.cos(a) * half, y1, through.z - Math.sin(a) * half);
     const pts = [enter];
     const n = 4;
     for (let i = 1; i < n; i++) {
@@ -657,7 +658,7 @@ export class Jelly extends Agent implements Behavior {
   pulse = Math.random() * 10;
   constructor(public key: string, opts: AgentOpts, public band: [number, number], public pulseRate: number, public pulseLift: number) {
     super(opts);
-    randomWaterPoint(band[0], band[1], 12, this.pos);
+    randomWaterNearPath(12, band[0], band[1], this.pos);
     this.doing = 'drifting with the current';
     this.state = 'drift';
   }

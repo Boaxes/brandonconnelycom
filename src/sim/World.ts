@@ -13,6 +13,8 @@ import { hideLabel, showLabel } from '../ui/overlay';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+/** beyond this nothing is visible through the murk, so it isn't drawn */
+const VIEW_RANGE = 16;
 
 interface Population {
   key: string;
@@ -301,22 +303,22 @@ export class World implements Habitat {
       count = 4 + Math.floor(Math.random() * 3);
       cfg = { prey: ['chinook'], huntRange: 30, catchDist: 1.6, airBreather: true, oxygen: [50, 100], cruiseAbove: [6, 14], eatTime: 4, verbs: { cruise: 'leading the pod', hunt: 'hunting Chinook salmon', eat: 'sharing a salmon', breathe: 'surfacing to breathe', rest: '' } };
       opts = { maxSpeed: 9, maxForce: 8, cruise: 2.6, turnRate: 1.6, clearance: 2.5, bankAmount: 0.8, size: 7 };
-      pod.path = Pod.transitPath(12 + Math.random() * 5, 10 + Math.random() * 6, 45);
+      pod.path = Pod.transitPath(6 + Math.random() * 4, 5 + Math.random() * 4, 30);
     } else if (kind === 'dolphin') {
       count = 6 + Math.floor(Math.random() * 4);
       cfg = { prey: ['herring'], huntRange: 20, catchDist: 0.7, airBreather: true, oxygen: [35, 70], cruiseAbove: [6, 14], eatTime: 2, verbs: { cruise: 'leading the group', hunt: 'chasing herring', eat: 'eating', breathe: 'surfacing to breathe', rest: '' } };
       opts = { maxSpeed: 10, maxForce: 14, cruise: 3.2, turnRate: 3, clearance: 2, bankAmount: 1.2, size: 2.3 };
-      pod.path = Pod.transitPath(13 + Math.random() * 5, 11 + Math.random() * 6, 50);
+      pod.path = Pod.transitPath(6 + Math.random() * 4, 5 + Math.random() * 4, 30);
     } else if (kind === 'porpoise') {
       count = 2 + Math.floor(Math.random() * 3);
       cfg = { prey: ['herring'], huntRange: 16, catchDist: 0.6, airBreather: true, oxygen: [30, 60], cruiseAbove: [5, 13], eatTime: 2, verbs: { cruise: 'leading the group', hunt: 'chasing herring', eat: 'eating', breathe: 'surfacing to breathe', rest: '' } };
       opts = { maxSpeed: 12, maxForce: 16, cruise: 3.6, turnRate: 3, clearance: 2, bankAmount: 1.2, size: 2 };
-      pod.path = Pod.transitPath(12 + Math.random() * 5, 12 + Math.random() * 5, 50);
+      pod.path = Pod.transitPath(6 + Math.random() * 4, 5 + Math.random() * 4, 30);
     } else {
       count = 1;
       cfg = { prey: ['herring'], huntRange: 30, catchDist: 4.5, airBreather: true, oxygen: [80, 140], cruiseAbove: [8, 13], eatTime: 8, verbs: { cruise: 'passing through', hunt: 'lunging at a herring ball', eat: 'straining a mouthful of herring', breathe: 'surfacing to breathe', rest: '' } };
       opts = { maxSpeed: 4.5, maxForce: 3, cruise: 1.7, turnRate: 0.7, clearance: 4, bankAmount: 0.4, size: 14 };
-      pod.path = Pod.transitPath(11 + Math.random() * 3, 10 + Math.random() * 4, 30);
+      pod.path = Pod.transitPath(7 + Math.random() * 3, 6 + Math.random() * 3, 20);
     }
     const start = pod.path[0];
     const dir = pod.path[1].clone().sub(start).normalize();
@@ -478,18 +480,18 @@ export class World implements Habitat {
     this.frustum.setFromProjectionMatrix(this.projView);
     let vis = 0;
     for (const p of this.pops.values()) {
-      p.renderer.sync(dt);
+      p.renderer.sync(dt, camPos, VIEW_RANGE);
       const sessile = p.key === 'bullkelp' || p.key === 'sugarkelp' || p.key === 'anemone' || p.key === 'urchin' || p.key === 'ochrestar' || p.key === 'sunflowerstar';
       if (sessile) {
-        if (!this.observedSet.has(p.key)) for (const a of p.agents) if (a.pos.distanceToSquared(camPos) < 20 * 20 && this.frustum.containsPoint(a.pos)) { this.observedSet.add(p.key); this.observed.push(p.key); break; }
+        if (!this.observedSet.has(p.key)) for (const a of p.agents) if (a.pos.distanceToSquared(camPos) < 7 * 7 && this.frustum.containsPoint(a.pos)) { this.observedSet.add(p.key); this.observed.push(p.key); break; }
         continue;
       }
       for (const a of p.agents) {
         if (!a.alive) continue;
         const d2 = a.pos.distanceToSquared(camPos);
-        if (d2 < 60 * 60 && this.frustum.containsPoint(a.pos)) {
+        if (d2 < 10 * 10 && this.frustum.containsPoint(a.pos)) {
           vis++;
-          if (d2 < 30 * 30 && !this.observedSet.has(p.key)) {
+          if (d2 < 7 * 7 && !this.observedSet.has(p.key)) {
             this.observedSet.add(p.key);
             this.observed.push(p.key);
           }
@@ -522,7 +524,7 @@ export class World implements Habitat {
         if (!a.alive) continue;
         _v.copy(a.pos).applyMatrix4(cam.matrixWorldInverse);
         const depth = -_v.z;
-        if (depth < 0.5 || depth > 70) continue;
+        if (depth < 0.5 || depth > 9) continue;
         _v2.copy(a.pos).project(cam);
         const sx = (_v2.x + 1) / 2 * window.innerWidth;
         const sy = (1 - _v2.y) / 2 * window.innerHeight;

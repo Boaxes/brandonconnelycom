@@ -80,8 +80,8 @@ export function attachGround(u: UnderwaterUniforms) {
 
 export function buildTerrain(): THREE.Mesh {
   // the mesh extends well past the simulated area so the edge is never seen through the fog
-  const size = WORLD.size * 2.4;
-  const seg = 220;
+  const size = WORLD.size * 1.3;
+  const seg = 180;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -139,7 +139,8 @@ export function buildDebris(count = 500): THREE.InstancedMesh {
   flat.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const uv = flat.attributes.uv as THREE.BufferAttribute;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, 0, 0);
-  const { mat } = makeMaterial({ amp: 0 }, { roughness: 0.9 });
+  const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.9, detail: 2 });
+  attachGround(uniforms);
   const mesh = new THREE.InstancedMesh(flat, mat, count);
   mesh.name = 'debris';
   const m = new THREE.Matrix4();

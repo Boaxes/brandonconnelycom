@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { floorHeight, WORLD } from '../scene/Terrain';
+import { floorHeight, randomFloorNearPath, WORLD } from '../scene/Terrain';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -215,6 +215,14 @@ export function randomFloorPoint(margin = 20, out = new THREE.Vector3()) {
 
 export function randomWaterPoint(minAbove = 2, maxAbove = 12, margin = 20, out = new THREE.Vector3()) {
   randomFloorPoint(margin, out);
+  out.y += minAbove + Math.random() * (maxAbove - minAbove);
+  out.y = Math.min(out.y, WORLD.surfaceY - 1);
+  return out;
+}
+
+/** Random point in the water column within `spread` metres of the camera loop. */
+export function randomWaterNearPath(spread: number, minAbove = 2, maxAbove = 12, out = new THREE.Vector3()) {
+  randomFloorNearPath(spread, out);
   out.y += minAbove + Math.random() * (maxAbove - minAbove);
   out.y = Math.min(out.y, WORLD.surfaceY - 1);
   return out;

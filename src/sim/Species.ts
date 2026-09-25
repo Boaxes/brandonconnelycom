@@ -24,11 +24,11 @@ export const SPECIES: Record<string, SpeciesDef> = {
   humpback: { key: 'humpback', roughness: 0.5, model: 'humpback', name: 'Humpback whale', latin: 'Megaptera novaeangliae', scale: [1, 1], swim: { amp: 0.6, freq: 0.5, speed: 1.6, axis: 1, bodyStart: 0.5 }, large: true },
   dolphin: { key: 'dolphin', roughness: 0.5, model: 'dolphin_pws', name: "Pacific white-sided dolphin", latin: 'Lagenorhynchus obliquidens', scale: [0.9, 1.1], swim: { amp: 0.12, freq: 0.6, speed: 5.5, axis: 1, bodyStart: 0.45 }, large: true },
   porpoise: { key: 'porpoise', roughness: 0.5, model: 'dalls_porpoise', name: "Dall's porpoise", latin: 'Phocoenoides dalli', scale: [0.9, 1.05], swim: { amp: 0.1, freq: 0.6, speed: 6.5, axis: 1, bodyStart: 0.45 }, large: true },
-  chinook: { key: 'chinook', roughness: 0.42, model: 'chinook', name: 'Chinook salmon', latin: 'Oncorhynchus tshawytscha', scale: [0.8, 1.2], swim: { amp: 0.07, freq: 0.75, speed: 6, axis: 0, bodyStart: 0.35 } },
-  herring: { key: 'herring', roughness: 0.42, model: 'herring', name: 'Pacific herring', latin: 'Clupea pallasii', scale: [0.8, 1.15], swim: { amp: 0.025, freq: 0.8, speed: 9, axis: 0, bodyStart: 0.3 } },
-  rockfish: { key: 'rockfish', roughness: 0.42, model: 'copper_rockfish', name: 'Copper rockfish', latin: 'Sebastes caurinus', scale: [0.8, 1.2], swim: { amp: 0.03, freq: 0.7, speed: 3.5, axis: 0, bodyStart: 0.45 } },
-  lingcod: { key: 'lingcod', roughness: 0.42, model: 'lingcod', name: 'Lingcod', latin: 'Ophiodon elongatus', scale: [0.9, 1.3], swim: { amp: 0.05, freq: 0.7, speed: 3, axis: 0, bodyStart: 0.4 } },
-  sixgill: { key: 'sixgill', roughness: 0.42, model: 'sixgill', name: 'Bluntnose sixgill shark', latin: 'Hexanchus griseus', scale: [1, 1], swim: { amp: 0.35, freq: 0.6, speed: 1.6, axis: 0, bodyStart: 0.35 }, large: true },
+  chinook: { key: 'chinook', roughness: 0.6, model: 'chinook', name: 'Chinook salmon', latin: 'Oncorhynchus tshawytscha', scale: [0.8, 1.2], swim: { amp: 0.07, freq: 0.75, speed: 6, axis: 0, bodyStart: 0.35 } },
+  herring: { key: 'herring', roughness: 0.6, model: 'herring', name: 'Pacific herring', latin: 'Clupea pallasii', scale: [0.8, 1.15], swim: { amp: 0.025, freq: 0.8, speed: 9, axis: 0, bodyStart: 0.3 } },
+  rockfish: { key: 'rockfish', roughness: 0.6, model: 'copper_rockfish', name: 'Copper rockfish', latin: 'Sebastes caurinus', scale: [0.8, 1.2], swim: { amp: 0.03, freq: 0.7, speed: 3.5, axis: 0, bodyStart: 0.45 } },
+  lingcod: { key: 'lingcod', roughness: 0.6, model: 'lingcod', name: 'Lingcod', latin: 'Ophiodon elongatus', scale: [0.9, 1.3], swim: { amp: 0.05, freq: 0.7, speed: 3, axis: 0, bodyStart: 0.4 } },
+  sixgill: { key: 'sixgill', roughness: 0.6, model: 'sixgill', name: 'Bluntnose sixgill shark', latin: 'Hexanchus griseus', scale: [1, 1], swim: { amp: 0.35, freq: 0.6, speed: 1.6, axis: 0, bodyStart: 0.35 }, large: true },
   seal: { key: 'seal', roughness: 0.5, model: 'harbor_seal', name: 'Harbor seal', latin: 'Phoca vitulina', scale: [0.9, 1.1], swim: { amp: 0.09, freq: 0.6, speed: 4.5, axis: 0, bodyStart: 0.5 }, large: true },
   sealion: { key: 'sealion', roughness: 0.5, model: 'steller_sea_lion', name: 'Steller sea lion', latin: 'Eumetopias jubatus', scale: [0.95, 1.05], swim: { amp: 0.12, freq: 0.6, speed: 3.5, axis: 1, bodyStart: 0.55 }, large: true },
   dungeness: { key: 'dungeness', model: 'dungeness_crab', name: 'Dungeness crab', latin: 'Metacarcinus magister', scale: [0.9, 1.2], swim: { amp: 0 }, appendageAmp: 0.012 },
@@ -88,19 +88,22 @@ export class SpeciesRenderer {
     this.agents.push(a);
   }
 
-  /** Advance swim phases and push agent transforms to the GPU. */
-  sync(dt: number) {
-    const n = Math.min(this.agents.length, this.mesh.instanceMatrix.count);
+  /** Advance swim phases and upload only the instances within `cull` metres of `cam`. */
+  sync(dt: number, cam: THREE.Vector3, cull: number) {
     const rate = this.def.swim.speed ?? 4;
-    for (let i = 0; i < n; i++) {
-      const a = this.agents[i];
+    const c2 = cull * cull;
+    let n = 0;
+    for (const a of this.agents) {
       a.animSpeed += (a.speedMul - a.animSpeed) * Math.min(1, dt * 4);
       a.swimPhase += dt * rate * a.animSpeed;
+      if (!a.alive || a.pos.distanceToSquared(cam) > c2) continue;
+      if (n >= this.mesh.instanceMatrix.count) break;
       _s.setScalar(a.scale);
       _m.compose(a.pos, a.quat, _s);
-      this.mesh.setMatrixAt(i, _m);
-      this.phaseAttr.setX(i, a.swimPhase);
-      this.speedAttr.setX(i, a.animSpeed);
+      this.mesh.setMatrixAt(n, _m);
+      this.phaseAttr.setX(n, a.swimPhase);
+      this.speedAttr.setX(n, a.animSpeed);
+      n++;
     }
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;

@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { shared } from './UnderwaterMaterial';
 import { buildDebris, buildTerrain, WORLD } from './Terrain';
-import { buildBackdrop, buildGodRays, buildLights, buildParticles, buildSurface } from './Environment';
+import { buildBackdrop, buildLights, buildParticles, buildTorch } from './Environment';
 
 /** Vignette + subtle chromatic softening, applied after bloom. */
 const FinalShader = {
@@ -45,6 +45,8 @@ export class Ocean {
   bloom: UnrealBloomPass;
   final: ShaderPass;
   terrain: THREE.Mesh;
+  particles: THREE.Points;
+  torch: THREE.SpotLight;
   clock = new THREE.Clock();
   quality = 1;
   private frameTimes: number[] = [];
@@ -54,10 +56,10 @@ export class Ocean {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.3, 600);
+    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.2, 70);
     this.camera.position.set(0, 6, 30);
 
     shared.surfaceY.value = WORLD.surfaceY;
@@ -67,14 +69,17 @@ export class Ocean {
     this.scene.add(this.terrain);
     this.scene.add(buildDebris());
     this.scene.add(buildBackdrop());
-    this.scene.add(buildSurface());
-    this.scene.add(buildGodRays());
-    this.scene.add(buildParticles());
+    this.particles = buildParticles();
+    this.scene.add(this.particles);
     for (const l of buildLights()) this.scene.add(l);
+    this.torch = buildTorch();
+    this.camera.add(this.torch);
+    this.camera.add(this.torch.target);
+    this.scene.add(this.camera);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.22, 0.7, 0.9);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.18, 0.8, 0.85);
     this.composer.addPass(this.bloom);
     this.final = new ShaderPass(FinalShader);
     this.composer.addPass(this.final);
@@ -114,6 +119,7 @@ export class Ocean {
 
   render(time: number, dt: number) {
     shared.time.value = time;
+    (this.particles.material as THREE.ShaderMaterial).uniforms.uCamPos.value.copy(this.camera.position);
     this.final.uniforms.uTime.value = time;
     this.adapt(dt);
     this.composer.render();

@@ -12,10 +12,11 @@ import * as THREE from 'three';
 export const shared = {
   time: { value: 0 },
   surfaceY: { value: 22 },
-  waterColor: { value: new THREE.Color(0x2a8593) },
-  deepColor: { value: new THREE.Color(0x0e4a54) },
-  fogDensity: { value: 0.0155 },
-  causticStrength: { value: 0.8 },
+  // Puget Sound at ~18 m: green-brown gloom, a few metres of visibility
+  waterColor: { value: new THREE.Color(0x24463c) },
+  deepColor: { value: new THREE.Color(0x102420) },
+  fogDensity: { value: 0.125 },
+  causticStrength: { value: 0.25 },
   sunDir: { value: new THREE.Vector3(0.3, 1, 0.2).normalize() },
 };
 
@@ -252,7 +253,7 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
           vec3 caustic = vec3(0.8, 0.97, 1.0) * c * up * uCausticStrength * depthAtt * 1.6;
           reflectedLight.directDiffuse += diffuseColor.rgb * caustic;
           // ambient darkens with depth
-          reflectedLight.indirectDiffuse *= mix(1.0, 0.55, depth);
+          reflectedLight.indirectDiffuse *= mix(1.0, 0.6, depth);
           // fresnel rim: light wrapping around wet bodies
           vec3 vdir = normalize(cameraPosition - vWorldPos);
           float rim = pow(1.0 - clamp(dot(n, vdir), 0.0, 1.0), 3.0);
@@ -270,7 +271,7 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
           // fog colour: lighter when looking up toward the surface
           vec3 vd = normalize(vWorldPos - cameraPosition);
           float upness = clamp(vd.y * 0.5 + 0.5, 0.0, 1.0);
-          vec3 fogCol = mix(uDeepColor, uWaterColor, pow(upness, 0.8) * 1.15);
+          vec3 fogCol = mix(uDeepColor, uWaterColor, clamp(pow(upness, 1.2) * 1.05, 0.0, 1.0));
           gl_FragColor.rgb += uEmissive.rgb * uEmissive.w;
           gl_FragColor.rgb = mix(gl_FragColor.rgb, fogCol, f);
         }
