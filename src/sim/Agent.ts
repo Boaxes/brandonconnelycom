@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { floorHeight, randomFloorNearPath, WORLD } from '../scene/Terrain';
+import { floorHeight, randomFloorInView, stage, WORLD } from '../scene/Terrain';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -213,24 +213,22 @@ export function randomInDisc(radius: number, out = new THREE.Vector3()) {
   return out.set(Math.cos(a) * r, 0, Math.sin(a) * r);
 }
 
-export function randomFloorPoint(margin = 20, out = new THREE.Vector3()) {
-  const half = WORLD.size / 2 - margin;
-  out.set((Math.random() * 2 - 1) * half, 0, (Math.random() * 2 - 1) * half);
+/** Random floor point in front of the camera, `dMin`..`dMax` metres out. */
+export function randomFloorPoint(dMin = 2.5, dMax = 12, out = new THREE.Vector3()) {
+  return randomFloorInView(Math.random, dMin, dMax, out, 1.2);
+}
+
+/** Random point in the water in front of the camera, `minAbove`..`maxAbove` metres off the bottom. */
+export function randomWaterPoint(minAbove = 2, maxAbove = 8, dMin = 3, dMax = 14, out = new THREE.Vector3()) {
+  randomFloorInView(Math.random, dMin, dMax, out, 1.4);
+  out.y += minAbove + Math.random() * (maxAbove - minAbove);
+  return out;
+}
+
+/** The middle of the action: a floor point ~7 m in front of the camera. */
+export function stageCentre(out = new THREE.Vector3()) {
+  const s = stage();
+  out.copy(s.cam).addScaledVector(s.fwd, 7);
   out.y = floorHeight(out.x, out.z);
-  return out;
-}
-
-export function randomWaterPoint(minAbove = 2, maxAbove = 12, margin = 20, out = new THREE.Vector3()) {
-  randomFloorPoint(margin, out);
-  out.y += minAbove + Math.random() * (maxAbove - minAbove);
-  out.y = Math.min(out.y, WORLD.surfaceY - 1);
-  return out;
-}
-
-/** Random point in the water column within `spread` metres of the camera loop. */
-export function randomWaterNearPath(spread: number, minAbove = 2, maxAbove = 12, out = new THREE.Vector3()) {
-  randomFloorNearPath(spread, out);
-  out.y += minAbove + Math.random() * (maxAbove - minAbove);
-  out.y = Math.min(out.y, WORLD.surfaceY - 1);
   return out;
 }

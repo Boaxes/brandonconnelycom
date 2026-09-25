@@ -41,6 +41,9 @@ SCANS = {
     'harbor_seal': dict(rot=(90, 0, 0), length=1.6, faces=9000, tex=1024),
     'orca': dict(rot=(0, 0, 90), length=7.0, faces=9000, tex=1024),
     'humpback': dict(rot=(0, 0, 180), length=14.0, faces=10000, tex=1024),
+    'harbor_porpoise': dict(rot=(0, 0, -90), length=1.6, faces=6000, tex=1024),
+    'bat_star': dict(rot=(0, 0, 0), length=0.18, faces=2500, tex=512, base='bottom'),
+    'scallop': dict(rot=(90, 0, 0), length=0.09, faces=1500, tex=512, base='bottom'),
     'barnacle_rock': dict(rot=(0, 0, 0), length=1.6, faces=5000, tex=1024, base='bottom'),
     'rock_boulder': dict(rot=(0, 0, 0), length=2.2, faces=4000, tex=1024, base='bottom'),
     'log': dict(rot=(0, 0, 90), length=4.5, faces=5000, tex=1024, base='bottom', cut_ground=0.04),
@@ -71,8 +74,11 @@ def _import(key):
         bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
         return (Vector((max(v.x for v in bb), max(v.y for v in bb), max(v.z for v in bb))) -
                 Vector((min(v.x for v in bb), min(v.y for v in bb), min(v.z for v in bb)))).length
-    big = max(diag(o) for o in meshes)
-    for o in [o for o in meshes if diag(o) < big * 0.12]:
+    # the scan is the densest mesh; placeholder primitives (icospheres, cards) are big but coarse
+    main = max(meshes, key=lambda o: len(o.data.polygons))
+    big = diag(main)
+    nmain = len(main.data.polygons)
+    for o in [o for o in meshes if o is not main and (diag(o) < big * 0.12 or len(o.data.polygons) < nmain * 0.01)]:
         bpy.data.objects.remove(o, do_unlink=True)
     meshes = [o for o in bpy.context.scene.objects if o.type == 'MESH']
     bpy.ops.object.select_all(action='DESELECT')

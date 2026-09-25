@@ -7,7 +7,7 @@ Every scan here was re-oriented, cleaned, decimated and had its colour and norma
 
 By [ffishAsia & floraZia](https://sketchfab.com/ffishAsia-and-floraZia) on Sketchfab:
 octopus, herring, salmon, both rockfish, Dungeness and helmet crab stand-ins, decorator crab, urchin,
-sea cucumber, starry flounder, sculpin, prawn, dogfish, barnacle rock.
+sea cucumber, starry flounder, sculpin, prawn, dogfish, bat star, scallop.
 
 ## CC BY 4.0
 
@@ -22,3 +22,11 @@ sea cucumber, starry flounder, sculpin, prawn, dogfish, barnacle rock.
 | scan_log.glb | [Log](https://sketchfab.com/3d-models/86272f8b02bc4de1af5626e00c474edb) | megalitharchive |
 
 License: https://creativecommons.org/licenses/by/4.0/
+
+## CC BY-NC 4.0
+
+| File | Model | Author |
+| --- | --- | --- |
+| scan_harbor_porpoise.glb | [Model 75A - Harbor Porpoise](https://sketchfab.com/3d-models/eb02e57f17d741329a66844a3a8d2094) | DigitalLife3D |
+
+License: https://creativecommons.org/licenses/by-nc/4.0/ (non-commercial use; this is a personal portfolio)

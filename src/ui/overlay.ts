@@ -2,7 +2,7 @@ import { content } from '../content';
 import { ICONS } from './icons';
 import { SPECIES } from '../sim/Species';
 
-/** CC BY 4.0 models used in the scene (the rest are CC0). Keep in sync with public/models/CREDITS.md. */
+/** CC BY / BY-NC models used in the scene (the rest are CC0). Keep in sync with public/models/CREDITS.md. */
 const CREDITS = [
   { title: 'Northern Kelp Crab (Pugettia producta)', author: 'RosarioBeachMarineLab', url: 'https://sketchfab.com/3d-models/be6a8ff47c0447b49d36473db0f5a782' },
   { title: 'Sunflower Sea Star', author: 'RISDNaturelab', url: 'https://sketchfab.com/3d-models/cc973ed5fcd748c8aab5f37ae6b7b6f1' },
@@ -11,6 +11,7 @@ const CREDITS = [
   { title: 'Orca Killer Whale', author: 'LostPlaces', url: 'https://sketchfab.com/3d-models/7c01c438ff03401d8e77127154c041c7' },
   { title: 'High-Poly Humpback Whale', author: 'K9239', url: 'https://sketchfab.com/3d-models/5a6a09f1c27e4d0f890f2a30c10d7a81' },
   { title: 'Log', author: 'megalitharchive', url: 'https://sketchfab.com/3d-models/86272f8b02bc4de1af5626e00c474edb' },
+  { title: 'Model 75A - Harbor Porpoise (CC BY-NC)', author: 'DigitalLife3D', url: 'https://sketchfab.com/3d-models/eb02e57f17d741329a66844a3a8d2094' },
 ];
 
 function el(html: string): HTMLElement {
@@ -57,7 +58,7 @@ export function buildUI(cb: UICallbacks) {
       <section class="entry" id="top">
         <p class="date">${esc(today)} · Puget Sound · bottom, ~18 m</p>
         <h1>${esc(c.tagline)}</h1>
-        <p class="dim">This page is a notebook kept on the seafloor. Everything moving behind it is simulated: nothing is a video, and each animal is doing something for a reason. Scroll to drift along the bottom. Hover an animal to read its tag.</p>
+        <p class="dim">This page is a notebook kept on the seafloor. Everything moving behind it is simulated: nothing is a video, and each animal is doing something for a reason. Keep still and things come to you. Click an animal to read its tag.</p>
         <div class="links">
           <a href="#work">Selected work</a>
           <a href="${esc(c.links.github)}" target="_blank" rel="noopener">GitHub</a>
@@ -121,7 +122,7 @@ export function buildUI(cb: UICallbacks) {
       <section class="entry" id="log">
         <p class="date">Entry 5 · Field log</p>
         <h2>Species observed</h2>
-        <p class="small">Ticked as they pass the camera. ${Object.keys(SPECIES).length} kinds live here; the visitors (orca, dolphins, porpoises, the humpback) come and go on their own schedule.</p>
+        <p class="small">Ticked as they pass the camera. ${Object.keys(SPECIES).length} kinds live here; the visitors (seals, orcas, porpoises, now and then a humpback) come and go on their own schedule.</p>
         <div class="log">${speciesLog}</div>
         <p class="log-note" id="log-note">0 observed so far.</p>
         <hr class="rule" />
@@ -139,10 +140,10 @@ export function buildUI(cb: UICallbacks) {
         <h2>Say hello</h2>
         <p>Email is fastest: <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>.</p>
         <p class="dim">Also on <a href="${esc(c.links.github)}" target="_blank" rel="noopener">GitHub</a> and <a href="${esc(c.links.linkedin)}" target="_blank" rel="noopener">LinkedIn</a>.</p>
-        <p class="small">Modelled in Blender, rendered with Three.js, no framework. The seals really do have to surface to breathe.</p>
+        <p class="small">Photogrammetry scans, cleaned up in Blender, rendered with Three.js, no framework. The rockfish really are curious about divers.</p>
         <details class="credits">
           <summary>Credits</summary>
-          <p class="small">Most animals are CC0 photogrammetry by <a href="https://sketchfab.com/ffishAsia-and-floraZia" target="_blank" rel="noopener">ffishAsia &amp; floraZia</a>. The scans below are CC BY 4.0; all scans were re-oriented, decimated and re-baked for this scene. Ground textures are CC0 from Poly Haven.</p>
+          <p class="small">Most animals are CC0 photogrammetry by <a href="https://sketchfab.com/ffishAsia-and-floraZia" target="_blank" rel="noopener">ffishAsia &amp; floraZia</a>. The scans below are CC BY 4.0 (one CC BY-NC); all scans were re-oriented, decimated and re-baked for this scene. Ground textures are CC0 from Poly Haven.</p>
           <ul class="plain small">
             ${CREDITS.map((c) => `<li><a href="${c.url}" target="_blank" rel="noopener">${esc(c.title)}</a> by ${esc(c.author)}</li>`).join('')}
           </ul>
@@ -225,9 +226,9 @@ export function showLabel(x: number, y: number, name: string, latin: string, doi
   const l = document.getElementById('label')!;
   l.hidden = false;
   l.innerHTML = `<div class="name">${esc(name)}</div><div class="latin">${esc(latin)}</div><div class="doing">${esc(doing)}</div>`;
-  const w = 270;
-  const left = Math.min(x, window.innerWidth - w - 10);
-  l.style.left = left + 'px';
+  // on the left half of the screen the tag hangs to the left of the animal, away from the page
+  l.classList.toggle('left', x < window.innerWidth / 2);
+  l.style.left = x + 'px';
   l.style.top = y + 'px';
 }
 

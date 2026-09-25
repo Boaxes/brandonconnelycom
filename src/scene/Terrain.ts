@@ -20,47 +20,91 @@ export function floorHeight(x: number, z: number): number {
   return h;
 }
 
-/** The loop the camera drifts along; benthic life is seeded near it so it is seen. */
-let _path: THREE.CatmullRomCurve3 | null = null;
-export function cameraPath(): THREE.CatmullRomCurve3 {
-  if (_path) return _path;
-  // ~160 m around: at 4-6 m visibility a longer loop just spreads the scenery too thin
-  const r = WORLD.size * 0.17;
-  const pts: THREE.Vector3[] = [];
-  const n = 10;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2;
-    const rr = r * (0.8 + 0.25 * Math.sin(i * 2.3));
-    pts.push(new THREE.Vector3(Math.cos(a) * rr, 0, Math.sin(a) * rr * 0.8));
+/**
+ * The stage: one fixed diver's-eye viewpoint a couple of metres off the bottom, looking down the slope
+ * into deeper water. The portfolio page covers the middle of the screen, so what matters are the strips
+ * of scene visible either side of it; life and scenery are placed by camera-relative yaw and distance.
+ */
+export const PAPER_W = 760; // px, keep in sync with --paper-w in ui/style.css
+export const STAGE = {
+  cam: new THREE.Vector3(4, 0, 10),
+  look: new THREE.Vector3(4, 0, -2),
+  height: 1.45,   // camera above the floor
+  fov: 58,
+  fwd: new THREE.Vector3(),   // horizontal forward
+  right: new THREE.Vector3(), // horizontal right
+  ready: false,
+};
+
+export function stage() {
+  if (!STAGE.ready) {
+    STAGE.cam.y = floorHeight(STAGE.cam.x, STAGE.cam.z) + STAGE.height;
+    // look down the slope with a bit of downward pitch: the floor is where the detail is
+    STAGE.look.y = floorHeight(STAGE.look.x, STAGE.look.z) - 0.9;
+    STAGE.fwd.subVectors(STAGE.look, STAGE.cam).setY(0).normalize();
+    STAGE.right.set(-STAGE.fwd.z, 0, STAGE.fwd.x);
+    STAGE.ready = true;
   }
-  _path = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
-  return _path;
+  return STAGE;
+}
+
+/** Yaw band (radians from forward) of the strips visible beside the page, for the current window. */
+export function marginYaw(): { inner: number; outer: number } {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const th = Math.tan(THREE.MathUtils.degToRad(STAGE.fov / 2)) * (w / h);
+  const outer = Math.atan(th);
+  const inner = Math.atan(th * Math.min(1, PAPER_W / w));
+  // page covers (nearly) everything: fall back to a sensible band so the scene is still laid out
+  if (outer - inner < 0.12) return { inner: 0.42, outer: 0.72 };
+  return { inner, outer };
+}
+
+/** Floor point `dist` metres (horizontal) from the camera, `yaw` radians right of forward. */
+export function stageFloor(yaw: number, dist: number, out = new THREE.Vector3()): THREE.Vector3 {
+  const s = stage();
+  out.copy(s.cam).addScaledVector(s.fwd, Math.cos(yaw) * dist).addScaledVector(s.right, Math.sin(yaw) * dist);
+  out.y = floorHeight(out.x, out.z);
+  return out;
+}
+
+/** Water point: like stageFloor, `height` metres above the floor there. */
+export function stageWater(yaw: number, dist: number, height: number, out = new THREE.Vector3()): THREE.Vector3 {
+  stageFloor(yaw, dist, out);
+  out.y += height;
+  return out;
 }
 
 /**
- * Random floor point within `spread` metres of the camera loop, optionally keeping a clear lane
- * of `minDist` metres around the path itself (so set pieces flank the camera instead of blocking it).
- * `at` pins the position along the loop (0..1) for evenly spaced placement.
+ * Random floor point in the strips beside the page (side -1 left, 1 right, 0 either),
+ * `dMin`..`dMax` metres out. `pad` keeps it a little inside the strip.
  */
-export function randomFloorNearPath(spread: number, out = new THREE.Vector3(), rnd: () => number = Math.random, minDist = 0, at?: number): THREE.Vector3 {
-  const u = at ?? rnd();
-  const path = cameraPath();
-  path.getPointAt(u, out);
-  if (minDist > 0) {
-    // offset sideways from the path direction, left or right
-    const t = path.getTangentAt(u);
-    const side = rnd() < 0.5 ? -1 : 1;
-    const d = minDist + rnd() * Math.max(0, spread - minDist);
-    out.x += -t.z * side * d + t.x * (rnd() - 0.5) * 2;
-    out.z += t.x * side * d + t.z * (rnd() - 0.5) * 2;
-  } else {
-    const a = rnd() * Math.PI * 2;
-    const d = Math.sqrt(rnd()) * spread;
-    out.x += Math.cos(a) * d;
-    out.z += Math.sin(a) * d;
-  }
-  out.y = floorHeight(out.x, out.z);
-  return out;
+export function randomFloorInMargins(rnd: () => number, dMin: number, dMax: number, out = new THREE.Vector3(), side = 0, pad = 0.03): THREE.Vector3 {
+  const m = marginYaw();
+  const sd = side || (rnd() < 0.5 ? -1 : 1);
+  const yaw = sd * (m.inner + pad + rnd() * Math.max(0.01, m.outer - m.inner - 2 * pad));
+  return stageFloor(yaw, dMin + rnd() * (dMax - dMin), out);
+}
+
+/** Random floor point anywhere in front of the camera (`spread` > 1 reaches past the frame edges). */
+export function randomFloorInView(rnd: () => number, dMin: number, dMax: number, out = new THREE.Vector3(), spread = 1.1): THREE.Vector3 {
+  const yaw = (rnd() * 2 - 1) * marginYaw().outer * spread;
+  return stageFloor(yaw, dMin + Math.sqrt(rnd()) * (dMax - dMin), out);
+}
+
+/** Yaw of a world point relative to the camera's forward (radians, + = right). */
+export function yawOf(p: THREE.Vector3): number {
+  const s = stage();
+  const dx = p.x - s.cam.x;
+  const dz = p.z - s.cam.z;
+  return Math.atan2(dx * s.right.x + dz * s.right.z, dx * s.fwd.x + dz * s.fwd.z);
+}
+
+/** True if a point is in one of the visible strips beside the page. */
+export function inMargins(p: THREE.Vector3): boolean {
+  const m = marginYaw();
+  const y = Math.abs(yawOf(p));
+  return y > m.inner && y < m.outer;
 }
 
 export function floorNormal(x: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {
@@ -95,11 +139,13 @@ export function attachGround(u: UnderwaterUniforms) {
 }
 
 export function buildTerrain(): THREE.Mesh {
-  // the mesh extends well past the simulated area so the edge is never seen through the fog
-  const size = WORLD.size * 1.3;
-  const seg = 240;
+  // only ~20 m around the fixed viewpoint is ever visible through the murk: a small, dense patch
+  const size = 90;
+  const seg = 220;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
+  const s0 = stage();
+  geo.translate(s0.cam.x, 0, s0.cam.z - 15);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
   const sand = new THREE.Color(0x7f7a60);
@@ -136,43 +182,5 @@ export function buildTerrain(): THREE.Mesh {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
   mesh.name = 'terrain';
-  return mesh;
-}
-
-
-/** Pebbles and shell fragments scattered on the floor. */
-export function buildDebris(count = 3500): THREE.InstancedMesh {
-  const rnd = mulberry32(3);
-  const flat = new THREE.IcosahedronGeometry(1, 1);
-  flat.computeVertexNormals();
-  const n = flat.attributes.position.count;
-  const cols = new Float32Array(n * 3).fill(1);
-  flat.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  ensureSwim(flat);
-  const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.9, detail: 2, flat: true });
-  attachGround(uniforms);
-  const mesh = new THREE.InstancedMesh(flat, mat, count);
-  mesh.name = 'debris';
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const p = new THREE.Vector3();
-  const s = new THREE.Vector3();
-  const c = new THREE.Color();
-  for (let i = 0; i < count; i++) {
-    // cobbles and shell hash cluster where the camera actually goes
-    randomFloorNearPath(12, p, rnd);
-    p.y -= 0.02;
-    const shell = rnd() < 0.35;
-    const r = shell ? 0.03 + rnd() * 0.05 : 0.04 + rnd() * 0.1;
-    q.setFromEuler(new THREE.Euler(rnd() * 3, rnd() * 3, rnd() * 3));
-    s.set(r * (0.8 + rnd() * 0.5), r * (shell ? 0.25 : 0.55), r * (0.8 + rnd() * 0.5));
-    m.compose(p, q, s);
-    mesh.setMatrixAt(i, m);
-    if (shell) c.setHSL(0.08 + rnd() * 0.05, 0.15, 0.5 + rnd() * 0.15);
-    else c.setHSL(0.15 + rnd() * 0.1, 0.08, 0.22 + rnd() * 0.18);
-    mesh.setColorAt(i, c);
-  }
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
   return mesh;
 }

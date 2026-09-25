@@ -272,7 +272,12 @@ export function patchMaterial(mat: THREE.Material, u: UnderwaterUniforms) {
           vec2 p = vWorldPos.xz;
           vec2 uv1 = p * 0.22;
           vec2 uv2 = p * 0.045 + 3.1;
-          float blend = smoothstep(0.35, 0.65, vnoise(p * 0.06 + 11.0) * 0.7 + vnoise(p * 0.2) * 0.3);
+          // rotated, domain-warped fbm: plain value noise thresholded into grid-aligned squares
+          vec2 q = mat2(0.8, -0.6, 0.6, 0.8) * p * 0.07;
+          q += vec2(vnoise(q * 1.7 + 3.1), vnoise(q * 1.7 - 5.3)) * 1.3;
+          float n = 0.0, amp = 0.5;
+          for (int i = 0; i < 4; i++) { n += amp * vnoise(q); q = mat2(0.8, -0.6, 0.6, 0.8) * q * 2.03 + 17.1; amp *= 0.5; }
+          float blend = smoothstep(0.38, 0.62, n / 0.9375);
           float slope = 1.0 - clamp(normalize(vWorldNormal).y, 0.0, 1.0);
           blend = clamp(blend + slope * 1.5, 0.0, 1.0);
           vec3 sand = mix(texture2D(tSand, uv1).rgb, texture2D(tSand, uv2).rgb, 0.5);

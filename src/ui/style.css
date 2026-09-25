@@ -1,4 +1,4 @@
-/* Field notebook. A strip of paper down the left of the screen, the water behind it. */
+/* Field notebook. A page down the middle of the screen, the water either side of it. */
 :root {
   --paper: #efe8d6;
   --paper-2: #e6dec9;
@@ -12,7 +12,7 @@
   --pencil: #4a5f6a;
   --type: 'Special Elite', 'Courier New', monospace;
   --serif: 'Lora', Georgia, 'Times New Roman', serif;
-  --paper-w: 440px;
+  --paper-w: 760px; /* keep in sync with PAPER_W in scene/Terrain.ts */
 }
 
 * { box-sizing: border-box; }
@@ -35,18 +35,21 @@ a { color: inherit; }
 .loader-sub { margin-top: 10px; font-family: var(--type); font-size: 12px; color: var(--ink-3); }
 
 /* ---------- paper strip ---------- */
-#ui { position: relative; z-index: 10; transition: opacity 0.45s ease, transform 0.45s ease; }
-body.watch #ui { opacity: 0; transform: translateX(-24px); pointer-events: none; }
+/* the column is centred; the water either side takes clicks (to name animals) */
+#ui { position: relative; z-index: 10; pointer-events: none; transition: opacity 0.45s ease, transform 0.45s ease; }
+body.watch #ui { opacity: 0; transform: translateY(24px); }
+body.watch #content { pointer-events: none; }
 body.watch #controls .btn-watch { background: var(--paper); }
+#controls { pointer-events: auto; }
 
 #content {
-  width: var(--paper-w); margin: 0; padding: 0 0 12vh;
+  width: min(var(--paper-w), 100vw); margin: 0 auto; padding: 0 0 12vh; pointer-events: auto;
   background:
     linear-gradient(90deg, transparent 0, transparent 58px, var(--margin) 58px, var(--margin) 59px, transparent 59px),
     repeating-linear-gradient(180deg, transparent 0, transparent 27px, var(--rule) 27px, var(--rule) 28px),
     var(--paper);
   background-attachment: scroll;
-  box-shadow: 8px 0 0 var(--paper-edge), 14px 0 32px rgba(0, 0, 0, 0.35);
+  box-shadow: 6px 0 0 var(--paper-edge), -6px 0 0 var(--paper-edge), 0 0 36px 6px rgba(0, 0, 0, 0.4);
   position: relative;
 }
 #content::before {
@@ -58,7 +61,7 @@ body.watch #controls .btn-watch { background: var(--paper); }
 
 /* sticky header: name + index tabs */
 #head {
-  position: sticky; top: 0; z-index: 3; padding: 22px 28px 12px 76px;
+  position: sticky; top: 0; z-index: 3; padding: 22px 56px 12px 84px;
   background: linear-gradient(180deg, var(--paper) 78%, rgba(239, 232, 214, 0));
 }
 #head .name { font-family: var(--type); font-size: 20px; letter-spacing: 0.04em; margin: 0; }
@@ -76,7 +79,7 @@ body.watch #controls .btn-watch { background: var(--paper); }
 }
 .stamp:hover { opacity: 1; }
 
-section.entry { padding: 10vh 28px 6vh 76px; min-height: 70vh; }
+section.entry { padding: 10vh 56px 6vh 84px; min-height: 70vh; }
 section.entry:first-of-type { padding-top: 6vh; }
 .date { font-family: var(--type); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; margin: 0 0 6px; }
 h1 { font-family: var(--type); font-weight: 400; font-size: 24px; line-height: 1.25; margin: 0 0 16px; }
@@ -105,7 +108,7 @@ ul.plain li::before { content: '– '; color: var(--ink-3); }
 .skills h3 { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin-top: 8px; }
 
 /* species log */
-.log { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin-top: 8px; }
+.log { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px 14px; margin-top: 8px; }
 .log .sp { display: flex; align-items: center; gap: 8px; font-family: var(--type); font-size: 12.5px; color: var(--ink-3); line-height: 1.3; min-height: 30px; }
 .log .sp svg { width: 30px; height: 22px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; opacity: 0.55; }
 .log .sp.seen { color: var(--ink); }
@@ -132,6 +135,7 @@ ul.plain li::before { content: '– '; color: var(--ink-3); }
 /* ---------- creature tag ---------- */
 .label {
   position: fixed; z-index: 30; pointer-events: none; transform: translate(16px, -50%) rotate(-1.2deg);
+  transition: opacity 0.2s ease;
   background: var(--paper); color: var(--ink); padding: 8px 12px 8px 14px; max-width: 260px;
   box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.35);
 }
@@ -156,3 +160,13 @@ ul.plain li::before { content: '– '; color: var(--ink-3); }
 .credits summary { cursor: pointer; font-family: 'Special Elite', monospace; font-size: 0.8rem; color: var(--ink-2); }
 .credits ul { margin-top: 0.4rem; }
 .credits li { margin: 0.15rem 0; }
+
+/* tags on the left of the page point right, toward the animal */
+.label.left { transform: translate(calc(-100% - 16px), -50%) rotate(1.2deg); }
+.label.left::before { left: auto; right: 5px; }
+.label .doing { font-family: var(--type); font-size: 11.5px; color: var(--pencil); margin-top: 2px; }
+#ocean { cursor: default; }
+@media (max-width: 800px) {
+  #head, section.entry { padding-left: 64px; padding-right: 20px; }
+  .log { grid-template-columns: 1fr 1fr; }
+}

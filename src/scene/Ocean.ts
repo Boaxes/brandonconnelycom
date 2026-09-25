@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { shared, WATER_GLSL, waterUniforms } from './UnderwaterMaterial';
-import { buildDebris, buildTerrain, WORLD } from './Terrain';
+import { buildTerrain, WORLD } from './Terrain';
 import { buildBackdrop, buildLights, buildParticles, buildTorch, TORCH } from './Environment';
 
 /**
@@ -22,6 +22,7 @@ const WaterPostShader = {
     uProjInv: { value: new THREE.Matrix4() },
     uCamWorld: { value: new THREE.Matrix4() },
     uResolution: { value: new THREE.Vector2(1, 1) },
+    uMask: { value: new THREE.Vector2(0, 0) },
     uPxScale: { value: 1 },
     uTime: shared.time,
     uFocus: shared.focus,
@@ -48,6 +49,7 @@ const WaterPostShader = {
     uniform mat4 uProjInv;
     uniform mat4 uCamWorld;
     uniform vec2 uResolution;
+    uniform vec2 uMask;
     uniform float uPxScale;
     uniform float uTime;
     uniform float uFocus;
@@ -86,6 +88,8 @@ const WaterPostShader = {
     }
 
     void main() {
+      // behind the notebook page nothing is visible: skip the work
+      if (gl_FragCoord.x > uMask.x && gl_FragCoord.x < uMask.y) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
       vec3 viewPos;
       float dist = viewDist(vUv, viewPos);
       float d = depthAt(vUv);
@@ -119,7 +123,8 @@ const WaterPostShader = {
       float tMax = min(dist, 14.0);
       const int STEPS = 22;
       float stepLen = tMax / float(STEPS);
-      float jitter = fract(sin(dot(gl_FragCoord.xy + uFrame * 7.13, vec2(12.9898, 78.233))) * 43758.5453);
+      // interleaved-gradient jitter, fixed per pixel: a per-frame jitter shimmered
+      float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
       vec3 beam = vec3(0.0);
       for (int i = 0; i < STEPS; i++) {
         float t = (float(i) + jitter) * stepLen;
@@ -145,6 +150,7 @@ const LensShader = {
     tDiffuse: { value: null as THREE.Texture | null },
     uTime: { value: 0 },
     uResolution: { value: new THREE.Vector2(1, 1) },
+    uMask: { value: new THREE.Vector2(0, 0) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -154,6 +160,7 @@ const LensShader = {
     uniform sampler2D tDiffuse;
     uniform float uTime;
     uniform vec2 uResolution;
+    uniform vec2 uMask;
     varying vec2 vUv;
     vec2 barrel(vec2 uv, float k) {
       vec2 c = uv - 0.5;
@@ -165,6 +172,8 @@ const LensShader = {
     }
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
+      // behind the notebook page nothing is visible: skip the work
+      if (gl_FragCoord.x > uMask.x && gl_FragCoord.x < uMask.y) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
       // slight barrel distortion (dome port) with a touch of lateral colour at the edges
       float k = -0.035;
       vec3 c;
@@ -174,12 +183,14 @@ const LensShader = {
       // vignette
       vec2 d = vUv - 0.5;
       d.x *= uResolution.x / uResolution.y * 0.8;
-      c *= mix(1.0, smoothstep(0.95, 0.25, length(d)), 0.55);
+      // mostly top and bottom: the sides are where the scene shows beside the page
+      d.x *= 0.55;
+      c *= mix(1.0, smoothstep(0.95, 0.25, length(d)), 0.4);
       // film grain, stronger in the shadows; triangular dither breaks 8-bit banding
       float lum = dot(c, vec3(0.299, 0.587, 0.114));
       vec2 px = gl_FragCoord.xy;
       float g = hash(px + fract(uTime * 13.7) * 91.0) - 0.5;
-      c += g * 0.045 * (1.0 - lum * 0.7);
+      c += g * 0.03 * (1.0 - lum * 0.7);
       float dth = (hash(px * 1.37 + uTime) + hash(px * 0.73 - uTime) - 1.0) / 255.0;
       c += dth;
       gl_FragColor = vec4(c, 1.0);
@@ -214,10 +225,10 @@ export class Ocean {
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.4;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -230,7 +241,6 @@ export class Ocean {
 
     this.terrain = buildTerrain();
     this.scene.add(this.terrain);
-    this.scene.add(buildDebris());
     this.scene.add(buildBackdrop());
     this.particles = buildParticles();
     this.scene.add(this.particles);
@@ -239,6 +249,11 @@ export class Ocean {
     this.camera.add(this.torch);
     this.camera.add(this.torch.target);
     this.scene.add(this.camera);
+    this.occluder = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ colorWrite: false }));
+    this.occluder.renderOrder = -1000;
+    this.occluder.frustumCulled = false;
+    this.occluder.visible = false;
+    this.camera.add(this.occluder);
 
     // multisampled HDR target with a depth texture the water pass can read
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -273,23 +288,58 @@ export class Ocean {
     const pxScale = this.renderer.getPixelRatio() * (h / 900);
     this.water.uniforms.uPxScale.value = pxScale;
     (this.particles.material as THREE.ShaderMaterial).uniforms.uPxScale.value = pxScale;
+    if (this.occluder) this.applyMask();
   }
 
-  /** Adaptive quality: drop pixel ratio if we can't hold ~50fps. */
+  /**
+   * Adaptive quality: if we can't hold ~48 fps over a few seconds, drop the pixel ratio a notch.
+   * It only ever steps down (stepping back up and down again resized the targets every few seconds,
+   * which showed as flicker), and never below 1.
+   */
   private adapt(dt: number) {
     this.frameTimes.push(dt);
-    if (this.frameTimes.length < 90) return;
-    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    if (this.frameTimes.length < 180) return;
+    const sorted = [...this.frameTimes].sort((a, b) => a - b);
     this.frameTimes.length = 0;
+    const median = sorted[sorted.length >> 1];
     const pr = this.renderer.getPixelRatio();
-    const maxPr = Math.min(window.devicePixelRatio, 2);
-    let next = pr;
-    if (avg > 1 / 45 && pr > 0.75) next = Math.max(0.75, pr - 0.25);
-    else if (avg < 1 / 58 && pr < maxPr) next = Math.min(maxPr, pr + 0.25);
-    if (next !== pr) {
+    if (median > 1 / 48 && pr > 1) {
+      const next = Math.max(1, pr - 0.25);
       this.renderer.setPixelRatio(next);
       this.resize();
       this.quality = next;
+    }
+  }
+
+  /**
+   * The notebook page covers [x0, x1] (CSS px) of the screen: stop drawing the scene behind it.
+   * A depth-only card in front of the camera rejects the geometry there, and the post passes skip it.
+   * Pass x0 = x1 to draw everything (the page is hidden).
+   */
+  setMask(x0: number, x1: number) {
+    this.maskCss.set(x0, x1);
+    this.applyMask();
+  }
+  private maskCss = new THREE.Vector2(0, 0);
+  private occluder: THREE.Mesh;
+  private applyMask() {
+    const pr = this.renderer.getPixelRatio();
+    const w = window.innerWidth;
+    // keep a few pixels of scene under the page edges so blur and distortion never pull in the gap
+    const pad = 14;
+    const x0 = this.maskCss.x + pad;
+    const x1 = this.maskCss.y - pad;
+    const on = x1 - x0 > 20;
+    const m = on ? new THREE.Vector2(x0 * pr, x1 * pr) : new THREE.Vector2(0, 0);
+    this.water.uniforms.uMask.value.copy(m);
+    this.lens.uniforms.uMask.value.copy(m);
+    this.occluder.visible = on;
+    if (on) {
+      const d = this.camera.near * 1.5;
+      const halfH = d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+      const halfW = halfH * this.camera.aspect;
+      this.occluder.position.set((((x0 + x1) / 2) / w * 2 - 1) * halfW, 0, -d);
+      this.occluder.scale.set(((x1 - x0) / w) * 2 * halfW, halfH * 2.4, 1);
     }
   }
 

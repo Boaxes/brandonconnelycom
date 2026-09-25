@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Agent, randomFloorPoint, randomWaterNearPath, type AgentOpts } from './Agent';
-import { floorHeight, floorNormal, WORLD } from '../scene/Terrain';
+import { Agent, randomFloorPoint, randomWaterPoint, type AgentOpts } from './Agent';
+import { floorHeight, floorNormal, inMargins, marginYaw, stage, stageWater, yawOf, WORLD } from '../scene/Terrain';
 import { noise2 } from '../util/noise';
 
 /** What behaviors can ask of the world. Implemented by World. */
@@ -45,18 +45,26 @@ export class School {
   target = new THREE.Vector3();
   members: SchoolFish[] = [];
   panic = 0;
+  /** set by the director: the school's anchor follows these points in turn, at `routeSpeed` */
+  route: THREE.Vector3[] = [];
+  routeSpeed = 2;
   constructor(public cfg: SchoolConfig, public key: string) {
-    randomWaterNearPath(10, cfg.homeAbove[0], cfg.homeAbove[1], this.anchor);
+    randomWaterPoint(cfg.homeAbove[0], cfg.homeAbove[1], 16, 24, this.anchor);
     this.target.copy(this.anchor);
   }
   update(dt: number, t: number) {
-    // anchor slowly wanders, staying within reach of the camera loop
-    if (this.target.distanceTo(this.anchor) < 4 || Math.random() < dt * 0.02) {
-      randomWaterNearPath(10, this.cfg.homeAbove[0], this.cfg.homeAbove[1], this.target);
+    let speed = 0.6;
+    if (this.route.length) {
+      this.target.copy(this.route[0]);
+      speed = this.routeSpeed;
+      if (this.anchor.distanceTo(this.target) < 2) this.route.shift();
+    } else if (this.target.distanceTo(this.anchor) < 4 || Math.random() < dt * 0.02) {
+      // idle: loiter out in the murk beyond the frame until the director sends it past
+      randomWaterPoint(this.cfg.homeAbove[0], this.cfg.homeAbove[1], 16, 24, this.target);
     }
     _a.subVectors(this.target, this.anchor);
     const d = _a.length();
-    if (d > 0.01) this.anchor.addScaledVector(_a, Math.min(1, (0.6 * dt) / d));
+    if (d > 0.01) this.anchor.addScaledVector(_a, Math.min(1, (speed * dt) / d));
     this.anchor.y += Math.sin(t * 0.2 + this.anchor.x) * dt * 0.15;
     this.panic = Math.max(0, this.panic - dt * 0.5);
   }
@@ -142,8 +150,8 @@ export class Hunter extends Agent implements Behavior {
   hunger = Math.random() * 20;
   constructor(public key: string, public cfg: HunterConfig, opts: AgentOpts) {
     super(opts);
-    randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.pos);
-    randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.goal);
+    randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 4, 16, this.pos);
+    randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 4, 16, this.goal);
     this.oxygen = cfg.oxygen[0] + Math.random() * (cfg.oxygen[1] - cfg.oxygen[0]);
     this.vel.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(opts.cruise);
   }
@@ -156,7 +164,7 @@ export class Hunter extends Agent implements Behavior {
     switch (this.state) {
       case 'cruise': {
         this.doing = cfg.verbs.cruise;
-        if (this.pos.distanceTo(this.goal) < 5) randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.goal);
+        if (this.pos.distanceTo(this.goal) < 2) randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 4, 16, this.goal);
         this.seek(this.goal, 0.6);
         this.wander(0.6, h.time);
         this.keepSpeed(this.opts.cruise, 0.5);
@@ -170,7 +178,7 @@ export class Hunter extends Agent implements Behavior {
           }
         } else if (cfg.restOnBottom && Math.random() < dt * 0.01) {
           this.state = 'rest';
-          randomFloorPoint(30, this.goal);
+          randomFloorPoint(3, 12, this.goal);
           this.goal.y += 0.6;
           this.timer = 12 + Math.random() * 12;
         }
@@ -212,7 +220,7 @@ export class Hunter extends Agent implements Behavior {
           this.oxygen += dt * 25;
           if (this.oxygen > cfg.oxygen[0] + Math.random() * (cfg.oxygen[1] - cfg.oxygen[0])) {
             this.state = 'cruise';
-            randomWaterNearPath(12, cfg.cruiseAbove[0], cfg.cruiseAbove[1], this.goal);
+            randomWaterPoint(cfg.cruiseAbove[0], cfg.cruiseAbove[1], 4, 16, this.goal);
           }
         }
         break;
@@ -229,144 +237,44 @@ export class Hunter extends Agent implements Behavior {
         break;
       }
     }
+    const cam = stage().cam;
+    if (this.pos.distanceTo(cam) < 2.2) this.flee(cam, 1.2);
     if (this.state === 'breathe') this.contain(0.5, WORLD.surfaceY + 1);
     else this.contain(0.5, WORLD.surfaceY - 0.6);
     this.integrate(dt);
   }
 }
 
-// ------------------------------------------------------------------ pods (visitors)
-
-/** A visiting group that transits the field along a path, then leaves. */
-export class Pod {
-  leaderGoal = new THREE.Vector3();
-  path: THREE.Vector3[] = [];
-  idx = 0;
-  done = false;
-  members: Hunter[] = [];
-  offsets: THREE.Vector3[] = [];
-  constructor(public key: string) {}
-
-  static transitPath(y0: number, y1: number, wiggle = 30): THREE.Vector3[] {
-    // cross the field through a point on the camera loop so the pod is actually seen
-    const through = randomWaterNearPath(4, y0, y0, new THREE.Vector3());
-    const half = WORLD.size / 2 + 25;
-    const a = Math.random() * Math.PI * 2;
-    const enter = new THREE.Vector3(through.x + Math.cos(a) * half, y0, through.z + Math.sin(a) * half);
-    const exit = new THREE.Vector3(through.x - Math.cos(a) * half, y1, through.z - Math.sin(a) * half);
-    const pts = [enter];
-    const n = 4;
-    for (let i = 1; i < n; i++) {
-      const t = i / n;
-      const p = enter.clone().lerp(exit, t);
-      p.x += (Math.random() - 0.5) * wiggle;
-      p.z += (Math.random() - 0.5) * wiggle;
-      p.y = y0 + (y1 - y0) * t + (Math.random() - 0.5) * 3;
-      pts.push(p);
-    }
-    pts.push(exit);
-    return pts;
-  }
-
-  update(dt: number, h: Habitat) {
-    if (this.members.length === 0) return;
-    const leader = this.members[0];
-    // leader follows waypoints
-    if (this.idx < this.path.length) {
-      const wp = this.path[this.idx];
-      if (leader.pos.distanceTo(wp) < 8) this.idx++;
-    }
-    if (this.idx >= this.path.length) {
-      this.done = true;
-      return;
-    }
-    const wp = this.path[this.idx];
-    for (let i = 0; i < this.members.length; i++) {
-      const m = this.members[i];
-      m.timer -= dt;
-      m.hunger += dt;
-      if (m.cfg.airBreather) m.oxygen -= dt;
-      const isLeader = i === 0;
-      if (m.state === 'hunt') {
-        const p = m.target;
-        if (!p || !p.alive || m.timer < 0) {
-          m.state = 'cruise';
-          m.target = null;
-        } else {
-          m.doing = m.cfg.verbs.hunt;
-          _a.copy(p.pos).addScaledVector(p.vel, 0.4);
-          m.seek(_a, 1.5, m.opts.maxSpeed);
-          if (m.pos.distanceTo(p.pos) < m.cfg.catchDist * m.scale) {
-            h.eat(p);
-            m.hunger = 0;
-            m.target = null;
-            m.state = 'eat';
-            m.timer = m.cfg.eatTime;
-          }
-        }
-      } else if (m.state === 'eat') {
-        m.doing = m.cfg.verbs.eat;
-        m.keepSpeed(m.opts.cruise * 0.6, 0.5);
-        if (m.timer < 0) m.state = 'cruise';
-      } else if (m.state === 'breathe') {
-        m.doing = m.cfg.verbs.breathe;
-        _a.set(m.pos.x + m.forward.x * 8, WORLD.surfaceY - 0.1, m.pos.z + m.forward.z * 8);
-        m.seek(_a, 1.2, m.opts.cruise);
-        if (m.pos.y > WORLD.surfaceY - 1.0) {
-          m.oxygen += dt * 40;
-          if (m.oxygen > m.cfg.oxygen[0]) m.state = 'cruise';
-        }
-      } else {
-        m.state = 'cruise';
-        m.doing = isLeader ? m.cfg.verbs.cruise : 'travelling with the pod';
-        if (isLeader) {
-          m.seek(wp, 0.9);
-        } else {
-          // formation: offset from leader in leader's frame
-          const off = this.offsets[i];
-          _b.copy(off).applyQuaternion(leader.quat).add(leader.pos);
-          m.seek(_b, 1.1, m.opts.cruise * 1.05);
-          // plus a bit of cohesion/separation with the others
-          for (const o of this.members) {
-            if (o === m) continue;
-            const d = o.pos.distanceTo(m.pos);
-            const minD = m.opts.size * 0.9;
-            if (d < minD && d > 1e-3) {
-              m.acc.addScaledVector(_c.subVectors(m.pos, o.pos).normalize(), ((minD - d) / minD) * m.opts.maxForce * 1.5);
-            }
-          }
-        }
-        m.wander(0.3, h.time);
-        m.keepSpeed(m.opts.cruise, 0.4);
-        if (m.cfg.airBreather && m.oxygen < 0) m.state = 'breathe';
-        else if (m.hunger > 10 && Math.random() < dt * 0.5) {
-          const p = h.preyNear(m.cfg.prey, m.pos, m.cfg.huntRange);
-          if (p) {
-            m.target = p;
-            m.state = 'hunt';
-            m.timer = 10;
-          }
-        }
-      }
-      m.contain(0.5, WORLD.surfaceY + (m.state === 'breathe' ? 1 : -0.6), -40); // pods may cross the boundary
-      m.integrate(dt);
-    }
-  }
-}
-
 // ------------------------------------------------------------------ benthic fish (rockfish / lingcod)
 
 export class BenthicFish extends Agent implements Behavior {
+  /** only one fish comes up to the camera at a time */
+  static inspecting: BenthicFish | null = null;
+  static lastInspect = -30;
   home = new THREE.Vector3();
   goal = new THREE.Vector3();
+  private looked = 0;
   constructor(public key: string, opts: AgentOpts, public prey: string[], public verbs: { idle: string; hunt: string; eat: string }, public hover: [number, number]) {
     super(opts);
-    randomFloorPoint(25, this.home);
+    randomFloorPoint(3, 10, this.home);
     this.home.y += hover[0] + Math.random() * (hover[1] - hover[0]);
     this.pos.copy(this.home);
     this.goal.copy(this.home);
     this.timer = Math.random() * 5;
     this.vel.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(0.2);
+  }
+  /** Swim over to hang just in front of the diver for a few seconds. False if it can't right now. */
+  comeLook(): boolean {
+    if (BenthicFish.inspecting || !inMargins(this.pos) || this.pos.distanceTo(stage().cam) > 10) return false;
+    BenthicFish.inspecting = this;
+    this.state = 'inspect';
+    this.timer = 24;
+    this.looked = 0;
+    // a spot just off the lens, on this fish's side of the page, a little below eye level
+    const m = marginYaw();
+    const side = Math.sign(yawOf(this.pos)) || 1;
+    stageWater(side * (m.inner + (m.outer - m.inner) * 0.55), 1.7 + Math.random() * 0.7, stage().height - 0.45, this.goal);
+    return true;
   }
   update(dt: number, h: Habitat) {
     this.timer -= dt;
@@ -387,15 +295,43 @@ export class BenthicFish extends Agent implements Behavior {
       this.doing = this.verbs.eat;
       this.arrive(this.home, 3, 0.6);
       if (this.timer < 0) this.state = 'cruise';
+    } else if (this.state === 'inspect') {
+      // rockfish are curious: drift up to the diver, hang there looking, then drift back
+      this.doing = 'coming over to look at you';
+      const cam = stage().cam;
+      const d = this.pos.distanceTo(this.goal);
+      if (d > 0.35 && this.looked === 0) this.arrive(this.goal, 1.6, 0.9);
+      else {
+        this.looked += dt;
+        this.vel.multiplyScalar(1 - Math.min(1, dt * 2));
+      }
+      if (this.looked > 0) {
+        _a.subVectors(cam, this.pos).setY(0).normalize();
+        this.forward.lerp(_a, Math.min(1, dt * 1.2)).normalize();
+      }
+      if (this.timer < 0 || this.looked > 4 + (this.id % 3)) {
+        this.state = 'cruise';
+        this.looked = 0;
+        BenthicFish.inspecting = null;
+        BenthicFish.lastInspect = h.time;
+        this.goal.copy(this.home);
+        this.timer = 6;
+      }
     } else {
       this.doing = this.verbs.idle;
       if (this.timer < 0) {
-        // pick a new hover spot near home
-        this.goal.copy(this.home).add(new THREE.Vector3((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 5));
+        // pick a new hover spot near home, staying in view beside the page
+        for (let k = 0; k < 5; k++) {
+          this.goal.copy(this.home).add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 3));
+          if (inMargins(this.goal)) break;
+          if (k === 4) this.goal.copy(this.home);
+        }
         this.goal.y = Math.max(this.goal.y, floorHeight(this.goal.x, this.goal.z) + this.hover[0]);
         this.timer = 3 + Math.random() * 6;
-        if (this.prey.length && Math.random() < 0.35) {
-          const p = h.preyNear(this.prey, this.pos, 7);
+        if (h.time - BenthicFish.lastInspect > 20 && Math.random() < 0.3 && this.comeLook()) {
+          /* on its way over */
+        } else if (this.prey.length && Math.random() < 0.35) {
+          const p = h.preyNear(this.prey, this.pos, 2.5);
           if (p) {
             (this as unknown as { target?: Agent }).target = p;
             this.state = 'hunt';
@@ -408,6 +344,9 @@ export class BenthicFish extends Agent implements Behavior {
       // slow, sculling motion
       if (this.vel.length() < 0.15) this.speedMul = 0.45;
     }
+    // don't swim into the lens
+    const cam = stage().cam;
+    if (this.state !== 'inspect' && this.pos.distanceTo(cam) < 1.6) this.flee(cam, 1.2);
     this.contain(0.3, WORLD.surfaceY - 2, 15);
     this.integrate(dt);
     // bottom fish hold a level posture even when nudging up or down
@@ -442,6 +381,8 @@ const CRAB: CrawlerConfig = {
 /** Anything that lives on the floor and walks, creeps or glides over it. */
 export class Crab extends Agent implements Behavior {
   goal = new THREE.Vector3();
+  /** excursions stay around here, so the foreground doesn't slowly empty */
+  home = new THREE.Vector3();
   heading = Math.random() * Math.PI * 2;
   buried = 0;
   cfg: CrawlerConfig;
@@ -451,8 +392,9 @@ export class Crab extends Agent implements Behavior {
   constructor(public key: string, opts: AgentOpts, canBury: boolean, cfg?: Partial<CrawlerConfig>) {
     super(opts);
     this.cfg = { ...CRAB, canBury, ...cfg };
-    randomFloorPoint(22, this.pos);
+    randomFloorPoint(2.5, 10, this.pos);
     this.goal.copy(this.pos);
+    this.home.copy(this.pos);
     this.timer = Math.random() * 4;
     this.state = 'forage';
   }
@@ -480,7 +422,7 @@ export class Crab extends Agent implements Behavior {
           const r = Math.random();
           if (r < cfg.walkChance) {
             this.state = 'walk';
-            this.goal.copy(this.pos).add(new THREE.Vector3((Math.random() - 0.5) * cfg.roam, 0, (Math.random() - 0.5) * cfg.roam));
+            this.goal.copy(this.home).add(new THREE.Vector3((Math.random() - 0.5) * cfg.roam, 0, (Math.random() - 0.5) * cfg.roam));
             this.timer = 8 + cfg.roam;
           } else if (cfg.canBury && r < cfg.walkChance + 0.15) {
             this.state = 'bury';
@@ -544,9 +486,6 @@ export class Crab extends Agent implements Behavior {
     // flatfish lift off the sand to glide, then settle
     this.liftNow += ((speed > 0 ? cfg.lift : 0) - this.liftNow) * Math.min(1, dt * 3);
     // keep on the floor, oriented to the slope
-    const half = WORLD.size / 2 - 20;
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -half, half);
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -half, half);
     const fy = floorHeight(this.pos.x, this.pos.z);
     this.pos.y = fy + 0.02 + this.liftNow - this.buried * 0.06 * this.scale;
     floorNormal(this.pos.x, this.pos.z, this.up);
@@ -556,172 +495,7 @@ export class Crab extends Agent implements Behavior {
   }
 }
 
-// ------------------------------------------------------------------ octopus
-
-export class Octopus extends Agent implements Behavior {
-  den = new THREE.Vector3();
-  goal = new THREE.Vector3();
-  target: Agent | null = null;
-  heading = Math.random() * Math.PI * 2;
-  private up = new THREE.Vector3();
-  private fwd = new THREE.Vector3();
-  jetT = 0;
-  constructor(public key: string, opts: AgentOpts, den: THREE.Vector3) {
-    super(opts);
-    this.den.copy(den);
-    this.pos.copy(den);
-    this.goal.copy(den);
-    this.state = 'den';
-    this.timer = 5 + Math.random() * 10;
-  }
-  update(dt: number, h: Habitat) {
-    this.timer -= dt;
-    let speed = 0;
-    switch (this.state) {
-      case 'den':
-        this.doing = 'resting at its den';
-        this.speedMul = 0.35;
-        if (this.timer < 0) {
-          this.state = 'prowl';
-          this.goal.copy(this.den).add(new THREE.Vector3((Math.random() - 0.5) * 24, 0, (Math.random() - 0.5) * 24));
-          this.timer = 40;
-        }
-        break;
-      case 'prowl': {
-        this.doing = 'prowling for crabs';
-        speed = this.opts.cruise;
-        this.speedMul = 1.3;
-        const p = h.preyNear(['dungeness', 'redrock', 'kelpcrab', 'decorator', 'prawn'], this.pos, 6);
-        if (p) {
-          this.target = p;
-          this.state = 'stalk';
-          this.timer = 12;
-        } else if (this.pos.distanceTo(this.goal) < 0.8 || this.timer < 0) {
-          if (Math.random() < 0.35) {
-            this.state = 'return';
-          } else {
-            this.goal.copy(this.den).add(new THREE.Vector3((Math.random() - 0.5) * 24, 0, (Math.random() - 0.5) * 24));
-            this.timer = 40;
-          }
-        }
-        break;
-      }
-      case 'stalk': {
-        const p = this.target;
-        if (!p || !p.alive || this.timer < 0) {
-          this.state = 'prowl';
-          this.target = null;
-          break;
-        }
-        const d = this.pos.distanceTo(p.pos);
-        this.goal.copy(p.pos);
-        if (d > 2.2) {
-          this.doing = 'stalking a crab';
-          speed = this.opts.cruise * 0.7;
-          this.speedMul = 0.9;
-        } else {
-          this.doing = 'pouncing';
-          speed = this.opts.maxSpeed;
-          this.speedMul = 2.5;
-          if (d < 0.6) {
-            h.eat(p);
-            this.target = null;
-            this.state = 'eat';
-            this.timer = 14;
-          }
-        }
-        break;
-      }
-      case 'eat':
-        this.doing = 'eating a crab under its web';
-        this.speedMul = 0.6;
-        if (this.timer < 0) this.state = 'return';
-        break;
-      case 'return':
-        this.doing = 'returning to its den';
-        this.goal.copy(this.den);
-        speed = this.opts.cruise;
-        this.speedMul = 1.2;
-        if (this.pos.distanceTo(this.den) < 0.6) {
-          this.state = 'den';
-          this.timer = 25 + Math.random() * 40;
-        }
-        break;
-    }
-    if (speed > 0) {
-      _a.subVectors(this.goal, this.pos);
-      _a.y = 0;
-      const d = _a.length();
-      if (d > 0.05) {
-        _a.multiplyScalar(1 / d);
-        for (const rk of h.rocks) {
-          const dr = rk.pos.distanceTo(this.pos);
-          if (dr < rk.r + 0.8 && rk.pos.distanceTo(this.den) > 1) {
-            _b.subVectors(this.pos, rk.pos).y = 0;
-            _a.addScaledVector(_b.normalize(), (rk.r + 0.8 - dr) * 1.5);
-          }
-        }
-        _a.normalize();
-        this.pos.addScaledVector(_a, Math.min(d, speed * dt));
-        const face = Math.atan2(_a.z, _a.x);
-        let diff = face - this.heading;
-        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        this.heading += diff * Math.min(1, dt * 2.5);
-      }
-    }
-    const fy = floorHeight(this.pos.x, this.pos.z);
-    this.pos.y = fy + 0.03;
-    floorNormal(this.pos.x, this.pos.z, this.up);
-    this.fwd.set(Math.cos(this.heading), 0, Math.sin(this.heading));
-    this.orient(this.fwd, this.up);
-    this.vel.set(0, 0, 0);
-  }
-}
-
-// ------------------------------------------------------------------ jellies
-
-export class Jelly extends Agent implements Behavior {
-  private up = new THREE.Vector3(0, 1, 0);
-  private drift = new THREE.Vector3();
-  pulse = Math.random() * 10;
-  constructor(public key: string, opts: AgentOpts, public band: [number, number], public pulseRate: number, public pulseLift: number) {
-    super(opts);
-    randomWaterNearPath(12, band[0], band[1], this.pos);
-    this.doing = 'drifting with the current';
-    this.state = 'drift';
-  }
-  update(dt: number, h: Habitat) {
-    this.pulse += dt * this.pulseRate;
-    const beat = Math.max(0, Math.sin(this.pulse));
-    h.current(this.pos, this.drift);
-    this.vel.lerp(this.drift, Math.min(1, dt * 0.8));
-    // pulsing lift, slow sink between beats
-    this.vel.y += (beat * this.pulseLift - 0.05) * dt * 4;
-    this.vel.y *= 0.985;
-    // stay in band
-    const fy = floorHeight(this.pos.x, this.pos.z);
-    if (this.pos.y < fy + this.band[0]) this.vel.y += dt * 1.2;
-    if (this.pos.y > fy + this.band[1] || this.pos.y > WORLD.surfaceY - 1.5) this.vel.y -= dt * 1.2;
-    this.pos.addScaledVector(this.vel, dt);
-    // wrap horizontally so the drift never empties the scene
-    const half = WORLD.size / 2 - 10;
-    if (this.pos.x > half) this.pos.x = -half;
-    if (this.pos.x < -half) this.pos.x = half;
-    if (this.pos.z > half) this.pos.z = -half;
-    if (this.pos.z < -half) this.pos.z = half;
-    // bell leans a little into its travel direction; model's up is +Y and its bell points up
-    this.up.set(this.vel.x * 0.35, 1, this.vel.z * 0.35).normalize();
-    _a.set(Math.cos(this.phase), 0, Math.sin(this.phase));
-    this.orient(_a, this.up);
-    // the renderer advances swimPhase at pulseRate; lock it to the behaviour's pulse so lift matches the bell
-    this.speedMul = 1;
-    this.animSpeed = 1;
-    this.swimPhase = this.pulse;
-    this.doing = beat > 0.8 ? 'pulsing' : 'drifting with the current';
-  }
-}
-
-// ------------------------------------------------------------------ static life (anemones, stars, urchins, kelp)
+// ------------------------------------------------------------------ static life (stars, urchins, scallops)
 
 export class Sessile extends Agent implements Behavior {
   constructor(public key: string, opts: AgentOpts, pos: THREE.Vector3, up: THREE.Vector3, yaw: number, doing: string) {
@@ -734,7 +508,114 @@ export class Sessile extends Agent implements Behavior {
     this.speedMul = 0.7 + Math.random() * 0.6;
   }
   update() {
-    /* nothing to do: sway is in the shader */
+    /* nothing to do */
+  }
+}
+
+// ------------------------------------------------------------------ scripted (director)
+
+export interface Leg {
+  to: THREE.Vector3;
+  speed: number;          // m/s toward it
+  hold?: number;          // seconds to linger on arrival
+  face?: THREE.Vector3;   // while lingering, turn to look at this (the camera)
+  doing?: string;
+  radius?: number;        // arrival radius
+}
+
+/**
+ * An animal on a route handed out by the director. It steers toward each leg's point in turn with the
+ * ordinary steering physics, so the path stays fluid (banking, body bend) rather than rail-like.
+ */
+export class Scripted extends Agent implements Behavior {
+  legs: Leg[] = [];
+  crawl = false;   // stays on the floor (octopus)
+  done = true;
+  private holdT = 0;
+  private heading = 0;
+  private up = new THREE.Vector3();
+  private fwd = new THREE.Vector3();
+  constructor(public key: string, opts: AgentOpts) {
+    super(opts);
+    this.state = 'scripted';
+    this.alive = false;
+  }
+  start(from: THREE.Vector3, legs: Leg[], doing = '') {
+    this.pos.copy(from);
+    this.legs = legs;
+    this.done = false;
+    this.alive = true;
+    this.holdT = 0;
+    this.doing = doing || legs[0]?.doing || '';
+    if (legs.length) {
+      _a.subVectors(legs[0].to, from).normalize();
+      this.vel.copy(_a).multiplyScalar(legs[0].speed);
+      this.forward.copy(_a);
+      this.heading = Math.atan2(_a.z, _a.x);
+    }
+  }
+  /** Replace the remaining route (interrupting any linger). */
+  setLegs(legs: Leg[]) {
+    this.legs = legs;
+    this.holdT = 0;
+  }
+  update(dt: number) {
+    const leg = this.legs[0];
+    if (!leg) {
+      this.done = true;
+      this.keepSpeed(this.opts.cruise, 0.3);
+      if (!this.crawl) this.integrate(dt);
+      return;
+    }
+    if (leg.doing) this.doing = leg.doing;
+    const d = this.pos.distanceTo(leg.to);
+    const r = leg.radius ?? Math.max(0.35, this.opts.size * 0.3);
+    let speed = 0;
+    if (this.holdT > 0) {
+      // lingering: bleed off speed and hang there (drifting back only if it slid well off the spot)
+      this.holdT -= dt;
+      if (d > 1.2) this.arrive(leg.to, 1.5, 0.4);
+      this.vel.multiplyScalar(1 - Math.min(1, dt * 2.5));
+      if (this.holdT <= 0) this.legs.shift();
+    } else if (d < r) {
+      if (leg.hold) this.holdT = leg.hold;
+      else this.legs.shift();
+    } else {
+      // ease into a linger point, keep pace otherwise
+      speed = leg.hold ? Math.min(leg.speed, 0.25 + d * 0.5) : leg.speed;
+      if (!this.crawl) this.seek(leg.to, 1, speed);
+    }
+    if (this.crawl) {
+      if (speed > 0) {
+        _a.subVectors(leg.to, this.pos).setY(0).normalize();
+        this.pos.addScaledVector(_a, Math.min(d, speed * dt));
+        let diff = Math.atan2(_a.z, _a.x) - this.heading;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        this.heading += diff * Math.min(1, dt * 1.5);
+        this.speedMul = 1.1;
+      } else this.speedMul = 0.35;
+      this.pos.y = floorHeight(this.pos.x, this.pos.z) + 0.03;
+      floorNormal(this.pos.x, this.pos.z, this.up);
+      this.fwd.set(Math.cos(this.heading), 0, Math.sin(this.heading));
+      this.orient(this.fwd, this.up);
+      this.vel.set(0, 0, 0);
+      return;
+    }
+    // keep off the bottom
+    const floor = floorHeight(this.pos.x, this.pos.z) + (this.opts.clearance ?? 0.5);
+    if (this.pos.y < floor) this.acc.y += (floor - this.pos.y) * this.opts.maxForce;
+    this.integrate(dt);
+    if (this.holdT > 0) {
+      // lingering: slow sculling, and turn to look at whatever it came to see
+      this.speedMul = 0.55;
+      if (leg.face) {
+        _a.subVectors(leg.face, this.pos).normalize();
+        _a.y *= 0.6;
+        this.forward.lerp(_a.normalize(), Math.min(1, dt * 2.2)).normalize();
+        this.orient(this.forward, _b.set(0, 1, 0));
+        this.bend *= 1 - Math.min(1, dt * 3);
+      }
+    }
   }
 }
 

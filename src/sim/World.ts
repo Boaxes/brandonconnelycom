@@ -1,22 +1,23 @@
 import * as THREE from 'three';
-import { SPECIES, SpeciesRenderer } from './Species';
+import { hasSpecies, SPECIES, SpeciesRenderer } from './Species';
 import { Agent, Grid, randomWaterPoint } from './Agent';
 import {
-  BenthicFish, Crab, type CrawlerConfig, Hunter, Jelly, Octopus, Pod, School, SchoolFish, Sessile, currentAt,
+  BenthicFish, Crab, type CrawlerConfig, Hunter, School, SchoolFish, Scripted, Sessile, currentAt,
   type Behavior, type Habitat, type HunterConfig, type SchoolConfig,
 } from './behaviors';
-import { cameraPath, floorHeight, floorNormal, randomFloorNearPath } from '../scene/Terrain';
-import { ensureSwim, makeMaterial, OCC_MAX, shared } from '../scene/UnderwaterMaterial';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { attachGround } from '../scene/Terrain';
+import { Director } from './Director';
+import {
+  floorHeight, floorNormal, inMargins, marginYaw, PAPER_W, randomFloorInMargins, randomFloorInView, stage, stageFloor,
+} from '../scene/Terrain';
+import { makeMaterial, OCC_MAX, shared } from '../scene/UnderwaterMaterial';
 import { asset, hasAsset } from '../scene/Assets';
-import { mulberry32, noise2 } from '../util/noise';
+import { mulberry32 } from '../util/noise';
 import { hideLabel, showLabel } from '../ui/overlay';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 /** beyond this nothing is visible through the murk, so it isn't drawn */
-const VIEW_RANGE = 16;
+const VIEW_RANGE = 18;
 
 interface Population {
   key: string;
@@ -24,41 +25,44 @@ interface Population {
   agents: Behavior[];
 }
 
+/**
+ * Everything alive in front of the fixed viewpoint. Set pieces and residents are laid out mostly in the
+ * two strips of scene visible either side of the notebook page; the director brings the visitors.
+ */
 export class World implements Habitat {
   time = 0;
   rocks: { pos: THREE.Vector3; r: number }[] = [];
   pops = new Map<string, Population>();
   schools: School[] = [];
-  pods: Pod[] = [];
   watchMode = false;
   visibleCount = 0;
+  director!: Director;
   /** species keys seen close to the camera this session (drained by the UI) */
   observed: string[] = [];
   private observedSet = new Set<string>();
   private herringGrid = new Grid<SchoolFish>(2.5);
   private salmonGrid = new Grid<SchoolFish>(4);
   private respawnQueue: { agent: Agent; at: number }[] = [];
-  private pointer = new THREE.Vector2(-10, -10);
-  private pointerPx = new THREE.Vector2();
-  private pickTimer = 0;
-  private visitorTimer = 25;
   private frustum = new THREE.Frustum();
   private projView = new THREE.Matrix4();
   private group = new THREE.Group();
+  private selected: { a: Agent; r: SpeciesRenderer; until: number } | null = null;
 
   constructor(scene: THREE.Scene, private camera: THREE.PerspectiveCamera) {
     this.group.name = 'life';
     scene.add(this.group);
-    window.addEventListener('pointermove', (e) => {
-      this.pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-      this.pointerPx.set(e.clientX, e.clientY);
+    // names show on click (the page itself takes clicks in the middle)
+    window.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest('#content, #controls, a, button')) return;
+      this.select(e.clientX, e.clientY);
     });
-    window.addEventListener('pointerleave', () => this.pointer.set(-10, -10));
   }
 
   // ---------------------------------------------------------------- setup
 
-  private pop(key: string, capacity: number): Population {
+  private pop(key: string, capacity: number): Population | null {
+    if (!hasSpecies(key)) return null;
     let p = this.pops.get(key);
     if (!p) {
       const r = new SpeciesRenderer(SPECIES[key], capacity);
@@ -70,7 +74,8 @@ export class World implements Habitat {
   }
 
   private addAgent(key: string, a: Behavior) {
-    const p = this.pops.get(key)!;
+    const p = this.pops.get(key);
+    if (!p) return;
     const def = SPECIES[key];
     a.scale = def.scale[0] + Math.random() * (def.scale[1] - def.scale[0]);
     p.agents.push(a);
@@ -78,59 +83,40 @@ export class World implements Habitat {
   }
 
   populate() {
+    stage();
     this.buildRocks();
-    this.buildFlora();
+    this.buildFixedLife();
     this.buildFish();
     this.buildBenthos();
-    this.buildJellies();
-    this.buildResidents();
-    // one visitor group right away so the opening isn't empty
-    this.spawnVisitor('orca');
+    this.buildScriptedPools();
+    this.director = new Director(this);
   }
 
-  /** Hidden proxies of rocks and logs, used to raycast anemones and stars onto real surfaces. */
+  /** Hidden proxies of rocks and logs, used to raycast stars and urchins onto real surfaces. */
   private surfaces: THREE.Mesh[] = [];
-  private logSurfaces: THREE.Mesh[] = [];
+  private surfaceRay = new THREE.Raycaster();
 
-  private scanInstances(key: string, count: number, roughness: number, place: (i: number, p: THREE.Vector3, q: THREE.Quaternion, s: THREE.Vector3) => void) {
+  private scanInstances(key: string, places: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[], roughness: number) {
     const a = asset('scan:' + key);
     const { mat } = makeMaterial({ amp: 0 }, { vertexColors: false, map: a.map, normalMap: a.normalMap, roughness });
-    const mesh = new THREE.InstancedMesh(a.geometry, mat, count);
+    const mesh = new THREE.InstancedMesh(a.geometry, mat, places.length);
     mesh.name = key;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const p = new THREE.Vector3();
-    const sc = new THREE.Vector3();
     const proxies: THREE.Mesh[] = [];
-    for (let i = 0; i < count; i++) {
-      place(i, p, q, sc);
-      m.compose(p, q, sc);
+    places.forEach((pl, i) => {
+      m.compose(pl.p, pl.q, pl.s);
       mesh.setMatrixAt(i, m);
       const proxy = new THREE.Mesh(a.geometry);
       proxy.matrixAutoUpdate = false;
       proxy.matrix.copy(m);
       proxy.matrixWorld.copy(m);
       proxies.push(proxy);
-    }
+    });
     mesh.computeBoundingSphere();
     this.group.add(mesh);
-    this.statics.push({ mesh, mats: proxies.map((p) => p.matrix), pos: proxies.map((p) => new THREE.Vector3().setFromMatrixPosition(p.matrix)) });
-    return { mesh, proxies };
-  }
-
-  /** Scanned set pieces: all placements are kept, only the ones inside the murk are drawn. */
-  private statics: { mesh: THREE.InstancedMesh; mats: THREE.Matrix4[]; pos: THREE.Vector3[] }[] = [];
-
-  private cullStatics(cam: THREE.Vector3) {
-    const r2 = (VIEW_RANGE + 3) * (VIEW_RANGE + 3);
-    for (const s of this.statics) {
-      let n = 0;
-      for (let i = 0; i < s.pos.length; i++) if (s.pos[i].distanceToSquared(cam) < r2) s.mesh.setMatrixAt(n++, s.mats[i]);
-      s.mesh.count = n;
-      s.mesh.instanceMatrix.needsUpdate = true;
-    }
+    return proxies;
   }
 
   private scanBounds(key: string) {
@@ -139,66 +125,78 @@ export class World implements Habitat {
     return g.boundingBox!;
   }
 
+  /** Where the octopus lives: a boulder in the right-hand strip. */
+  den = new THREE.Vector3();
+
   private buildRocks() {
     const rnd = mulberry32(42);
+    const m = marginYaw();
+    const band = (side: number, f: number) => side * (m.inner + (m.outer - m.inner) * f);
     if (hasAsset('scan:rock_boulder')) {
-      // photoscanned boulders, rotated and scaled so no two read the same
       const bb = this.scanBounds('rock_boulder');
-      const n = 120;
-      const { proxies } = this.scanInstances('rock_boulder', n, 0.92, (i, p, q, sc) => {
-        const at = (i + rnd()) / n; // evenly spread along the loop so every stretch has some
-        const k = 0.3 + Math.pow(rnd(), 1.8) * 1.15;
-        sc.set(k * (0.85 + rnd() * 0.3), k * (0.7 + rnd() * 0.5), k * (0.85 + rnd() * 0.3));
-        // keep the diver's lane clear: bigger boulders sit further out
-        const half = Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 * Math.max(sc.x, sc.z);
-        const lane = 1.4 + half * 0.8;
-        if (i % 4 !== 0) randomFloorNearPath(lane + 3.5, p, rnd, lane, at); else randomFloorNearPath(lane + 9, p, rnd, lane + 2, at);
-        q.setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.25, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.25));
-        p.y -= (bb.max.y - bb.min.y) * sc.y * 0.15; // bed it into the sediment
-        const r = Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 * Math.max(sc.x, sc.z) * 0.8;
+      const places: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[] = [];
+      const put = (p: THREE.Vector3, k: number) => {
+        const s = new THREE.Vector3(k * (0.85 + rnd() * 0.3), k * (0.7 + rnd() * 0.5), k * (0.85 + rnd() * 0.3));
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.25, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.25));
+        p.y -= (bb.max.y - bb.min.y) * s.y * 0.15; // bed it into the sediment
+        places.push({ p, q, s });
+        const r = Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 * Math.max(s.x, s.z) * 0.8;
         this.rocks.push({ pos: p.clone(), r });
-      });
-      this.surfaces.push(...proxies);
-    }
-    if (hasAsset('scan:barnacle_rock')) {
-      // low shelves of barnacle-crusted rock breaking through the sand
-      const { proxies } = this.scanInstances('barnacle_rock', 40, 0.9, (i, p, q, sc) => {
-        randomFloorNearPath(5, p, rnd, 1.2, (i + rnd()) / 40);
-        const k = 0.8 + rnd() * 0.9;
-        sc.set(k, k * (0.8 + rnd() * 0.5), k);
-        q.setFromEuler(new THREE.Euler(0, rnd() * Math.PI * 2, 0));
-        p.y -= 0.05;
-        this.rocks.push({ pos: p.clone(), r: 0.6 * k });
-      });
-      this.surfaces.push(...proxies);
+      };
+      // composed pieces: a big boulder in each strip to frame the shot, the right one is the octopus den
+      put(stageFloor(band(1, 0.72), 6.4), 1.05);
+      // the den: at the foot of that boulder, on the side facing the camera
+      const denRock = this.rocks[this.rocks.length - 1];
+      this.den.subVectors(stage().cam, denRock.pos).setY(0).normalize().multiplyScalar(denRock.r + 0.45).add(denRock.pos);
+      this.den.y = floorHeight(this.den.x, this.den.z);
+      put(stageFloor(band(-1, 0.35), 4.6), 0.75);
+      put(stageFloor(band(-1, 0.85), 8.5), 1.2);
+      put(stageFloor(band(1, 0.2), 9.5), 0.8);
+      // scattered: mostly in the strips, some mid-frame for when the page is hidden, some far for depth
+      for (let i = 0; i < 16; i++) {
+        const p = randomFloorInMargins(rnd, 3, 13);
+        put(p, Math.min(0.3 + Math.pow(rnd(), 1.8) * 0.9, 0.25 + p.distanceTo(stage().cam) * 0.07));
+      }
+      for (let i = 0; i < 8; i++) put(randomFloorInView(rnd, 6, 14, undefined, 0.6), 0.4 + rnd() * 0.7);
+      for (let i = 0; i < 6; i++) put(randomFloorInView(rnd, 12, 17, undefined, 1.3), 0.8 + rnd() * 0.8);
+      this.surfaces.push(...this.scanInstances('rock_boulder', places, 0.92));
     }
     if (hasAsset('scan:log')) {
-      // waterlogged logs: very Puget Sound, and anemones love them
+      // two waterlogged logs, one in each strip
       const bb = this.scanBounds('log');
-      const { proxies } = this.scanInstances('log', 12, 0.95, (i, p, q, sc) => {
-        randomFloorNearPath(5, p, rnd, 2.2, (i + 0.3 + rnd() * 0.4) / 12);
-        const k = 0.8 + rnd() * 0.5;
-        sc.set(k, k, k);
-        const yaw = rnd() * Math.PI * 2;
-        q.setFromEuler(new THREE.Euler(0, yaw, (rnd() - 0.5) * 0.06));
+      const places: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[] = [];
+      for (const [yaw, dist, turn] of [[band(-1, 0.6), 6.8, 0.5], [band(1, 0.4), 10.5, -0.3]]) {
+        const p = stageFloor(yaw, dist);
         p.y -= 0.06;
-        // treat the log as a row of small obstacles for the bottom walkers
-        const half = (bb.max.x - bb.min.x) * 0.5 * k;
+        const heading = Math.atan2(stage().fwd.z, stage().fwd.x) + Math.PI / 2 + turn;
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -heading, (rnd() - 0.5) * 0.06));
+        places.push({ p, q, s: new THREE.Vector3(1, 1, 1) });
+        const half = (bb.max.x - bb.min.x) * 0.5;
         for (let t = -half; t <= half; t += 0.7) {
-          this.rocks.push({ pos: new THREE.Vector3(p.x + Math.cos(yaw) * t, p.y, p.z - Math.sin(yaw) * t), r: 0.35 * k });
+          this.rocks.push({ pos: new THREE.Vector3(p.x + Math.cos(heading) * t, p.y, p.z + Math.sin(heading) * t), r: 0.35 });
         }
-      });
-      this.surfaces.push(...proxies);
-      this.logSurfaces.push(...proxies);
+      }
+      this.surfaces.push(...this.scanInstances('log', places, 0.95));
     }
-    if (this.rocks.length === 0) this.buildProceduralRocks(rnd);
+    if (hasAsset('scan:scallop')) {
+      // empty shells lying about, some upside down, half sunk in the silt
+      const places: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[] = [];
+      for (let i = 0; i < 70; i++) {
+        const p = i < 45 ? randomFloorInMargins(rnd, 2.2, 9) : randomFloorInView(rnd, 2.5, 10);
+        p.y -= 0.004;
+        const flip = rnd() < 0.35 ? Math.PI : 0;
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(flip + (rnd() - 0.5) * 0.3, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.3));
+        const k = 0.5 + rnd() * 0.6;
+        places.push({ p, q, s: new THREE.Vector3(k, k, k) });
+      }
+      this.scanInstances('scallop', places, 0.6);
+    }
   }
 
   /** Point on the top surface of a random rock or log (with its surface normal), or null. */
-  private surfacePoint(rnd: () => number, out: THREE.Vector3, normal: THREE.Vector3, preferLogs = 0): boolean {
-    const pool = this.logSurfaces.length && rnd() < preferLogs ? this.logSurfaces : this.surfaces;
-    if (!pool.length) return false;
-    const m = pool[Math.floor(rnd() * pool.length)];
+  private surfacePoint(rnd: () => number, out: THREE.Vector3, normal: THREE.Vector3, marginsOnly = true): boolean {
+    if (!this.surfaces.length) return false;
+    const m = this.surfaces[Math.floor(rnd() * this.surfaces.length)];
     const g = m.geometry;
     if (!g.boundingBox) g.computeBoundingBox();
     const bb = g.boundingBox!;
@@ -208,299 +206,157 @@ export class World implements Habitat {
     if (!hit || !hit.face) return false;
     normal.copy(hit.face.normal).transformDirection(m.matrixWorld);
     if (normal.y < 0.35) return false; // too steep to hold on
+    if (marginsOnly && !inMargins(hit.point)) return false;
+    if (hit.point.distanceTo(stage().cam) > 11) return false;
     out.copy(hit.point);
     return true;
   }
-  private surfaceRay = new THREE.Raycaster();
 
-  private buildProceduralRocks(rnd: () => number) {
-    const geo = new THREE.IcosahedronGeometry(1, 3);
-    const pos = geo.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-      // low-frequency lumps + a little grit, squashed and flattened underneath
-      const s = 1 + noise2(x * 1.1 + 5, z * 1.1 + y * 0.8) * 0.28 + noise2(x * 3 + 1, (y + z) * 3) * 0.06;
-      const yy = y < 0 ? y * 0.35 : y * 0.75;
-      pos.setXYZ(i, x * s, yy * s, z * s);
-    }
-    // weld the icosphere so the displaced boulder gets smooth normals
-    geo.deleteAttribute('normal');
-    geo.deleteAttribute('uv');
-    const flat = mergeVertices(geo);
-    flat.computeVertexNormals();
-    ensureSwim(flat);
-    const cols = new Float32Array(flat.attributes.position.count * 3);
-    const base = new THREE.Color(0x4d5148);
-    const c = new THREE.Color();
-    for (let i = 0; i < cols.length / 3; i++) {
-      c.copy(base).offsetHSL(rnd() * 0.02, 0, (rnd() - 0.5) * 0.08);
-      cols.set([c.r, c.g, c.b], i * 3);
-    }
-    flat.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-    const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.9, detail: 2 });
-    attachGround(uniforms);
-    mat.flatShading = false;
-    const count = 70;
-    const mesh = new THREE.InstancedMesh(flat, mat, count);
-    mesh.name = 'rocks';
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const p = new THREE.Vector3();
-    const s = new THREE.Vector3();
-    for (let i = 0; i < count; i++) {
-      if (i % 3 !== 0) randomFloorNearPath(6, p, rnd, 1.8); else randomFloorNearPath(14, p, rnd, 4);
-      const r = 0.6 + Math.pow(rnd(), 2) * 2.4;
-      p.y -= r * 0.25;
-      q.setFromEuler(new THREE.Euler(0, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.3));
-      s.set(r * (0.8 + rnd() * 0.6), r * (0.6 + rnd() * 0.5), r * (0.8 + rnd() * 0.6));
-      m.compose(p, q, s);
-      mesh.setMatrixAt(i, m);
-      this.rocks.push({ pos: p.clone(), r: Math.max(s.x, s.z) });
-    }
-    this.group.add(mesh);
-  }
-
-  private buildFlora() {
-    const rnd = mulberry32(99);
+  private buildFixedLife() {
+    const rnd = mulberry32(9);
     const up = new THREE.Vector3();
-    const sessile = (key: string, count: number, place: (p: THREE.Vector3, up: THREE.Vector3) => boolean, doing: string) => {
-      this.pop(key, count);
-      let tries = 0;
+    const sessile = (key: string, count: number, place: (p: THREE.Vector3, up: THREE.Vector3) => boolean, doing: string, size: number) => {
+      if (!this.pop(key, count)) return;
       let made = 0;
-      while (made < count && tries < count * 20) {
-        tries++;
-        randomFloorNearPath(7, _v, rnd, 0.8);
+      for (let tries = 0; made < count && tries < count * 40; tries++) {
         up.set(0, 0, 0);
         if (!place(_v, up)) continue;
         if (up.lengthSq() === 0) floorNormal(_v.x, _v.z, up);
-        const size = key === 'bullkelp' ? 3 : key === 'sugarkelp' ? 1.2 : key === 'sunflowerstar' ? 0.8 : key === 'tubeanemone' ? 0.5 : 0.4;
-        // kelp blades trail down-current, so all kelp shares a heading (+ a little scatter)
-        const yaw = key === 'bullkelp' || key === 'sugarkelp' ? 0.4 + (rnd() - 0.5) * 0.7 : rnd() * Math.PI * 2;
-        const a = new Sessile(key, { maxSpeed: 0, maxForce: 0, cruise: 0, size }, _v, up, yaw, doing);
+        const a = new Sessile(key, { maxSpeed: 0, maxForce: 0, cruise: 0, size }, _v, up, rnd() * Math.PI * 2, doing);
         this.addAgent(key, a);
+        a.pos.y -= 0.01; // settle into the silt so nothing hovers
         made++;
       }
     };
-    // bull kelp grows in groves: pick grove centres near the camera loop, then scatter stipes around them
-    const groves: THREE.Vector3[] = [];
-    for (let i = 0; i < 14; i++) groves.push(randomFloorNearPath(10, new THREE.Vector3(), rnd, 5, (i + rnd()) / 14));
-    let gi = 0;
-    const kelpField = (p: THREE.Vector3) => {
-      const g = groves[gi++ % groves.length];
-      const a = rnd() * Math.PI * 2;
-      const d = Math.sqrt(rnd()) * (3 + rnd() * 4);
-      p.set(g.x + Math.cos(a) * d, 0, g.z + Math.sin(a) * d);
-      p.y = floorHeight(p.x, p.z);
-      return true;
-    };
-    sessile('bullkelp', 170, kelpField, 'swaying in the current');
-    sessile('sugarkelp', 120, (p) => noise2(p.x * 0.05 + 9, p.z * 0.05 + 2) > 0.1, 'swaying in the current');
-    // soft-bottom life on the open sand between the rocks: sea pens stand in loose meadows,
-    // tube anemones scattered singly
-    const clearOfRocks = (p: THREE.Vector3, r: number) => this.rocks.every((k) => (k.pos.x - p.x) ** 2 + (k.pos.z - p.z) ** 2 > (k.r + r) ** 2);
-    sessile('seapen', 260, (p) => noise2(p.x * 0.12 + 40, p.z * 0.12 - 7) > -0.05 && clearOfRocks(p, 0.3), 'filter feeding, polyps open');
-    sessile('tubeanemone', 140, (p) => clearOfRocks(p, 0.4), 'fishing with its tentacles');
-    // anemones colonise hard surfaces: rocks, shelves and especially the sunken logs
-    const onRock = (p: THREE.Vector3, up: THREE.Vector3) => this.surfacePoint(rnd, p, up, 0.45);
-    sessile('anemone', 420, onRock, 'filter feeding');
-    sessile('ochrestar', 40, (p, up) => (rnd() < 0.6 ? this.surfacePoint(rnd, p, up) : true), 'grazing on mussels');
-    sessile('sunflowerstar', 10, () => true, 'hunting urchins, slowly');
-    sessile('urchin', 60, (p, up) => (rnd() < 0.5 ? this.surfacePoint(rnd, p, up) : noise2(p.x * 0.06 + 20, p.z * 0.06) > 0.05), 'grazing kelp');
-    // stars and urchins sit slightly into the floor so they don't hover
-    for (const k of ['ochrestar', 'sunflowerstar', 'urchin']) for (const a of this.pops.get(k)!.agents) a.pos.y -= 0.01;
+    const floorIn = (dMin: number, dMax: number) => (p: THREE.Vector3) => { randomFloorInMargins(rnd, dMin, dMax, p); return true; };
+    const onRockOr = (chance: number, dMin: number, dMax: number) => (p: THREE.Vector3, n: THREE.Vector3) =>
+      rnd() < chance ? this.surfacePoint(rnd, p, n) : floorIn(dMin, dMax)(p);
+    sessile('batstar', 12, onRockOr(0.4, 2.4, 9), 'grazing on film and detritus', 0.2);
+    sessile('sunflowerstar', 2, floorIn(3.5, 7), 'hunting urchins, slowly', 0.7);
+    sessile('urchin', 18, onRockOr(0.5, 2.6, 9), 'grazing drift kelp', 0.12);
+    sessile('scallop', 10, floorIn(2.4, 7), 'filter feeding, eyes along its mantle', 0.12);
   }
 
   private buildFish() {
-    const herringCfg: SchoolConfig = { neighbor: 1.6, separation: 0.45, cohesion: 0.9, alignment: 1.3, sepWeight: 0.9, fleeRadius: 6, predators: ['seal', 'sealion', 'dolphin', 'porpoise', 'lingcod', 'humpback'], homeAbove: [2.5, 9] };
-    const salmonCfg: SchoolConfig = { neighbor: 4, separation: 1.1, cohesion: 0.6, alignment: 1.0, sepWeight: 0.8, fleeRadius: 12, predators: ['orca', 'sealion', 'seal'], homeAbove: [3, 12] };
-    const herringN = 480;
-    this.pop('herring', herringN);
-    for (let s = 0; s < 4; s++) {
+    const herringCfg: SchoolConfig = { neighbor: 1.6, separation: 0.45, cohesion: 0.9, alignment: 1.3, sepWeight: 0.9, fleeRadius: 5, predators: ['seal', 'porpoise', 'dogfish', 'orca'], homeAbove: [2.5, 6] };
+    const salmonCfg: SchoolConfig = { neighbor: 4, separation: 1.1, cohesion: 0.6, alignment: 1.0, sepWeight: 0.8, fleeRadius: 8, predators: ['orca', 'seal'], homeAbove: [3, 7] };
+    const herringN = 160;
+    if (this.pop('herring', herringN)) {
       const school = new School(herringCfg, 'herring');
       this.schools.push(school);
-      for (let i = 0; i < herringN / 4; i++) {
+      for (let i = 0; i < herringN; i++) {
         const f = new SchoolFish('herring', school, { maxSpeed: 3.2, maxForce: 9, cruise: 1.1, turnRate: 6, clearance: 0.6, size: 0.28 });
         school.members.push(f);
         this.addAgent('herring', f);
       }
     }
-    const salmonN = 36;
-    this.pop('chinook', salmonN);
-    for (let s = 0; s < 2; s++) {
+    const salmonN = 8;
+    if (this.pop('chinook', salmonN)) {
       const school = new School(salmonCfg, 'chinook');
       this.schools.push(school);
-      for (let i = 0; i < salmonN / 2; i++) {
+      for (let i = 0; i < salmonN; i++) {
         const f = new SchoolFish('chinook', school, { maxSpeed: 6, maxForce: 10, cruise: 1.6, turnRate: 4, clearance: 1, size: 0.9 });
         school.members.push(f);
         this.addAgent('chinook', f);
       }
     }
-    for (const key of ['rockfish', 'blackrockfish']) {
-      this.pop(key, 14);
-      for (let i = 0; i < 14; i++) {
-        this.addAgent(key, new BenthicFish(key, { maxSpeed: 1.6, maxForce: 3, cruise: 0.35, turnRate: 3, clearance: 0.3, size: 0.45 }, ['prawn'], { idle: 'hovering by its rock', hunt: 'snapping at a prawn', eat: 'swallowing' }, [0.4, 1.6]));
+    // rockfish hang around the boulders in the two strips, and now and then come to look at the diver
+    const rnd = mulberry32(21);
+    // copper rockfish sit low by the boulders; black rockfish hang in loose groups up in the water column
+    for (const [key, n, lo, hi, idle] of [['rockfish', 4, 0.4, 1.4, 'hovering by its rock'], ['blackrockfish', 8, 1.6, 3.6, 'hanging in the water column']] as const) {
+      if (!this.pop(key, n)) continue;
+      for (let i = 0; i < n; i++) {
+        const f = new BenthicFish(key, { maxSpeed: 1.6, maxForce: 3, cruise: 0.35, turnRate: 3, clearance: 0.3, size: 0.45 }, ['prawn'], { idle, hunt: 'snapping at a prawn', eat: 'swallowing' }, [lo, hi]);
+        const rk = this.rocks[Math.floor(rnd() * Math.min(this.rocks.length, 12))];
+        if (key === 'rockfish' && rk && inMargins(rk.pos)) f.home.copy(rk.pos).add(new THREE.Vector3((rnd() - 0.5) * 2, 0, (rnd() - 0.5) * 2));
+        else randomFloorInMargins(rnd, key === 'rockfish' ? 3 : 4, key === 'rockfish' ? 8 : 9, f.home, i % 2 ? 1 : -1, 0.08);
+        f.home.y = floorHeight(f.home.x, f.home.z) + lo + rnd() * (hi - lo);
+        f.pos.copy(f.home);
+        f.goal.copy(f.home);
+        this.addAgent(key, f);
       }
     }
-    this.pop('lingcod', 5);
-    for (let i = 0; i < 5; i++) {
-      this.addAgent('lingcod', new BenthicFish('lingcod', { maxSpeed: 4.5, maxForce: 12, cruise: 0.4, turnRate: 4, clearance: 0.2, size: 0.9 }, ['herring'], { idle: 'lying in ambush', hunt: 'lunging at herring', eat: 'swallowing a herring' }, [0.15, 0.6]));
+    // a few small sharks patrolling low over the bottom, passing through the frame
+    if (this.pop('dogfish', 3)) {
+      for (let i = 0; i < 3; i++) {
+        this.hunter('dogfish', {
+          prey: ['herring', 'prawn'], huntRange: 6, catchDist: 0.5, airBreather: false, oxygen: [1, 1], cruiseAbove: [0.6, 2], eatTime: 4,
+          verbs: { cruise: 'patrolling the bottom', hunt: 'closing on prey', eat: 'feeding', breathe: '', rest: '' },
+        }, { maxSpeed: 2.4, maxForce: 3, cruise: 0.8, turnRate: 1.6, clearance: 0.6, bankAmount: 0.7, size: 1 });
+      }
     }
   }
 
   private buildBenthos() {
-    const crab = (key: string, n: number, speed: number, bury: boolean, cfg?: Partial<CrawlerConfig>, size = 0.2) => {
-      this.pop(key, n);
+    const rnd = mulberry32(5);
+    const crawl = (key: string, n: number, speed: number, bury: boolean, cfg: Partial<CrawlerConfig>, size: number, dMin = 2.4, dMax = 8) => {
+      if (!this.pop(key, n)) return;
       for (let i = 0; i < n; i++) {
         const c = new Crab(key, { maxSpeed: speed * 2.2, maxForce: 1, cruise: speed, size }, bury, cfg);
-        randomFloorNearPath(5, c.pos);
+        randomFloorInMargins(rnd, dMin, dMax, c.pos);
+        c.home.copy(c.pos);
         c.goal.copy(c.pos);
         this.addAgent(key, c);
       }
     };
-    crab('dungeness', 30, 0.35, true);
-    crab('redrock', 22, 0.3, false);
-    crab('kelpcrab', 14, 0.2, false, { facing: 'forward' });
-    crab('decorator', 12, 0.15, false, { facing: 'forward' });
-    crab('prawn', 26, 0.25, false, {
-      facing: 'forward', fleeBackward: true, threats: ['octopus', 'rockfish', 'blackrockfish', 'lingcod', 'sculpin'], threatRadius: 1.6,
-      roam: 3, walkChance: 0.5, verbs: { idle: 'picking at the bottom', walk: 'walking on its toes', flee: 'tail-flipping away', bury: '' },
+    const crab = { threats: ['octopus', 'seal'], threatRadius: 2.5, roam: 2.5 };
+    crawl('dungeness', 4, 0.3, true, crab, 0.2);
+    crawl('redrock', 3, 0.25, false, crab, 0.2);
+    crawl('kelpcrab', 2, 0.18, false, { ...crab, facing: 'forward' }, 0.15);
+    crawl('decorator', 2, 0.12, false, { ...crab, facing: 'forward', roam: 1.5 }, 0.12);
+    crawl('prawn', 8, 0.22, false, {
+      facing: 'forward', fleeBackward: true, threats: ['octopus', 'rockfish', 'blackrockfish', 'sculpin', 'dogfish'], threatRadius: 1.4,
+      roam: 1.8, walkChance: 0.5, verbs: { idle: 'picking at the bottom', walk: 'walking on its toes', flee: 'tail-flipping away', bury: '' },
     }, 0.2);
-    crab('flounder', 12, 0.5, true, {
-      facing: 'forward', threats: ['seal', 'sealion', 'octopus', 'dogfish'], threatRadius: 2.5, roam: 5, walkChance: 0.15, lift: 0.08,
+    crawl('flounder', 2, 0.45, true, {
+      facing: 'forward', threats: ['seal', 'octopus', 'dogfish'], threatRadius: 2, roam: 3, walkChance: 0.15, lift: 0.08,
       verbs: { idle: 'lying flat, watching', walk: 'gliding over the sand', flee: 'bolting in a cloud of silt', bury: 'half-buried in the sand' },
-    }, 0.45);
-    crab('sculpin', 10, 0.35, false, {
-      facing: 'forward', threats: ['seal', 'octopus', 'dogfish'], threatRadius: 1.8, roam: 2, walkChance: 0.12, lift: 0.04,
+    }, 0.45, 3, 8);
+    crawl('sculpin', 3, 0.3, false, {
+      facing: 'forward', threats: ['seal', 'octopus', 'dogfish'], threatRadius: 1.5, roam: 1.2, walkChance: 0.12, lift: 0.04,
       verbs: { idle: 'sitting motionless, camouflaged', walk: 'hopping to a new spot', flee: 'darting off', bury: '' },
     }, 0.3);
-    crab('cucumber', 14, 0.025, false, {
-      facing: 'forward', threats: [], roam: 1.5, walkChance: 0.7,
+    crawl('cucumber', 3, 0.02, false, {
+      facing: 'forward', threats: [], roam: 0.8, walkChance: 0.7,
       verbs: { idle: 'sifting detritus', walk: 'creeping along', flee: '', bury: '' },
     }, 0.3);
-    this.pop('octopus', 2);
-    for (let i = 0; i < 2; i++) {
-      // den at a large rock
-      const big = this.rocks.filter((r) => r.r > 1.0).sort((a, b) => this.pathDistance(a.pos) - this.pathDistance(b.pos));
-      const rk = big[i] ?? this.rocks[0];
-      const den = rk.pos.clone().add(new THREE.Vector3(rk.r * 1.1, 0, 0));
-      den.y = floorHeight(den.x, den.z);
-      this.addAgent('octopus', new Octopus('octopus', { maxSpeed: 1.6, maxForce: 1, cruise: 0.45, size: 1.2 }, den));
+  }
+
+  /** Visitors driven by the director: a pool of scripted bodies per species, hidden until used. */
+  private buildScriptedPools() {
+    const pools: [string, number, ConstructorParameters<typeof Scripted>[1]][] = [
+      ['seal', 2, { maxSpeed: 4, maxForce: 3.2, cruise: 1.5, turnRate: 2.4, clearance: 0.8, bankAmount: 0.8, size: 1.6 }],
+      ['orca', 4, { maxSpeed: 4, maxForce: 2.2, cruise: 2.6, turnRate: 0.8, clearance: 3, bankAmount: 0.6, size: 7 }],
+      ['porpoise', 3, { maxSpeed: 5, maxForce: 5, cruise: 3.2, turnRate: 2, clearance: 1.5, bankAmount: 1, size: 1.6 }],
+      ['humpback', 1, { maxSpeed: 2.5, maxForce: 0.8, cruise: 1.6, turnRate: 0.3, clearance: 4, bankAmount: 0.3, size: 14 }],
+      ['octopus', 1, { maxSpeed: 0.6, maxForce: 1, cruise: 0.12, size: 1.2 }],
+    ];
+    for (const [key, n, opts] of pools) {
+      if (!this.pop(key, n)) continue;
+      for (let i = 0; i < n; i++) {
+        const s = new Scripted(key, opts);
+        s.crawl = key === 'octopus';
+        this.addAgent(key, s);
+      }
     }
   }
 
-  private buildJellies() {
-    const jelly = (key: string, n: number, band: [number, number], rate: number, lift: number) => {
-      this.pop(key, n);
-      for (let i = 0; i < n; i++) this.addAgent(key, new Jelly(key, { maxSpeed: 0.5, maxForce: 0.5, cruise: 0.1, size: 0.4 }, band, rate, lift));
-    };
-    jelly('moonjelly', 36, [1.5, 14], 1.6, 0.16);
-    jelly('lionsmane', 4, [4, 15], 0.9, 0.18);
-    jelly('seanettle', 9, [3, 14], 1.2, 0.17);
+  /** A free scripted body of this species, or null if they're all busy. */
+  scripted(key: string): Scripted | null {
+    const p = this.pops.get(key);
+    if (!p) return null;
+    for (const a of p.agents) if (a instanceof Scripted && a.done && !a.alive) return a;
+    return null;
+  }
+
+  school(key: string): School | undefined {
+    return this.schools.find((s) => s.key === key);
   }
 
   private hunter(key: string, cfg: HunterConfig, opts: ConstructorParameters<typeof Hunter>[2]) {
     const h = new Hunter(key, cfg, opts);
     this.addAgent(key, h);
     return h;
-  }
-
-  private buildResidents() {
-    this.pop('seal', 5);
-    for (let i = 0; i < 5; i++) {
-      this.hunter('seal', {
-        prey: ['herring', 'chinook'], huntRange: 16, catchDist: 0.7, airBreather: true, oxygen: [70, 140], restOnBottom: true, cruiseAbove: [1.5, 10], eatTime: 3,
-        verbs: { cruise: 'patrolling', hunt: 'chasing herring', eat: 'eating', breathe: 'surfacing to breathe', rest: 'resting on the bottom' },
-      }, { maxSpeed: 5.5, maxForce: 9, cruise: 1.4, turnRate: 3.5, clearance: 0.8, size: 1.6 });
-    }
-    this.pop('sealion', 2);
-    for (let i = 0; i < 2; i++) {
-      this.hunter('sealion', {
-        prey: ['chinook', 'herring'], huntRange: 22, catchDist: 1.0, airBreather: true, oxygen: [60, 120], cruiseAbove: [3, 14], eatTime: 3,
-        verbs: { cruise: 'cruising', hunt: 'chasing salmon', eat: 'eating', breathe: 'surfacing to breathe', rest: 'resting' },
-      }, { maxSpeed: 7, maxForce: 10, cruise: 1.9, turnRate: 3, clearance: 1, size: 3 });
-    }
-    // a loose group of small sharks patrolling low over the bottom
-    this.pop('dogfish', 7);
-    for (let i = 0; i < 7; i++) {
-      this.hunter('dogfish', {
-        prey: ['herring', 'flounder', 'prawn'], huntRange: 8, catchDist: 0.5, airBreather: false, oxygen: [1, 1], cruiseAbove: [0.7, 2.5], eatTime: 4,
-        verbs: { cruise: 'patrolling the bottom', hunt: 'closing on prey', eat: 'feeding', breathe: '', rest: '' },
-      }, { maxSpeed: 2.8, maxForce: 4, cruise: 0.9, turnRate: 1.8, clearance: 0.7, bankAmount: 0.7, size: 1 });
-    }
-    // pods/visitors get created on a timer
-    this.pop('orca', 6);
-    this.pop('dolphin', 10);
-    this.pop('porpoise', 5);
-    this.pop('humpback', 1);
-  }
-
-  // ---------------------------------------------------------------- visitors
-
-  private spawnVisitor(kind: 'orca' | 'dolphin' | 'porpoise' | 'humpback') {
-    const pop = this.pops.get(kind)!;
-    if (pop.agents.length > 0) return; // already here
-    const pod = new Pod(kind);
-    let count = 1;
-    let cfg: HunterConfig;
-    let opts: ConstructorParameters<typeof Hunter>[2];
-    if (kind === 'orca') {
-      count = 4 + Math.floor(Math.random() * 3);
-      cfg = { prey: ['chinook'], huntRange: 30, catchDist: 1.6, airBreather: true, oxygen: [50, 100], cruiseAbove: [6, 14], eatTime: 4, verbs: { cruise: 'leading the pod', hunt: 'hunting Chinook salmon', eat: 'sharing a salmon', breathe: 'surfacing to breathe', rest: '' } };
-      opts = { maxSpeed: 9, maxForce: 8, cruise: 2.6, turnRate: 1.6, clearance: 2.5, bankAmount: 0.8, size: 7 };
-      pod.path = Pod.transitPath(6 + Math.random() * 4, 5 + Math.random() * 4, 30);
-    } else if (kind === 'dolphin') {
-      count = 6 + Math.floor(Math.random() * 4);
-      cfg = { prey: ['herring'], huntRange: 20, catchDist: 0.7, airBreather: true, oxygen: [35, 70], cruiseAbove: [6, 14], eatTime: 2, verbs: { cruise: 'leading the group', hunt: 'chasing herring', eat: 'eating', breathe: 'surfacing to breathe', rest: '' } };
-      opts = { maxSpeed: 10, maxForce: 14, cruise: 3.2, turnRate: 3, clearance: 2, bankAmount: 1.2, size: 2.3 };
-      pod.path = Pod.transitPath(6 + Math.random() * 4, 5 + Math.random() * 4, 30);
-    } else if (kind === 'porpoise') {
-      count = 2 + Math.floor(Math.random() * 3);
-      cfg = { prey: ['herring'], huntRange: 16, catchDist: 0.6, airBreather: true, oxygen: [30, 60], cruiseAbove: [5, 13], eatTime: 2, verbs: { cruise: 'leading the group', hunt: 'chasing herring', eat: 'eating', breathe: 'surfacing to breathe', rest: '' } };
-      opts = { maxSpeed: 12, maxForce: 16, cruise: 3.6, turnRate: 3, clearance: 2, bankAmount: 1.2, size: 2 };
-      pod.path = Pod.transitPath(6 + Math.random() * 4, 5 + Math.random() * 4, 30);
-    } else {
-      count = 1;
-      cfg = { prey: ['herring'], huntRange: 30, catchDist: 4.5, airBreather: true, oxygen: [80, 140], cruiseAbove: [8, 13], eatTime: 8, verbs: { cruise: 'passing through', hunt: 'lunging at a herring ball', eat: 'straining a mouthful of herring', breathe: 'surfacing to breathe', rest: '' } };
-      opts = { maxSpeed: 4.5, maxForce: 3, cruise: 1.7, turnRate: 0.7, clearance: 4, bankAmount: 0.4, size: 14 };
-      pod.path = Pod.transitPath(7 + Math.random() * 3, 6 + Math.random() * 3, 20);
-    }
-    const start = pod.path[0];
-    const dir = pod.path[1].clone().sub(start).normalize();
-    for (let i = 0; i < count; i++) {
-      const h = new Hunter(kind, cfg, opts);
-      h.oxygen = cfg.oxygen[0] * (0.3 + Math.random() * 0.7);
-      const off = new THREE.Vector3(-i * opts.size * 0.9 - (i > 0 ? opts.size * 0.3 : 0), (Math.random() - 0.5) * opts.size * 0.4, (i % 2 === 0 ? 1 : -1) * Math.ceil(i / 2) * opts.size * 0.55);
-      pod.offsets.push(off);
-      h.pos.copy(start).addScaledVector(dir, -i * opts.size * 0.9);
-      h.pos.z += off.z;
-      h.vel.copy(dir).multiplyScalar(opts.cruise);
-      h.forward.copy(dir);
-      h.state = 'cruise';
-      pod.members.push(h);
-      this.addAgent(kind, h);
-    }
-    this.pods.push(pod);
-  }
-
-  private removeVisitor(pod: Pod) {
-    const pop = this.pops.get(pod.key)!;
-    pop.agents.length = 0;
-    pop.renderer.agents.length = 0;
-    this.pods.splice(this.pods.indexOf(pod), 1);
-  }
-
-  private pathDistance(p: THREE.Vector3): number {
-    const path = (this as unknown as { _pathPts?: THREE.Vector3[] })._pathPts ?? ((this as unknown as { _pathPts?: THREE.Vector3[] })._pathPts = cameraPath().getSpacedPoints(60));
-    let best = Infinity;
-    for (const q of path) {
-      const dx = q.x - p.x;
-      const dz = q.z - p.z;
-      const d = dx * dx + dz * dz;
-      if (d < best) best = d;
-    }
-    return Math.sqrt(best);
   }
 
   // ---------------------------------------------------------------- habitat api
@@ -526,7 +382,6 @@ export class World implements Habitat {
 
   eat(prey: Agent) {
     prey.alive = false;
-    // move it far away & out of sight, bring it back later somewhere else
     prey.pos.set(0, -50, 0);
     this.respawnQueue.push({ agent: prey, at: this.time + 20 + Math.random() * 40 });
   }
@@ -554,7 +409,7 @@ export class World implements Habitat {
 
   update(dt: number, t: number) {
     this.time = t;
-    // respawns
+    // respawns: eaten animals come back later, out of sight
     while (this.respawnQueue.length && this.respawnQueue[0].at < t) {
       const { agent } = this.respawnQueue.shift()!;
       agent.alive = true;
@@ -562,23 +417,24 @@ export class World implements Habitat {
         agent.pos.copy(agent.school.anchor).add(new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 6));
         agent.vel.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(agent.opts.cruise);
       } else if (agent instanceof Crab) {
-        randomFloorNearPath(9, agent.pos);
+        agent.pos.copy(agent.home);
         agent.goal.copy(agent.pos);
         agent.state = 'forage';
         agent.buried = 0;
+      } else if (agent instanceof BenthicFish) {
+        agent.pos.copy(agent.home);
       } else {
-        randomWaterPoint(2, 8, 25, agent.pos);
+        randomWaterPoint(1, 4, 10, 16, agent.pos);
       }
     }
     this.respawnQueue.sort((a, b) => a.at - b.at);
 
     // schools + neighbour grids
     for (const s of this.schools) s.update(dt, t);
-    const herring = this.pops.get('herring')!.agents as SchoolFish[];
-    const salmon = this.pops.get('chinook')!.agents as SchoolFish[];
+    const herring = (this.pops.get('herring')?.agents ?? []) as SchoolFish[];
+    const salmon = (this.pops.get('chinook')?.agents ?? []) as SchoolFish[];
     this.herringGrid.rebuild(herring.filter((a) => a.alive));
     this.salmonGrid.rebuild(salmon.filter((a) => a.alive));
-    // staggered neighbour refresh: a quarter of each school per frame
     const frame = Math.floor(t * 60);
     for (let i = 0; i < herring.length; i++) {
       const f = herring[i];
@@ -595,66 +451,52 @@ export class World implements Habitat {
       }
     }
 
-    // agents
-    const camPos = this.camera.position;
+    this.director.update(dt);
     for (const p of this.pops.values()) {
-      const podKind = p.key === 'orca' || p.key === 'dolphin' || p.key === 'porpoise' || p.key === 'humpback';
-      if (podKind) continue; // driven by their pod
       for (const a of p.agents) {
         if (!a.alive) continue;
-        // far-away sessile things and crabs update less often
-        const d2 = a.pos.distanceToSquared(camPos);
-        if (d2 > 90 * 90 && (a instanceof Crab || a instanceof Sessile) && Math.random() > 0.2) continue;
         a.update(dt, this);
+        // a finished visitor has swum out of frame: park it until the director needs it again
+        if (a instanceof Scripted && a.done) a.alive = false;
       }
-    }
-    for (const pod of [...this.pods]) {
-      pod.update(dt, this);
-      if (pod.done) this.removeVisitor(pod);
-    }
-    // visitor schedule
-    this.visitorTimer -= dt;
-    if (this.visitorTimer < 0) {
-      this.visitorTimer = 45 + Math.random() * 60;
-      const r = Math.random();
-      const kind = r < 0.4 ? 'orca' : r < 0.65 ? 'dolphin' : r < 0.85 ? 'porpoise' : 'humpback';
-      this.spawnVisitor(kind);
     }
 
     // push to GPU + count visible
+    const camPos = this.camera.position;
     this.projView.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projView);
     let vis = 0;
     for (const p of this.pops.values()) {
       p.renderer.sync(dt, camPos, VIEW_RANGE);
-      const sessile = p.key === 'bullkelp' || p.key === 'sugarkelp' || p.key === 'anemone' || p.key === 'seapen' || p.key === 'tubeanemone' || p.key === 'urchin' || p.key === 'ochrestar' || p.key === 'sunflowerstar';
-      if (sessile) {
-        if (!this.observedSet.has(p.key)) for (const a of p.agents) if (a.pos.distanceToSquared(camPos) < 7 * 7 && this.frustum.containsPoint(a.pos)) { this.observedSet.add(p.key); this.observed.push(p.key); break; }
-        continue;
-      }
       for (const a of p.agents) {
         if (!a.alive) continue;
         const d2 = a.pos.distanceToSquared(camPos);
-        if (d2 < 10 * 10 && this.frustum.containsPoint(a.pos)) {
-          vis++;
-          if (d2 < 7 * 7 && !this.observedSet.has(p.key)) {
-            this.observedSet.add(p.key);
-            this.observed.push(p.key);
-          }
+        if (d2 > 11 * 11 || !this.frustum.containsPoint(a.pos) || !this.onScreen(a.pos)) continue;
+        vis++;
+        if (d2 < 9 * 9 && !this.observedSet.has(p.key)) {
+          this.observedSet.add(p.key);
+          this.observed.push(p.key);
         }
       }
     }
     this.visibleCount = vis;
 
     this.updateOccluders(camPos);
-    this.cullStatics(camPos);
+    this.updateLabel();
+  }
 
-    // hover picking
-    this.pickTimer -= dt;
-    if (this.pickTimer < 0) {
-      this.pickTimer = 0.08;
-      this.pick();
-    }
+  /** In the visible part of the frame: beside the page, or anywhere when the page is hidden. */
+  private onScreen(p: THREE.Vector3): boolean {
+    if (this.watchMode) return true;
+    const x = this.screenX(p);
+    const w = window.innerWidth;
+    const half = Math.min(PAPER_W, w) / 2;
+    return x < w / 2 - half || x > w / 2 + half;
+  }
+
+  private screenX(p: THREE.Vector3) {
+    _v2.copy(p).project(this.camera);
+    return (_v2.x + 1) / 2 * window.innerWidth;
   }
 
   // ---------------------------------------------------------------- contact occlusion
@@ -675,10 +517,10 @@ export class World implements Habitat {
     for (const rk of this.rocks) push(rk.pos.x, rk.pos.z, rk.r * 1.25, 0.6);
     const floorRules: Record<string, [number, number]> = {
       dungeness: [0.24, 0.6], redrock: [0.2, 0.6], kelpcrab: [0.14, 0.45], decorator: [0.12, 0.45], octopus: [0.9, 0.6],
-      urchin: [0.13, 0.5], ochrestar: [0.18, 0.35], sunflowerstar: [0.45, 0.4], anemone: [0.16, 0.45], bullkelp: [0.25, 0.35],
+      urchin: [0.13, 0.5], batstar: [0.18, 0.35], sunflowerstar: [0.45, 0.4], scallop: [0.1, 0.4],
       flounder: [0.3, 0.45], sculpin: [0.2, 0.5], prawn: [0.1, 0.4], cucumber: [0.16, 0.5],
     };
-    const hoverRules: Record<string, [number, number]> = { rockfish: [0.3, 0.45], blackrockfish: [0.3, 0.45], lingcod: [0.5, 0.5], seal: [0.8, 0.5], dogfish: [0.5, 0.45] };
+    const hoverRules: Record<string, [number, number]> = { rockfish: [0.3, 0.45], blackrockfish: [0.3, 0.45], seal: [0.8, 0.5], dogfish: [0.5, 0.45] };
     for (const [key, [r, s]] of Object.entries(floorRules)) {
       const p = this.pops.get(key);
       if (!p) continue;
@@ -701,105 +543,65 @@ export class World implements Habitat {
     shared.occCount.value = n;
   }
 
-  // ---------------------------------------------------------------- camera attention
+  // ---------------------------------------------------------------- torch and focus
 
-  private static STATIC = new Set(['bullkelp', 'sugarkelp', 'anemone', 'seapen', 'tubeanemone', 'urchin', 'ochrestar', 'sunflowerstar']);
-
-  private static ATTN: Record<string, number> = {
-    octopus: 3, seal: 2.5, sealion: 2.5, orca: 3, humpback: 3, dolphin: 2, porpoise: 2, sixgill: 2.5,
-    lingcod: 1.5, rockfish: 1.2, dungeness: 1.3, redrock: 1.3, kelpcrab: 1.1, decorator: 1.1, chinook: 1.2,
-    lionsmane: 1.6, seanettle: 1.3, moonjelly: 1,
-    blackrockfish: 1.2, flounder: 1.4, sculpin: 1.3, prawn: 1.1, cucumber: 0.9, dogfish: 2.2,
-  };
-
-  /** Something worth looking at in front of the camera, weighted by interest and proximity. */
-  attentionTarget(pos: THREE.Vector3, fwd: THREE.Vector3): THREE.Vector3 | null {
-    let best: Agent | null = null;
-    let bestScore = 0;
-    for (const [key, w] of Object.entries(World.ATTN)) {
-      const p = this.pops.get(key);
-      if (!p) continue;
-      for (const a of p.agents) {
-        if (!a.alive) continue;
-        _v.subVectors(a.pos, pos);
-        const d = _v.length();
-        if (d > 7 || d < 1) continue;
-        const facing = _v.dot(fwd) / d;
-        if (facing < 0.55) continue; // only things already roughly in view
-        const score = w * facing / (1 + d * 0.35);
-        if (score > bestScore) { bestScore = score; best = a; }
-      }
-    }
-    return best ? best.pos : null;
+  /** Where the diver's attention is: the director's current visitor if one is in view. */
+  hero(): Agent | null {
+    const h = this.director.hero;
+    if (!h || !h.alive || h.pos.distanceTo(this.camera.position) > 12 || !this.onScreen(h.pos)) return null;
+    return h;
   }
 
-  // ---------------------------------------------------------------- autofocus
+  // ---------------------------------------------------------------- click labels
 
-  /** Distance to what the camera is looking at: the nearest animal near screen centre, else the floor. */
-  focusTarget(): number {
-    const cam = this.camera;
-    const fwd = _v.set(0, 0, -1).applyQuaternion(cam.quaternion);
-    let best = 12;
-    // march to the floor
-    for (let t = 0.4; t < 12; t += 0.2) {
-      const x = cam.position.x + fwd.x * t;
-      const y = cam.position.y + fwd.y * t;
-      const z = cam.position.z + fwd.z * t;
-      if (y <= floorHeight(x, z) + 0.05) {
-        best = t;
-        break;
-      }
-    }
-    // animals whose body overlaps the centre of the frame (plants and fixed life don't pull focus)
-    for (const p of this.pops.values()) {
-      if (World.STATIC.has(p.key)) continue;
-      for (const a of p.agents) {
-        if (!a.alive) continue;
-        _v2.subVectors(a.pos, cam.position);
-        const along = _v2.dot(fwd);
-        if (along < 0.3 || along > best) continue;
-        const off = Math.sqrt(Math.max(0, _v2.lengthSq() - along * along));
-        const r = Math.max(0.15, (a.opts.size || 0.5) * a.scale * 0.5);
-        if (off < r + along * 0.06) best = along;
-      }
-    }
-    return Math.max(0.6, best);
-  }
-
-  private pick() {
-    if (this.pointer.x < -5) {
-      hideLabel();
-      return;
-    }
-    // screen-space picking: project every candidate and take the closest to the
-    // pointer within its projected radius. More forgiving than a ray for small fish.
+  private select(px: number, py: number) {
+    // screen-space picking: project every candidate and take the closest to the click within its
+    // projected radius. More forgiving than a ray for small animals.
     const cam = this.camera;
     const focal = (window.innerHeight / 2) / Math.tan((cam.fov * Math.PI) / 360);
     let best: { a: Agent; r: SpeciesRenderer; d: number } | null = null;
     for (const p of this.pops.values()) {
-      const def = SPECIES[p.key];
       for (const a of p.agents) {
         if (!a.alive) continue;
         _v.copy(a.pos).applyMatrix4(cam.matrixWorldInverse);
         const depth = -_v.z;
-        if (depth < 0.5 || depth > 9) continue;
+        if (depth < 0.4 || depth > 12) continue;
         _v2.copy(a.pos).project(cam);
         const sx = (_v2.x + 1) / 2 * window.innerWidth;
         const sy = (1 - _v2.y) / 2 * window.innerHeight;
         const size = (a.opts.size || 0.5) * a.scale;
-        const radiusPx = Math.max(10, (size * 0.5 * focal) / depth);
-        const dx = sx - this.pointerPx.x;
-        const dy = sy - this.pointerPx.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > radiusPx + 6) continue;
-        // score: prefer near the pointer, then nearer to the camera
-        const score = dist / radiusPx + depth * 0.01;
+        const radiusPx = Math.max(14, (size * 0.5 * focal) / depth);
+        const dist = Math.hypot(sx - px, sy - py);
+        if (dist > radiusPx + 8) continue;
+        const score = dist / radiusPx + depth * 0.02;
         if (!best || score < best.d) best = { a, r: p.renderer, d: score };
-        void def;
       }
     }
-    if (best) showLabel(this.pointerPx.x, this.pointerPx.y, best.r.def.name, best.r.def.latin, best.a.doing);
-    else hideLabel();
+    if (best) this.selected = { a: best.a, r: best.r, until: this.time + 7 };
+    else {
+      this.selected = null;
+      hideLabel();
+    }
+  }
+
+  /** Keep the tag pinned to the animal while it's in view, for a few seconds. */
+  private updateLabel() {
+    const s = this.selected;
+    if (!s) return;
+    if (!s.a.alive || this.time > s.until || !this.onScreen(s.a.pos)) {
+      this.selected = null;
+      hideLabel();
+      return;
+    }
+    _v2.copy(s.a.pos).project(this.camera);
+    if (_v2.z > 1) {
+      this.selected = null;
+      hideLabel();
+      return;
+    }
+    const sx = (_v2.x + 1) / 2 * window.innerWidth;
+    const sy = (1 - _v2.y) / 2 * window.innerHeight;
+    showLabel(sx, sy, s.r.def.name, s.r.def.latin, s.a.doing);
   }
 
   nearestLargeAnimal(pos: THREE.Vector3): { key: string; dist: number } | null {
@@ -821,7 +623,4 @@ export class World implements Habitat {
     for (const p of this.pops.values()) out[p.key] = p.agents.filter((a) => a.alive).length;
     return out;
   }
-
-  static v = _v;
-  static v2 = _v2;
 }

@@ -9,7 +9,7 @@ export const TORCH = {
   angle: Math.PI * 0.2,
   penumbra: 0.75,
   color: new THREE.Color(0xffe6c2),
-  intensity: 18,
+  intensity: 24,
   range: 16,
 };
 
@@ -34,7 +34,7 @@ export function buildBackdrop(): THREE.Mesh {
     `,
     side: THREE.BackSide,
     depthWrite: false,
-    depthTest: false,
+    depthTest: true, // sits on the far plane; rejected behind the page's depth card
   });
   const m = new THREE.Mesh(geo, mat);
   m.renderOrder = -10;
@@ -99,7 +99,8 @@ export function buildParticles(count = 7000): THREE.Points {
         p = mod(p - uCamPos + uBox * 0.5, uBox) - uBox * 0.5 + uCamPos;
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         float d = -mv.z;
-        if (d < 0.15) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+        // right against the lens a flake would be a huge blurred blob: skip those
+        if (d < 0.7) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 
         // torch contribution (view space: the torch rides with the camera)
         vec3 L = mv.xyz - uTorchPos;
@@ -115,7 +116,7 @@ export function buildParticles(count = 7000): THREE.Points {
         // depth of field: circle of confusion grows away from the focus distance
         float basePx = size * 18.0 / max(d, 0.3) * uPxScale;
         float coc = uAperture * abs(1.0 / uFocus - 1.0 / d) * 60.0 * uPxScale;
-        float px = min(basePx + coc, 70.0 * uPxScale);
+        float px = min(basePx + coc, 34.0 * uPxScale);
         gl_PointSize = max(px, 1.0);
         // energy spreads over the larger disc
         float spread = (basePx * basePx) / max(px * px, 1.0);
@@ -148,7 +149,7 @@ export function buildParticles(count = 7000): THREE.Points {
 
 export function buildLights(): THREE.Object3D[] {
   // dim green daylight filtering down through 18 m of plankton
-  const hemi = new THREE.HemisphereLight(0x5b8a74, 0x1c2822, 0.75);
+  const hemi = new THREE.HemisphereLight(0x5b8a74, 0x2b3a30, 1.6);
   const sun = new THREE.DirectionalLight(0xa8d0b2, 0.6);
   sun.position.copy(shared.sunDir.value).multiplyScalar(80);
   return [hemi, sun];
@@ -168,4 +169,17 @@ export function buildTorch(): THREE.SpotLight {
   torch.shadow.radius = 5;
   torch.name = 'torch';
   return torch;
+}
+
+const _aim = new THREE.Vector3();
+/**
+ * The diver points the torch at what they're watching: it eases toward `target` (world space), or,
+ * with nothing to watch, slowly sweeps between the two strips of scene beside the page.
+ */
+export function aimTorch(torch: THREE.SpotLight, camera: THREE.Camera, target: THREE.Vector3 | null, sweep: THREE.Vector3, dt: number) {
+  camera.updateMatrixWorld();
+  _aim.copy(target ?? sweep);
+  camera.worldToLocal(_aim).sub(TORCH.pos).normalize();
+  TORCH.dir.lerp(_aim, Math.min(1, dt * (target ? 1.6 : 0.5))).normalize();
+  torch.target.position.copy(TORCH.pos).add(TORCH.dir);
 }
