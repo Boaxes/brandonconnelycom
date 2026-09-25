@@ -21,6 +21,7 @@ export interface SpeciesDef {
   scan?: string;      // baked photogrammetry model to use when available
   bendGain?: number;  // how much the body curves into turns
   translucency?: number; // light passing through thin tissue (jellies, kelp, tentacles)
+  palette?: number[];    // per-individual colour morphs, multiplied over the model's colours
 }
 
 export const SPECIES: Record<string, SpeciesDef> = {
@@ -46,10 +47,10 @@ export const SPECIES: Record<string, SpeciesDef> = {
   ochrestar: { key: 'ochrestar', model: 'ochre_star', name: 'Ochre sea star', latin: 'Pisaster ochraceus', scale: [0.8, 1.4], swim: { amp: 0 } },
   sunflowerstar: { key: 'sunflowerstar', scan: 'sunflower_star', appendageAmp: 0.012, model: 'sunflower_star', name: 'Sunflower sea star', latin: 'Pycnopodia helianthoides', scale: [0.8, 1.3], swim: { amp: 0 } },
   urchin: { key: 'urchin', model: 'red_urchin', scan: 'urchin', name: 'Purple sea urchin', latin: 'Strongylocentrotus purpuratus', scale: [0.8, 1.4], swim: { amp: 0 } },
-  anemone: { key: 'anemone', translucency: 0.45, model: 'plumose_anemone', name: 'Plumose anemone', latin: 'Metridium farcimen', scale: [0.7, 1.6], swim: { amp: 0 }, appendageAmp: 0.02, emissive: { color: 0xfff4e0, strength: 0.12 } },
-  bullkelp: { key: 'bullkelp', translucency: 0.55, model: 'bull_kelp', name: 'Bull kelp', latin: 'Nereocystis luetkeana', scale: [0.8, 1.35], swim: { amp: 0.55, freq: 0.25, speed: 0.55, axis: 0, bodyStart: 0.0 }, appendageAmp: 0.25, side: THREE.DoubleSide, tint: 0xc4b06a, emissive: { color: 0x5a5a20, strength: 0.28 } },
-  seapen: { key: 'seapen', translucency: 0.3, model: 'orange_sea_pen', name: 'Orange sea pen', latin: 'Ptilosarcus gurneyi', scale: [0.7, 1.3], swim: { amp: 0.035, freq: 0.25, speed: 0.6, axis: 0, bodyStart: 0.0 }, roughness: 0.55, emissive: { color: 0xff7a2a, strength: 0.08 } },
-  tubeanemone: { key: 'tubeanemone', translucency: 0.6, model: 'tube_anemone', name: 'Tube-dwelling anemone', latin: 'Pachycerianthus fimbriatus', scale: [0.8, 1.5], swim: { amp: 0 }, appendageAmp: 0.035, emissive: { color: 0xfff0dc, strength: 0.1 } },
+  anemone: { key: 'anemone', translucency: 0.2, palette: [0xffffff, 0xffffff, 0xfff0dc, 0xffd2b0, 0xffb78a, 0xff9d62, 0xd8a88a], model: 'plumose_anemone', name: 'Plumose anemone', latin: 'Metridium farcimen', scale: [0.7, 1.6], swim: { amp: 0 }, appendageAmp: 0.02, emissive: { color: 0xfff4e0, strength: 0.03 } },
+  bullkelp: { key: 'bullkelp', translucency: 0.55, model: 'bull_kelp', name: 'Bull kelp', latin: 'Nereocystis luetkeana', scale: [0.8, 1.35], swim: { amp: 0.55, freq: 0.25, speed: 0.55, axis: 0, bodyStart: 0.0 }, appendageAmp: 0.25, side: THREE.DoubleSide, tint: 0xc4b06a, emissive: { color: 0x5a5a20, strength: 0.12 } },
+  seapen: { key: 'seapen', translucency: 0.3, palette: [0xffffff, 0xffe0c0, 0xffc890], model: 'orange_sea_pen', name: 'Orange sea pen', latin: 'Ptilosarcus gurneyi', scale: [0.7, 1.3], swim: { amp: 0.035, freq: 0.25, speed: 0.6, axis: 0, bodyStart: 0.0 }, roughness: 0.55, emissive: { color: 0xff7a2a, strength: 0.08 } },
+  tubeanemone: { key: 'tubeanemone', translucency: 0.45, palette: [0xffffff, 0xffe2c0, 0xffb070, 0xc8a0b0], model: 'tube_anemone', name: 'Tube-dwelling anemone', latin: 'Pachycerianthus fimbriatus', scale: [0.8, 1.5], swim: { amp: 0 }, appendageAmp: 0.035, emissive: { color: 0xfff0dc, strength: 0.04 } },
   sugarkelp: { key: 'sugarkelp', translucency: 0.6, model: 'sugar_kelp', name: 'Sugar kelp', latin: 'Saccharina latissima', scale: [0.8, 1.4], swim: { amp: 0.18, freq: 0.3, speed: 0.7, axis: 0, bodyStart: 0.0 }, side: THREE.DoubleSide, tint: 0x9c9250, emissive: { color: 0x40401a, strength: 0.22 } },
   blackrockfish: { key: 'blackrockfish', scan: 'rockfish_black', roughness: 0.6, model: 'copper_rockfish', name: 'Black rockfish', latin: 'Sebastes melanops', scale: [0.85, 1.15], swim: { amp: 0.03, freq: 0.7, speed: 3.5, axis: 0, bodyStart: 0.45 } },
   flounder: { key: 'flounder', scan: 'starry_flounder', roughness: 0.65, model: 'copper_rockfish', name: 'Starry flounder', latin: 'Platichthys stellatus', scale: [0.8, 1.2], swim: { amp: 0.025, freq: 0.7, speed: 4, axis: 1, bodyStart: 0.3 } },
@@ -120,7 +121,15 @@ export class SpeciesRenderer {
 
   add(a: Agent) {
     this.agents.push(a);
+    const pal = this.def.palette;
+    if (pal) {
+      // pick a morph, then nudge its value so no two individuals match exactly
+      const c = new THREE.Color(pal[Math.floor(Math.random() * pal.length)]);
+      c.multiplyScalar(0.85 + Math.random() * 0.2);
+      this.tints.set(a, c);
+    }
   }
+  private tints = new Map<Agent, THREE.Color>();
 
   /** Advance swim phases and upload only the instances within `cull` metres of `cam`. */
   sync(dt: number, cam: THREE.Vector3, cull: number) {
@@ -138,6 +147,8 @@ export class SpeciesRenderer {
       this.phaseAttr.setX(n, a.swimPhase);
       this.speedAttr.setX(n, a.animSpeed);
       this.bendAttr.setX(n, a.bend);
+      const tint = this.tints.get(a);
+      if (tint) this.mesh.setColorAt(n, tint);
       n++;
     }
     this.mesh.count = n;
@@ -145,5 +156,6 @@ export class SpeciesRenderer {
     this.phaseAttr.needsUpdate = true;
     this.speedAttr.needsUpdate = true;
     this.bendAttr.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 }

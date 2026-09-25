@@ -285,7 +285,7 @@ export class World implements Habitat {
     };
     // bull kelp grows in groves: pick grove centres near the camera loop, then scatter stipes around them
     const groves: THREE.Vector3[] = [];
-    for (let i = 0; i < 14; i++) groves.push(randomFloorNearPath(8, new THREE.Vector3(), rnd, 3, (i + rnd()) / 14));
+    for (let i = 0; i < 14; i++) groves.push(randomFloorNearPath(10, new THREE.Vector3(), rnd, 5, (i + rnd()) / 14));
     let gi = 0;
     const kelpField = (p: THREE.Vector3) => {
       const g = groves[gi++ % groves.length];
