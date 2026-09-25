@@ -4,16 +4,147 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { shared } from './UnderwaterMaterial';
+import { shared, WATER_GLSL, waterUniforms } from './UnderwaterMaterial';
 import { buildDebris, buildTerrain, WORLD } from './Terrain';
-import { buildBackdrop, buildLights, buildParticles, buildTorch } from './Environment';
+import { buildBackdrop, buildLights, buildParticles, buildTorch, TORCH } from './Environment';
 
-/** Vignette + subtle chromatic softening, applied after bloom. */
-const FinalShader = {
+/**
+ * Pass 1 (linear HDR, reads scene colour + depth):
+ *   - depth of field with a circle of confusion from the shared focus distance
+ *   - the torch beam: in-scattering raymarched through drifting silt, stopped by scene depth
+ */
+const WaterPostShader = {
   uniforms: {
-    tDiffuse: { value: null },
-    uVignette: { value: 0.35 },
+    tDiffuse: { value: null as THREE.Texture | null },
+    tDepth: { value: null as THREE.Texture | null },
+    uNear: { value: 0.2 },
+    uFar: { value: 70 },
+    uProjInv: { value: new THREE.Matrix4() },
+    uCamWorld: { value: new THREE.Matrix4() },
+    uResolution: { value: new THREE.Vector2(1, 1) },
+    uPxScale: { value: 1 },
+    uTime: shared.time,
+    uFocus: shared.focus,
+    uAperture: shared.aperture,
+    uTorchPos: { value: TORCH.pos },
+    uTorchDir: { value: TORCH.dir },
+    uTorchCos: { value: new THREE.Vector2(Math.cos(TORCH.angle), Math.cos(TORCH.angle * (1 - TORCH.penumbra))) },
+    uTorchColor: { value: TORCH.color },
+    uBeam: { value: 0.09 },
+    uFrame: { value: 0 },
+    ...waterUniforms(),
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    #include <packing>
+    ${WATER_GLSL}
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tDepth;
+    uniform float uNear;
+    uniform float uFar;
+    uniform mat4 uProjInv;
+    uniform mat4 uCamWorld;
+    uniform vec2 uResolution;
+    uniform float uPxScale;
+    uniform float uTime;
+    uniform float uFocus;
+    uniform float uAperture;
+    uniform vec3 uTorchPos;
+    uniform vec3 uTorchDir;
+    uniform vec2 uTorchCos;
+    uniform vec3 uTorchColor;
+    uniform float uBeam;
+    uniform float uFrame;
+    varying vec2 vUv;
+
+    float viewDist(vec2 uv, out vec3 viewPos) {
+      float z = texture2D(tDepth, uv).x;
+      vec4 ndc = vec4(uv * 2.0 - 1.0, z * 2.0 - 1.0, 1.0);
+      vec4 v = uProjInv * ndc;
+      viewPos = v.xyz / v.w;
+      return z >= 0.99999 ? uFar : length(viewPos);
+    }
+    float depthAt(vec2 uv) {
+      float z = texture2D(tDepth, uv).x;
+      return z >= 0.99999 ? uFar : -perspectiveDepthToViewZ(z, uNear, uFar);
+    }
+    float cocPx(float d) {
+      return min(uAperture * abs(1.0 / uFocus - 1.0 / max(d, 0.05)) * 60.0 * uPxScale, 6.0 * uPxScale);
+    }
+    float hash13(vec3 p) {
+      p = fract(p * 0.1031);
+      p += dot(p, p.zyx + 31.32);
+      return fract((p.x + p.y) * p.z);
+    }
+    float noise3(vec3 p) {
+      vec3 i = floor(p); vec3 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(mix(hash13(i), hash13(i + vec3(1,0,0)), f.x), mix(hash13(i + vec3(0,1,0)), hash13(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(hash13(i + vec3(0,0,1)), hash13(i + vec3(1,0,1)), f.x), mix(hash13(i + vec3(0,1,1)), hash13(i + vec3(1,1,1)), f.x), f.y), f.z);
+    }
+
+    void main() {
+      vec3 viewPos;
+      float dist = viewDist(vUv, viewPos);
+      float d = depthAt(vUv);
+
+      // ---- depth of field (gather along a golden-angle spiral)
+      vec3 col = texture2D(tDiffuse, vUv).rgb;
+      float c0 = cocPx(d);
+      if (c0 > 0.6) {
+        vec3 acc = col;
+        float wsum = 1.0;
+        const int TAPS = 24;
+        for (int i = 1; i < TAPS; i++) {
+          float fi = float(i);
+          float r = sqrt(fi / float(TAPS)) * c0;
+          float a = fi * 2.39996;
+          vec2 o = vec2(cos(a), sin(a)) * r / uResolution;
+          vec2 suv = vUv + o;
+          float sd = depthAt(suv);
+          float sc = cocPx(sd);
+          // a sample contributes if its own blur reaches this pixel; sharp foreground stays sharp
+          float w = clamp(sc - r + 1.0, 0.0, 1.0);
+          if (sd < d) w *= clamp(sc / max(c0, 0.001), 0.0, 1.0);
+          acc += texture2D(tDiffuse, suv).rgb * w;
+          wsum += w;
+        }
+        col = acc / wsum;
+      }
+
+      // ---- torch beam: in-scattering along the view ray
+      vec3 rd = normalize(viewPos);
+      float tMax = min(dist, 14.0);
+      const int STEPS = 22;
+      float stepLen = tMax / float(STEPS);
+      float jitter = fract(sin(dot(gl_FragCoord.xy + uFrame * 7.13, vec2(12.9898, 78.233))) * 43758.5453);
+      vec3 beam = vec3(0.0);
+      for (int i = 0; i < STEPS; i++) {
+        float t = (float(i) + jitter) * stepLen;
+        vec3 p = rd * t;
+        vec3 L = p - uTorchPos;
+        float dl = length(L);
+        float cone = smoothstep(uTorchCos.x, uTorchCos.y, dot(L / dl, uTorchDir));
+        if (cone <= 0.0) continue;
+        vec3 wp = (uCamWorld * vec4(p, 1.0)).xyz;
+        float silt = 0.45 + 1.1 * noise3(wp * 1.3 + vec3(uTime * 0.05, -uTime * 0.03, uTime * 0.04));
+        silt *= 0.7 + 0.6 * noise3(wp * 4.1 - uTime * 0.1);
+        beam += cone * silt * waterTransmit(dl + t) / (1.0 + dl * dl * 0.3);
+      }
+      col += uTorchColor * beam * stepLen * uBeam;
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+};
+
+/** Pass 3 (display space, after tonemapping): dome-port distortion, colour fringing, vignette, grain + dither. */
+const LensShader = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
     uTime: { value: 0 },
+    uResolution: { value: new THREE.Vector2(1, 1) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -21,21 +152,48 @@ const FinalShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
-    uniform float uVignette;
     uniform float uTime;
+    uniform vec2 uResolution;
     varying vec2 vUv;
+    vec2 barrel(vec2 uv, float k) {
+      vec2 c = uv - 0.5;
+      c.x *= uResolution.x / uResolution.y;
+      float r2 = dot(c, c);
+      c *= 1.0 + k * r2;
+      c.x /= uResolution.x / uResolution.y;
+      return c + 0.5;
+    }
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
-      vec2 uv = vUv;
-      // faint wobble as if seen through moving water
-      uv += vec2(sin(uv.y * 14.0 + uTime * 0.6), cos(uv.x * 12.0 + uTime * 0.5)) * 0.0012;
-      vec3 c = texture2D(tDiffuse, uv).rgb;
-      vec2 d = uv - 0.5;
-      float v = 1.0 - dot(d, d) * uVignette * 2.2;
-      c *= clamp(v, 0.0, 1.0);
+      // slight barrel distortion (dome port) with a touch of lateral colour at the edges
+      float k = -0.035;
+      vec3 c;
+      c.r = texture2D(tDiffuse, barrel(vUv, k * 1.012)).r;
+      c.g = texture2D(tDiffuse, barrel(vUv, k)).g;
+      c.b = texture2D(tDiffuse, barrel(vUv, k * 0.988)).b;
+      // vignette
+      vec2 d = vUv - 0.5;
+      d.x *= uResolution.x / uResolution.y * 0.8;
+      c *= mix(1.0, smoothstep(0.95, 0.25, length(d)), 0.55);
+      // film grain, stronger in the shadows; triangular dither breaks 8-bit banding
+      float lum = dot(c, vec3(0.299, 0.587, 0.114));
+      vec2 px = gl_FragCoord.xy;
+      float g = hash(px + fract(uTime * 13.7) * 91.0) - 0.5;
+      c += g * 0.045 * (1.0 - lum * 0.7);
+      float dth = (hash(px * 1.37 + uTime) + hash(px * 0.73 - uTime) - 1.0) / 255.0;
+      c += dth;
       gl_FragColor = vec4(c, 1.0);
     }
   `,
 };
+
+/** ShaderPass that hands the scene's depth texture (from whichever buffer holds the scene) to its shader. */
+class DepthAwarePass extends ShaderPass {
+  render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget, deltaTime: number, maskActive: boolean) {
+    this.uniforms.tDepth.value = readBuffer.depthTexture;
+    super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+  }
+}
 
 export class Ocean {
   renderer: THREE.WebGLRenderer;
@@ -43,21 +201,26 @@ export class Ocean {
   camera: THREE.PerspectiveCamera;
   composer: EffectComposer;
   bloom: UnrealBloomPass;
-  final: ShaderPass;
+  water: ShaderPass;
+  lens: ShaderPass;
+  target: THREE.WebGLRenderTarget;
   terrain: THREE.Mesh;
   particles: THREE.Points;
   torch: THREE.SpotLight;
   clock = new THREE.Clock();
   quality = 1;
   private frameTimes: number[] = [];
+  private frame = 0;
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 1.05;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.2, 70);
     this.camera.position.set(0, 6, 30);
@@ -77,15 +240,23 @@ export class Ocean {
     this.camera.add(this.torch.target);
     this.scene.add(this.camera);
 
-    this.composer = new EffectComposer(this.renderer);
+    // multisampled HDR target with a depth texture the water pass can read
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+    this.target.depthTexture = new THREE.DepthTexture(size.x, size.y);
+    this.target.depthTexture.type = THREE.UnsignedIntType;
+    this.composer = new EffectComposer(this.renderer, this.target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.18, 0.8, 0.85);
+    this.water = new DepthAwarePass(WaterPostShader);
+    this.composer.addPass(this.water);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.14, 0.6, 0.92);
     this.composer.addPass(this.bloom);
-    this.final = new ShaderPass(FinalShader);
-    this.composer.addPass(this.final);
     this.composer.addPass(new OutputPass());
+    this.lens = new ShaderPass(LensShader);
+    this.composer.addPass(this.lens);
 
     window.addEventListener('resize', () => this.resize());
+    this.resize();
   }
 
   resize() {
@@ -94,7 +265,14 @@ export class Ocean {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.water.uniforms.uResolution.value.set(size.x, size.y);
+    this.lens.uniforms.uResolution.value.set(size.x, size.y);
+    const pxScale = this.renderer.getPixelRatio() * (h / 900);
+    this.water.uniforms.uPxScale.value = pxScale;
+    (this.particles.material as THREE.ShaderMaterial).uniforms.uPxScale.value = pxScale;
   }
 
   /** Adaptive quality: drop pixel ratio if we can't hold ~50fps. */
@@ -104,23 +282,28 @@ export class Ocean {
     const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
     this.frameTimes.length = 0;
     const pr = this.renderer.getPixelRatio();
-    if (avg > 1 / 45 && pr > 0.75) {
-      this.renderer.setPixelRatio(Math.max(0.75, pr - 0.25));
-      this.composer.setPixelRatio(this.renderer.getPixelRatio());
+    const maxPr = Math.min(window.devicePixelRatio, 2);
+    let next = pr;
+    if (avg > 1 / 45 && pr > 0.75) next = Math.max(0.75, pr - 0.25);
+    else if (avg < 1 / 58 && pr < maxPr) next = Math.min(maxPr, pr + 0.25);
+    if (next !== pr) {
+      this.renderer.setPixelRatio(next);
       this.resize();
-      this.quality = this.renderer.getPixelRatio();
-    } else if (avg < 1 / 58 && pr < Math.min(window.devicePixelRatio, 2)) {
-      this.renderer.setPixelRatio(Math.min(Math.min(window.devicePixelRatio, 2), pr + 0.25));
-      this.composer.setPixelRatio(this.renderer.getPixelRatio());
-      this.resize();
-      this.quality = this.renderer.getPixelRatio();
+      this.quality = next;
     }
   }
 
   render(time: number, dt: number) {
     shared.time.value = time;
     (this.particles.material as THREE.ShaderMaterial).uniforms.uCamPos.value.copy(this.camera.position);
-    this.final.uniforms.uTime.value = time;
+    const u = this.water.uniforms;
+    u.uNear.value = this.camera.near;
+    u.uFar.value = this.camera.far;
+    u.uProjInv.value.copy(this.camera.projectionMatrixInverse);
+    this.camera.updateMatrixWorld();
+    u.uCamWorld.value.copy(this.camera.matrixWorld);
+    u.uFrame.value = this.frame++ % 64;
+    this.lens.uniforms.uTime.value = time;
     this.adapt(dt);
     this.composer.render();
   }

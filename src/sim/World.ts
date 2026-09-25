@@ -6,7 +6,8 @@ import {
   type Behavior, type Habitat, type HunterConfig, type SchoolConfig,
 } from './behaviors';
 import { cameraPath, floorHeight, floorNormal, randomFloorNearPath } from '../scene/Terrain';
-import { makeMaterial } from '../scene/UnderwaterMaterial';
+import { ensureSwim, makeMaterial, OCC_MAX, shared } from '../scene/UnderwaterMaterial';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { attachGround } from '../scene/Terrain';
 import { mulberry32, noise2 } from '../util/noise';
 import { hideLabel, showLabel } from '../ui/overlay';
@@ -97,8 +98,12 @@ export class World implements Habitat {
       const yy = y < 0 ? y * 0.35 : y * 0.75;
       pos.setXYZ(i, x * s, yy * s, z * s);
     }
-    const flat = geo;
+    // weld the icosphere so the displaced boulder gets smooth normals
+    geo.deleteAttribute('normal');
+    geo.deleteAttribute('uv');
+    const flat = mergeVertices(geo);
     flat.computeVertexNormals();
+    ensureSwim(flat);
     const cols = new Float32Array(flat.attributes.position.count * 3);
     const base = new THREE.Color(0x4d5148);
     const c = new THREE.Color();
@@ -107,14 +112,14 @@ export class World implements Habitat {
       cols.set([c.r, c.g, c.b], i * 3);
     }
     flat.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-    const uv = flat.attributes.uv as THREE.BufferAttribute;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, 0, 0);
     const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.9, detail: 2 });
     attachGround(uniforms);
     mat.flatShading = false;
     const count = 70;
     const mesh = new THREE.InstancedMesh(flat, mat, count);
     mesh.name = 'rocks';
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const p = new THREE.Vector3();
@@ -500,12 +505,90 @@ export class World implements Habitat {
     }
     this.visibleCount = vis;
 
+    this.updateOccluders(camPos);
+
     // hover picking
     this.pickTimer -= dt;
     if (this.pickTimer < 0) {
       this.pickTimer = 0.08;
       this.pick();
     }
+  }
+
+  // ---------------------------------------------------------------- contact occlusion
+
+  private occCand: { x: number; z: number; r: number; s: number; d: number }[] = [];
+
+  /** Collect the rocks and bottom-dwellers nearest the camera; the floor shader darkens under them. */
+  private updateOccluders(cam: THREE.Vector3) {
+    const c = this.occCand;
+    c.length = 0;
+    const R2 = 15 * 15;
+    const push = (x: number, z: number, r: number, s: number) => {
+      const dx = x - cam.x;
+      const dz = z - cam.z;
+      const d = dx * dx + dz * dz;
+      if (d < R2 && s > 0.02) c.push({ x, z, r, s, d });
+    };
+    for (const rk of this.rocks) push(rk.pos.x, rk.pos.z, rk.r * 1.25, 0.6);
+    const floorRules: Record<string, [number, number]> = {
+      dungeness: [0.24, 0.6], redrock: [0.2, 0.6], kelpcrab: [0.14, 0.45], decorator: [0.12, 0.45], octopus: [0.9, 0.6],
+      urchin: [0.13, 0.5], ochrestar: [0.18, 0.35], sunflowerstar: [0.45, 0.4], anemone: [0.16, 0.45], bullkelp: [0.25, 0.35],
+    };
+    const hoverRules: Record<string, [number, number]> = { rockfish: [0.3, 0.45], lingcod: [0.5, 0.5], seal: [0.8, 0.5], sixgill: [1.2, 0.45] };
+    for (const [key, [r, s]] of Object.entries(floorRules)) {
+      const p = this.pops.get(key);
+      if (!p) continue;
+      for (const a of p.agents) if (a.alive) push(a.pos.x, a.pos.z, r * a.scale, s);
+    }
+    for (const [key, [r, s]] of Object.entries(hoverRules)) {
+      const p = this.pops.get(key);
+      if (!p) continue;
+      for (const a of p.agents) {
+        if (!a.alive) continue;
+        // soft shadow that spreads and fades as the animal rises off the bottom
+        const h = Math.max(0, a.pos.y - floorHeight(a.pos.x, a.pos.z));
+        push(a.pos.x, a.pos.z, r * a.scale * (1 + h * 0.4), s * Math.exp(-h * 0.9));
+      }
+    }
+    c.sort((a, b) => a.d - b.d);
+    const n = Math.min(OCC_MAX, c.length);
+    const occ = shared.occ.value;
+    for (let i = 0; i < n; i++) occ[i].set(c[i].x, c[i].z, c[i].r, c[i].s);
+    shared.occCount.value = n;
+  }
+
+  // ---------------------------------------------------------------- autofocus
+
+  /** Distance to what the camera is looking at: the nearest animal near screen centre, else the floor. */
+  focusTarget(): number {
+    const cam = this.camera;
+    const fwd = _v.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    let best = 12;
+    // march to the floor
+    for (let t = 0.4; t < 12; t += 0.2) {
+      const x = cam.position.x + fwd.x * t;
+      const y = cam.position.y + fwd.y * t;
+      const z = cam.position.z + fwd.z * t;
+      if (y <= floorHeight(x, z) + 0.05) {
+        best = t;
+        break;
+      }
+    }
+    // animals whose body overlaps the centre of the frame
+    for (const p of this.pops.values()) {
+      for (const a of p.agents) {
+        if (!a.alive) continue;
+        _v2.subVectors(a.pos, cam.position);
+        const along = _v2.dot(fwd);
+        if (along < 0.3 || along > best) continue;
+        const off = Math.sqrt(Math.max(0, _v2.lengthSq() - along * along));
+        const r = Math.max(0.15, (a.opts.size || 0.5) * a.scale * 0.5);
+        if (off < r + along * 0.06) best = along;
+      }
+    }
+    // like a real lens: never pull focus closer than ~1.5 m on a wide shot
+    return Math.max(1.5, best);
   }
 
   private pick() {

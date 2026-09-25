@@ -6,6 +6,7 @@ import { buildUI, loaderDone, loaderProgress, showFallback } from './ui/overlay'
 import { World } from './sim/World';
 import { Ambience } from './audio/Ambience';
 import { WORLD } from './scene/Terrain';
+import { shared } from './scene/UnderwaterMaterial';
 
 async function boot() {
   const canvas = document.getElementById('ocean') as HTMLCanvasElement;
@@ -67,6 +68,9 @@ async function boot() {
     const t = ocean.clock.getElapsedTime();
     rig.update(dt, t);
     world.update(dt, t);
+    // autofocus: ease toward whatever is in the centre of frame, like a camera's AF
+    const ft = world.focusTarget();
+    shared.focus.value += (ft - shared.focus.value) * Math.min(1, dt * 2.2);
     ambience.update(ocean.camera.position.y / WORLD.surfaceY, world.nearestLargeAnimal(ocean.camera.position));
     ocean.render(t, dt);
 
@@ -97,6 +101,7 @@ async function boot() {
       const t = ocean.clock.getElapsedTime();
       rig.update(1 / 60, t);
       world.update(1 / 60, t);
+      shared.focus.value = world.focusTarget();
       ocean.render(t, 1 / 60);
       const data = ocean.renderer.domElement.toDataURL('image/jpeg', 0.88);
       const r = await fetch('/__shot?name=' + encodeURIComponent(name), { method: 'POST', body: data });

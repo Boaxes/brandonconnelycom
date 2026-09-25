@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { fbm2, noise2, mulberry32 } from '../util/noise';
-import { makeMaterial, type UnderwaterUniforms } from './UnderwaterMaterial';
+import { ensureSwim, makeMaterial, type UnderwaterUniforms } from './UnderwaterMaterial';
 
 export const WORLD = {
   size: 170,          // metres, square, centred at origin
@@ -81,7 +81,7 @@ export function attachGround(u: UnderwaterUniforms) {
 export function buildTerrain(): THREE.Mesh {
   // the mesh extends well past the simulated area so the edge is never seen through the fog
   const size = WORLD.size * 1.3;
-  const seg = 180;
+  const seg = 240;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -95,9 +95,9 @@ export function buildTerrain(): THREE.Mesh {
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
-    // jitter xz a little for a less grid-like facet pattern
-    const jx = (rnd() - 0.5) * 0.8;
-    const jz = (rnd() - 0.5) * 0.8;
+    // jitter xz a little so the grid never lines up into visible rows
+    const jx = (rnd() - 0.5) * 0.35;
+    const jz = (rnd() - 0.5) * 0.35;
     pos.setX(i, x + jx);
     pos.setZ(i, z + jz);
     const y = floorHeight(x + jx, z + jz);
@@ -113,33 +113,27 @@ export function buildTerrain(): THREE.Mesh {
     colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  // flat shading needs unindexed geometry so each face gets its own normal
-  const flat = geo.toNonIndexed();
-  flat.computeVertexNormals();
-  // zero the uv so the swim shader does nothing to the floor
-  const uv = flat.attributes.uv as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, 0, 0);
+  geo.computeVertexNormals();
+  ensureSwim(geo);
   const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.95, detail: 1 });
   attachGround(uniforms);
-  const mesh = new THREE.Mesh(flat, mat);
-  mesh.receiveShadow = false;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
   mesh.name = 'terrain';
   return mesh;
 }
 
 
 /** Pebbles and shell fragments scattered on the floor. */
-export function buildDebris(count = 500): THREE.InstancedMesh {
+export function buildDebris(count = 3500): THREE.InstancedMesh {
   const rnd = mulberry32(3);
-  const geo = new THREE.IcosahedronGeometry(1, 0);
-  const flat = geo.toNonIndexed();
+  const flat = new THREE.IcosahedronGeometry(1, 1);
   flat.computeVertexNormals();
   const n = flat.attributes.position.count;
   const cols = new Float32Array(n * 3).fill(1);
   flat.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  const uv = flat.attributes.uv as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, 0, 0);
-  const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.9, detail: 2 });
+  ensureSwim(flat);
+  const { mat, uniforms } = makeMaterial({ amp: 0 }, { roughness: 0.9, detail: 2, flat: true });
   attachGround(uniforms);
   const mesh = new THREE.InstancedMesh(flat, mat, count);
   mesh.name = 'debris';
@@ -148,10 +142,10 @@ export function buildDebris(count = 500): THREE.InstancedMesh {
   const p = new THREE.Vector3();
   const s = new THREE.Vector3();
   const c = new THREE.Color();
-  const half = WORLD.size / 2 - 10;
   for (let i = 0; i < count; i++) {
-    p.set((rnd() * 2 - 1) * half, 0, (rnd() * 2 - 1) * half);
-    p.y = floorHeight(p.x, p.z) - 0.02;
+    // cobbles and shell hash cluster where the camera actually goes
+    randomFloorNearPath(12, p, rnd);
+    p.y -= 0.02;
     const shell = rnd() < 0.35;
     const r = shell ? 0.03 + rnd() * 0.05 : 0.04 + rnd() * 0.1;
     q.setFromEuler(new THREE.Euler(rnd() * 3, rnd() * 3, rnd() * 3));
@@ -162,5 +156,7 @@ export function buildDebris(count = 500): THREE.InstancedMesh {
     else c.setHSL(0.15 + rnd() * 0.1, 0.08, 0.22 + rnd() * 0.18);
     mesh.setColorAt(i, c);
   }
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   return mesh;
 }

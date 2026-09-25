@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { geometry, type ModelName } from '../scene/Assets';
-import { makeMaterial, type SwimParams } from '../scene/UnderwaterMaterial';
+import { makeDepthMaterial, makeMaterial, type SwimParams } from '../scene/UnderwaterMaterial';
 import type { Agent } from './Agent';
 
 export interface SpeciesDef {
@@ -24,8 +24,8 @@ export const SPECIES: Record<string, SpeciesDef> = {
   humpback: { key: 'humpback', roughness: 0.5, model: 'humpback', name: 'Humpback whale', latin: 'Megaptera novaeangliae', scale: [1, 1], swim: { amp: 0.6, freq: 0.5, speed: 1.6, axis: 1, bodyStart: 0.5 }, large: true },
   dolphin: { key: 'dolphin', roughness: 0.5, model: 'dolphin_pws', name: "Pacific white-sided dolphin", latin: 'Lagenorhynchus obliquidens', scale: [0.9, 1.1], swim: { amp: 0.12, freq: 0.6, speed: 5.5, axis: 1, bodyStart: 0.45 }, large: true },
   porpoise: { key: 'porpoise', roughness: 0.5, model: 'dalls_porpoise', name: "Dall's porpoise", latin: 'Phocoenoides dalli', scale: [0.9, 1.05], swim: { amp: 0.1, freq: 0.6, speed: 6.5, axis: 1, bodyStart: 0.45 }, large: true },
-  chinook: { key: 'chinook', roughness: 0.6, model: 'chinook', name: 'Chinook salmon', latin: 'Oncorhynchus tshawytscha', scale: [0.8, 1.2], swim: { amp: 0.07, freq: 0.75, speed: 6, axis: 0, bodyStart: 0.35 } },
-  herring: { key: 'herring', roughness: 0.6, model: 'herring', name: 'Pacific herring', latin: 'Clupea pallasii', scale: [0.8, 1.15], swim: { amp: 0.025, freq: 0.8, speed: 9, axis: 0, bodyStart: 0.3 } },
+  chinook: { key: 'chinook', roughness: 0.6, tint: 0xc4c8c4, model: 'chinook', name: 'Chinook salmon', latin: 'Oncorhynchus tshawytscha', scale: [0.8, 1.2], swim: { amp: 0.07, freq: 0.75, speed: 6, axis: 0, bodyStart: 0.35 } },
+  herring: { key: 'herring', roughness: 0.6, tint: 0xb8c0c0, model: 'herring', name: 'Pacific herring', latin: 'Clupea pallasii', scale: [0.8, 1.15], swim: { amp: 0.025, freq: 0.8, speed: 9, axis: 0, bodyStart: 0.3 } },
   rockfish: { key: 'rockfish', roughness: 0.6, model: 'copper_rockfish', name: 'Copper rockfish', latin: 'Sebastes caurinus', scale: [0.8, 1.2], swim: { amp: 0.03, freq: 0.7, speed: 3.5, axis: 0, bodyStart: 0.45 } },
   lingcod: { key: 'lingcod', roughness: 0.6, model: 'lingcod', name: 'Lingcod', latin: 'Ophiodon elongatus', scale: [0.9, 1.3], swim: { amp: 0.05, freq: 0.7, speed: 3, axis: 0, bodyStart: 0.4 } },
   sixgill: { key: 'sixgill', roughness: 0.6, model: 'sixgill', name: 'Bluntnose sixgill shark', latin: 'Hexanchus griseus', scale: [1, 1], swim: { amp: 0.35, freq: 0.6, speed: 1.6, axis: 0, bodyStart: 0.35 }, large: true },
@@ -59,7 +59,7 @@ export class SpeciesRenderer {
 
   constructor(public def: SpeciesDef, capacity: number) {
     const geo = geometry(def.model);
-    const { mat } = makeMaterial(def.swim, {
+    const { mat, uniforms } = makeMaterial(def.swim, {
       appendageAmp: def.appendageAmp,
       tint: def.tint ? new THREE.Color(def.tint) : undefined,
       transparent: def.opacity !== undefined,
@@ -75,6 +75,11 @@ export class SpeciesRenderer {
     this.mesh.frustumCulled = false;
     this.mesh.name = def.key;
     this.mesh.count = 0;
+    // opaque life casts torch shadows with the same swim deformation as its colour pass
+    const translucent = def.opacity !== undefined;
+    this.mesh.castShadow = !translucent;
+    this.mesh.receiveShadow = true;
+    if (!translucent) this.mesh.customDepthMaterial = makeDepthMaterial(uniforms);
     this.phaseAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
     this.phaseAttr.setUsage(THREE.DynamicDrawUsage);
     this.speedAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);

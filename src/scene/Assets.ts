@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { ensureSwim } from './UnderwaterMaterial';
 
 export type ModelName =
   | 'orca' | 'humpback' | 'dolphin_pws' | 'dalls_porpoise'
@@ -50,6 +51,8 @@ export async function loadAll(onProgress?: (p: number) => void): Promise<void> {
         }
         g.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
       }
+      // procedural models encode swim coordinates in their uv
+      ensureSwim(g, true);
       g.computeBoundingSphere();
       g.computeBoundingBox();
       geometries.set(name, g);
