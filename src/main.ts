@@ -226,6 +226,7 @@ async function boot() {
 
   const aimAt = new THREE.Vector3();
   const fwd = new THREE.Vector3();
+  const look = new THREE.Vector3();
   let simT = 0;
   let hinted = false;
   /** one tick of everything; the dev helpers below call it directly to fast-forward */
@@ -246,8 +247,16 @@ async function boot() {
     const hero = world.hero();
     ocean.camera.getWorldDirection(fwd);
     if (hero) aimAt.copy(hero.pos);
-    else if (portfolio.state === 'rest' && fwd.dot(aimAt.copy(portfolio.root.position).sub(ocean.camera.position).normalize()) > 0.8) aimAt.copy(portfolio.root.position);
-    else aimAt.copy(ocean.camera.position).addScaledVector(fwd, 5).add(new THREE.Vector3(0, -0.8, 0));
+    else {
+      // otherwise the diver lights whatever landmark is nearest the middle of the view
+      let best = 0.9;
+      aimAt.copy(ocean.camera.position).addScaledVector(fwd, 5).add(new THREE.Vector3(0, -0.8, 0));
+      const cands = portfolio.state === 'rest' ? [portfolio.root.position, ...world.landmarks] : world.landmarks;
+      for (const p of cands) {
+        const d = look.copy(p).sub(ocean.camera.position).normalize().dot(fwd);
+        if (d > best) { best = d; aimAt.copy(p); }
+      }
+    }
     aimTorch(ocean.torch, ocean.camera, hero ? hero.pos : null, aimAt, dt);
     const ft = book ? (book === portfolio ? 0.5 : 0.38) : Math.max(0.8, ocean.camera.position.distanceTo(aimAt));
     shared.focus.value += (ft - shared.focus.value) * Math.min(1, dt * 3);

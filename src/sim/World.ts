@@ -43,6 +43,8 @@ export class World implements Habitat {
   visibleCount = 0;
   /** where the portfolio book lies before it's picked up */
   bookRest = { pos: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0) };
+  /** things worth pointing the torch at when nothing is happening */
+  landmarks: THREE.Vector3[] = [];
   /** where the octopus lives, and which way it faces from there */
   den = new THREE.Vector3();
   denFacing = new THREE.Vector3();
@@ -238,9 +240,15 @@ export class World implements Habitat {
     // E: the wreck lying at an angle across the view, half sunk in the silt
     const wreckAt = stageFloor(98 * D, 5.6);
     wreckAt.y -= 0.25;
+    this.landmarks.push(wreckAt.clone().add(new THREE.Vector3(0, 0.9, 0)));
     piece('wreck', { p: wreckAt, q: q(across(98 * D) + 0.5, 0.03, -0.12), s: new THREE.Vector3(1, 1, 1) }, true, 0.9, 0xb0a890);
     piece('barrel', { p: stageFloor(78 * D, 3.9).add(new THREE.Vector3(0, -0.12, 0)), q: q(1.1, 1.45, 0.2), s: new THREE.Vector3(1, 1, 1) }, true, 0.8, 0x8a7a6c);
     // W: the anchor, lying on its side where the floor falls away
+    this.landmarks.push(stageFloor(268 * D, 3.2).add(new THREE.Vector3(0, 0.2, 0)));
+    this.landmarks.push(stageFloor(50 * D, 5).add(new THREE.Vector3(0, 0.6, 0)));   // the reef
+    this.landmarks.push(stageFloor(140 * D, 3.5));                                   // the sand-dollar bed
+    this.landmarks.push(stageFloor(182 * D, 7).add(new THREE.Vector3(0, 1.2, 0)));  // the boulder pile
+    this.landmarks.push(stageFloor(206 * D, 3.9), stageFloor(318 * D, 4.4));         // the logs
     piece('anchor', { p: stageFloor(268 * D, 3.2).add(new THREE.Vector3(0, -0.05, 0)), q: q(0.4, 0, 0.08), s: new THREE.Vector3(1.2, 1.2, 1.2) }, true, 0.75, 0x7a6558);
     // SW and NW: two waterlogged logs
     if (hasAsset('scan:log')) {
