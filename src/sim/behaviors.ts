@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Agent, randomFloorPoint, randomWaterPoint, type AgentOpts } from './Agent';
-import { floorHeight, floorNormal, inMargins, marginYaw, stage, stageWater, yawOf, WORLD } from '../scene/Terrain';
+import { floorHeight, floorNormal, stage, stageWater, yawOf, WORLD } from '../scene/Terrain';
 import { noise2 } from '../util/noise';
 
 /** What behaviors can ask of the world. Implemented by World. */
@@ -272,17 +272,19 @@ export class BenthicFish extends Agent implements Behavior {
     this.goal.copy(this.home);
     this.timer = 6;
   }
-  /** Swim over to hang just in front of the diver for a few seconds. False if it can't right now. */
-  comeLook(): boolean {
-    if (BenthicFish.inspecting || !inMargins(this.pos) || this.pos.distanceTo(stage().cam) > 10) return false;
+  /**
+   * Swim over to hang just in front of the diver for a few seconds. `viewYaw` is where the camera is
+   * looking: the fish stops a little to the side of it (not dead centre, where the book is held).
+   * False if it can't right now.
+   */
+  comeLook(viewYaw: number): boolean {
+    if (BenthicFish.inspecting || this.pos.distanceTo(stage().cam) > 11) return false;
     BenthicFish.inspecting = this;
     this.state = 'inspect';
     this.timer = 16;
     this.looked = 0;
-    // a spot just off the lens, on this fish's side of the page, a little below eye level
-    const m = marginYaw();
-    const side = Math.sign(yawOf(this.pos)) || 1;
-    stageWater(side * (m.inner + (m.outer - m.inner) * 0.55), 1.7 + Math.random() * 0.7, stage().height - 0.45, this.goal);
+    const side = Math.sign(Math.sin(yawOf(this.pos) - viewYaw)) || 1;
+    stageWater(viewYaw + side * (0.42 + Math.random() * 0.12), 1.8 + Math.random() * 0.6, stage().height - 0.35 + Math.random() * 0.3, this.goal);
     return true;
   }
   update(dt: number, h: Habitat) {
@@ -329,17 +331,11 @@ export class BenthicFish extends Agent implements Behavior {
     } else {
       this.doing = this.verbs.idle;
       if (this.timer < 0) {
-        // pick a new hover spot near home, staying in view beside the page
-        for (let k = 0; k < 5; k++) {
-          this.goal.copy(this.home).add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 3));
-          if (inMargins(this.goal)) break;
-          if (k === 4) this.goal.copy(this.home);
-        }
+        // pick a new hover spot near home
+        this.goal.copy(this.home).add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 3));
         this.goal.y = Math.max(this.goal.y, floorHeight(this.goal.x, this.goal.z) + this.hover[0]);
         this.timer = 3 + Math.random() * 6;
-        if (h.time - BenthicFish.lastInspect > 20 && Math.random() < 0.3 && this.comeLook()) {
-          /* on its way over */
-        } else if (this.prey.length && Math.random() < 0.35) {
+        if (this.prey.length && Math.random() < 0.35) {
           const p = h.preyNear(this.prey, this.pos, 2.5);
           if (p) {
             (this as unknown as { target?: Agent }).target = p;
@@ -602,7 +598,16 @@ export class Scripted extends Agent implements Behavior {
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         this.heading += diff * Math.min(1, dt * 1.5);
         this.speedMul = 1.1;
-      } else this.speedMul = 0.35;
+      } else {
+        this.speedMul = 0.35;
+        // settled: turn slowly to face whatever it's watching
+        if (this.holdT > 0 && leg.face) {
+          _a.subVectors(leg.face, this.pos).setY(0).normalize();
+          let diff = Math.atan2(_a.z, _a.x) - this.heading;
+          diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+          this.heading += diff * Math.min(1, dt * 0.6);
+        }
+      }
       this.pos.y = floorHeight(this.pos.x, this.pos.z) + 0.03;
       floorNormal(this.pos.x, this.pos.z, this.up);
       this.fwd.set(Math.cos(this.heading), 0, Math.sin(this.heading));

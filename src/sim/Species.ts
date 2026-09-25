@@ -50,6 +50,8 @@ export const SPECIES: Record<string, SpeciesDef> = {
   batstar: { key: 'batstar', scan: 'bat_star', roughness: 0.6, name: 'Bat star', latin: 'Patiria miniata', scale: [0.8, 1.3], swim: { amp: 0 } },
   sunflowerstar: { key: 'sunflowerstar', scan: 'sunflower_star', appendageAmp: 0.008, name: 'Sunflower sea star', latin: 'Pycnopodia helianthoides', scale: [0.8, 1.3], swim: { amp: 0 } },
   urchin: { key: 'urchin', scan: 'urchin', name: 'Purple sea urchin', latin: 'Strongylocentrotus purpuratus', scale: [0.8, 1.4], swim: { amp: 0 } },
+  sanddollar: { key: 'sanddollar', scan: 'sand_dollar', roughness: 0.7, name: 'Eccentric sand dollar', latin: 'Dendraster excentricus', scale: [0.8, 1.2], swim: { amp: 0 } },
+  moonsnail: { key: 'moonsnail', scan: 'moon_snail', roughness: 0.5, name: "Lewis's moon snail", latin: 'Neverita lewisii', scale: [0.8, 1.3], swim: { amp: 0 } },
   scallop: { key: 'scallop', scan: 'scallop', roughness: 0.5, name: 'Rock scallop', latin: 'Crassadoma gigantea', scale: [0.9, 1.5], swim: { amp: 0 } },
 };
 

@@ -4,6 +4,7 @@
  */
 export const content = {
   name: 'Brandon',
+  fullName: 'Brandon Connely', // shown on the book's cover and title page — check the spelling
   title: 'Data Engineer',
   tagline: 'I build the pipelines, models and dashboards that turn messy operational data into something a team can trust.',
   location: 'Seattle, WA',

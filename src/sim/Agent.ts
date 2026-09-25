@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { floorHeight, randomFloorInView, stage, WORLD } from '../scene/Terrain';
+import { floorHeight, randomFloorAround, WORLD } from '../scene/Terrain';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -215,20 +215,14 @@ export function randomInDisc(radius: number, out = new THREE.Vector3()) {
 
 /** Random floor point in front of the camera, `dMin`..`dMax` metres out. */
 export function randomFloorPoint(dMin = 2.5, dMax = 12, out = new THREE.Vector3()) {
-  return randomFloorInView(Math.random, dMin, dMax, out, 1.2);
+  return randomFloorAround(Math.random, dMin, dMax, out);
 }
 
 /** Random point in the water in front of the camera, `minAbove`..`maxAbove` metres off the bottom. */
 export function randomWaterPoint(minAbove = 2, maxAbove = 8, dMin = 3, dMax = 14, out = new THREE.Vector3()) {
-  randomFloorInView(Math.random, dMin, dMax, out, 1.4);
+  randomFloorAround(Math.random, dMin, dMax, out);
   out.y += minAbove + Math.random() * (maxAbove - minAbove);
+  out.y = Math.min(out.y, WORLD.surfaceY - 1.5);
   return out;
 }
 
-/** The middle of the action: a floor point ~7 m in front of the camera. */
-export function stageCentre(out = new THREE.Vector3()) {
-  const s = stage();
-  out.copy(s.cam).addScaledVector(s.fwd, 7);
-  out.y = floorHeight(out.x, out.z);
-  return out;
-}

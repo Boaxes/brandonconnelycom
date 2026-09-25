@@ -1,2 +1,2 @@
 Textures in this folder are CC0 (public domain) from Poly Haven (https://polyhaven.com):
-sand_01, sandy_gravel_02, rock_06 — downscaled to 1K.
+sand_01, sandy_gravel_02, rock_06 — downscaled to 1K; leather_red_02 (book cover) — 512px.

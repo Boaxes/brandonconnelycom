@@ -31,6 +31,11 @@ export const SCANS: Record<string, { swim: SwimRule; core?: number }> = {
   humpback: { swim: 'body' },
   rock_boulder: { swim: 'static' },
   log: { swim: 'static' },
+  wreck: { swim: 'static' },
+  anchor: { swim: 'static' },
+  barrel: { swim: 'static' },
+  sand_dollar: { swim: 'static' },
+  moon_snail: { swim: 'static' },
 };
 
 /** Packs of several ready-made pieces in one file; each mesh is registered as 'scan:<key>_<i>'. */
@@ -106,6 +111,7 @@ async function loadSet(loader: GLTFLoader, key: string, url: string) {
     geo.computeBoundingBox();
     geo.computeBoundingSphere();
     const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial;
+    for (const t of [mat.map, mat.normalMap]) if (t) t.anisotropy = 8;
     assets.set(`scan:${key}_${i}`, { geometry: geo, map: mat.map ?? undefined, normalMap: mat.normalMap ?? undefined });
   });
 }
@@ -126,6 +132,7 @@ async function loadScan(loader: GLTFLoader, base: string, key: string) {
     geo.deleteAttribute('color');
     computeSwim(geo, SCANS[key].swim, SCANS[key].core);
     geo.computeBoundingSphere();
+    for (const t of [mat?.map, mat?.normalMap]) if (t) t.anisotropy = 8;
     assets.set('scan:' + key, { geometry: geo, map: mat?.map ?? undefined, normalMap: mat?.normalMap ?? undefined });
   } catch (e) {
     console.warn('scan missing', key, e);

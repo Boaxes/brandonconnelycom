@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WORLD } from './Terrain';
+import { stage, WORLD } from './Terrain';
 import { shared, WATER_GLSL, waterUniforms } from './UnderwaterMaterial';
 
 /** Diver's torch, in the camera's local space. Shared by the light, the particles and the beam pass. */
@@ -149,8 +149,8 @@ export function buildParticles(count = 7000): THREE.Points {
 
 export function buildLights(): THREE.Object3D[] {
   // dim green daylight filtering down through 18 m of plankton
-  const hemi = new THREE.HemisphereLight(0x5b8a74, 0x2b3a30, 1.6);
-  const sun = new THREE.DirectionalLight(0xa8d0b2, 0.6);
+  const hemi = new THREE.HemisphereLight(0x5f917a, 0x2e3d33, 2.0);
+  const sun = new THREE.DirectionalLight(0xa8d0b2, 0.9);
   sun.position.copy(shared.sunDir.value).multiplyScalar(80);
   return [hemi, sun];
 }
@@ -182,4 +182,61 @@ export function aimTorch(torch: THREE.SpotLight, camera: THREE.Camera, target: T
   camera.worldToLocal(_aim).sub(TORCH.pos).normalize();
   TORCH.dir.lerp(_aim, Math.min(1, dt * (target ? 1.6 : 0.5))).normalize();
   torch.target.position.copy(TORCH.pos).add(TORCH.dir);
+}
+
+/**
+ * The underside of the surface, 30 ft up. Straight overhead is Snell's window: the sky squeezed into a
+ * bright disc (~97° across) that shimmers with the waves; outside it the surface is a dim mirror of the
+ * depths. Seen through 9 m of murk it reads as a soft green glow with moving light, which is what you
+ * get looking up on a real dive.
+ */
+export function buildSurface(): THREE.Mesh {
+  const s = stage();
+  const geo = new THREE.PlaneGeometry(160, 160, 1, 1);
+  geo.rotateX(Math.PI / 2); // facing down
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { ...waterUniforms(), uTime: shared.time },
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    vertexShader: /* glsl */ `
+      varying vec3 vWorld;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      ${WATER_GLSL}
+      uniform float uTime;
+      varying vec3 vWorld;
+      float wave(vec2 p, float t) {
+        return sin(p.x * 1.7 + t * 0.9 + sin(p.y * 1.3 - t * 0.6)) * 0.5
+             + sin(p.y * 2.3 - t * 1.1 + sin(p.x * 0.9 + t * 0.4)) * 0.35
+             + sin((p.x + p.y) * 3.7 + t * 1.7) * 0.15;
+      }
+      void main() {
+        vec3 fromCam = vWorld - cameraPosition;
+        vec3 v = normalize(fromCam);
+        vec2 p = vWorld.xz * 0.45;
+        float w = wave(p, uTime);
+        // ripples bend the edge of the window and break the light into moving patches
+        float cosT = clamp(v.y + w * 0.035, 0.0, 1.0);
+        float window = smoothstep(0.62, 0.7, cosT);
+        // bright shifting patches where the waves focus the light
+        vec3 sky = vec3(0.72, 0.92, 0.86) * (2.4 + w * 2.2 + pow(max(w, 0.0), 3.0) * 4.0);
+        vec3 mirror = uDeepColor * (0.7 + w * 0.15);
+        vec3 c = mix(mirror, sky, window);
+        gl_FragColor = vec4(applyWater(c, fromCam), 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(s.cam.x, WORLD.surfaceY, s.cam.z);
+  m.renderOrder = -5;
+  m.frustumCulled = false;
+  m.name = 'surface';
+  return m;
 }

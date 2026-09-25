@@ -5,8 +5,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { shared, WATER_GLSL, waterUniforms } from './UnderwaterMaterial';
-import { buildTerrain, WORLD } from './Terrain';
-import { buildBackdrop, buildLights, buildParticles, buildTorch, TORCH } from './Environment';
+import { buildTerrain, stage, WORLD } from './Terrain';
+import { buildBackdrop, buildLights, buildParticles, buildSurface, buildTorch, TORCH } from './Environment';
 
 /**
  * Pass 1 (linear HDR, reads scene colour + depth):
@@ -22,7 +22,6 @@ const WaterPostShader = {
     uProjInv: { value: new THREE.Matrix4() },
     uCamWorld: { value: new THREE.Matrix4() },
     uResolution: { value: new THREE.Vector2(1, 1) },
-    uMask: { value: new THREE.Vector2(0, 0) },
     uPxScale: { value: 1 },
     uTime: shared.time,
     uFocus: shared.focus,
@@ -49,7 +48,6 @@ const WaterPostShader = {
     uniform mat4 uProjInv;
     uniform mat4 uCamWorld;
     uniform vec2 uResolution;
-    uniform vec2 uMask;
     uniform float uPxScale;
     uniform float uTime;
     uniform float uFocus;
@@ -88,8 +86,6 @@ const WaterPostShader = {
     }
 
     void main() {
-      // behind the notebook page nothing is visible: skip the work
-      if (gl_FragCoord.x > uMask.x && gl_FragCoord.x < uMask.y) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
       vec3 viewPos;
       float dist = viewDist(vUv, viewPos);
       float d = depthAt(vUv);
@@ -150,7 +146,6 @@ const LensShader = {
     tDiffuse: { value: null as THREE.Texture | null },
     uTime: { value: 0 },
     uResolution: { value: new THREE.Vector2(1, 1) },
-    uMask: { value: new THREE.Vector2(0, 0) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -160,7 +155,6 @@ const LensShader = {
     uniform sampler2D tDiffuse;
     uniform float uTime;
     uniform vec2 uResolution;
-    uniform vec2 uMask;
     varying vec2 vUv;
     vec2 barrel(vec2 uv, float k) {
       vec2 c = uv - 0.5;
@@ -172,8 +166,6 @@ const LensShader = {
     }
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
-      // behind the notebook page nothing is visible: skip the work
-      if (gl_FragCoord.x > uMask.x && gl_FragCoord.x < uMask.y) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
       // slight barrel distortion (dome port) with a touch of lateral colour at the edges
       float k = -0.035;
       vec3 c;
@@ -236,12 +228,14 @@ export class Ocean {
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.2, 70);
     this.camera.position.set(0, 6, 30);
 
+    stage(); // sets the surface height from the viewpoint
     shared.surfaceY.value = WORLD.surfaceY;
     this.scene.background = shared.deepColor.value;
 
     this.terrain = buildTerrain();
     this.scene.add(this.terrain);
     this.scene.add(buildBackdrop());
+    this.scene.add(buildSurface());
     this.particles = buildParticles();
     this.scene.add(this.particles);
     for (const l of buildLights()) this.scene.add(l);
@@ -249,11 +243,6 @@ export class Ocean {
     this.camera.add(this.torch);
     this.camera.add(this.torch.target);
     this.scene.add(this.camera);
-    this.occluder = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ colorWrite: false }));
-    this.occluder.renderOrder = -1000;
-    this.occluder.frustumCulled = false;
-    this.occluder.visible = false;
-    this.camera.add(this.occluder);
 
     // multisampled HDR target with a depth texture the water pass can read
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -263,6 +252,11 @@ export class Ocean {
     this.composer = new EffectComposer(this.renderer, this.target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.water = new DepthAwarePass(WaterPostShader);
+    // ShaderPass clones its uniforms: point the live ones back at the shared objects, or focus and time
+    // would stay frozen at their initial values
+    this.water.uniforms.uFocus = shared.focus;
+    this.water.uniforms.uAperture = shared.aperture;
+    this.water.uniforms.uTime = shared.time;
     this.composer.addPass(this.water);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.14, 0.6, 0.92);
     this.composer.addPass(this.bloom);
@@ -288,7 +282,6 @@ export class Ocean {
     const pxScale = this.renderer.getPixelRatio() * (h / 900);
     this.water.uniforms.uPxScale.value = pxScale;
     (this.particles.material as THREE.ShaderMaterial).uniforms.uPxScale.value = pxScale;
-    if (this.occluder) this.applyMask();
   }
 
   /**
@@ -311,40 +304,14 @@ export class Ocean {
     }
   }
 
-  /**
-   * The notebook page covers [x0, x1] (CSS px) of the screen: stop drawing the scene behind it.
-   * A depth-only card in front of the camera rejects the geometry there, and the post passes skip it.
-   * Pass x0 = x1 to draw everything (the page is hidden).
-   */
-  setMask(x0: number, x1: number) {
-    this.maskCss.set(x0, x1);
-    this.applyMask();
-  }
-  private maskCss = new THREE.Vector2(0, 0);
-  private occluder: THREE.Mesh;
-  private applyMask() {
-    const pr = this.renderer.getPixelRatio();
-    const w = window.innerWidth;
-    // keep a few pixels of scene under the page edges so blur and distortion never pull in the gap
-    const pad = 14;
-    const x0 = this.maskCss.x + pad;
-    const x1 = this.maskCss.y - pad;
-    const on = x1 - x0 > 20;
-    const m = on ? new THREE.Vector2(x0 * pr, x1 * pr) : new THREE.Vector2(0, 0);
-    this.water.uniforms.uMask.value.copy(m);
-    this.lens.uniforms.uMask.value.copy(m);
-    this.occluder.visible = on;
-    if (on) {
-      const d = this.camera.near * 1.5;
-      const halfH = d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-      const halfW = halfH * this.camera.aspect;
-      this.occluder.position.set((((x0 + x1) / 2) / w * 2 - 1) * halfW, 0, -d);
-      this.occluder.scale.set(((x1 - x0) / w) * 2 * halfW, halfH * 2.4, 1);
-    }
-  }
+  /** 0 = black (the dive starts in darkness), 1 = full light. Eased by the intro. */
+  fade = 0;
 
   render(time: number, dt: number) {
     shared.time.value = time;
+    const f = this.fade * this.fade;
+    this.renderer.toneMappingExposure = 1.4 * f;
+    this.torch.intensity = TORCH.intensity * THREE.MathUtils.smoothstep(this.fade, 0.25, 0.6);
     (this.particles.material as THREE.ShaderMaterial).uniforms.uCamPos.value.copy(this.camera.position);
     const u = this.water.uniforms;
     u.uNear.value = this.camera.near;

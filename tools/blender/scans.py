@@ -23,10 +23,10 @@ os.makedirs(IMG, exist_ok=True)
 SCANS = {
     # side view (render _0) must show the nose to the RIGHT and the back UP
     'giant_pacific_octopus': dict(rot=(0, 0, 180), length=2.2, faces=20000, tex=1024, base='bottom'),
-    'herring': dict(rot=(0, 0, 180), length=0.27, faces=1400, tex=512),
-    'salmon': dict(rot=(0, 0, 180), length=0.85, faces=6000, tex=1024),
-    'rockfish_copper': dict(rot=(0, 0, 180), length=0.42, faces=4500, tex=1024),
-    'rockfish_black': dict(rot=(0, 0, 180), length=0.45, faces=4500, tex=1024),
+    'herring': dict(rot=(0, 0, 180), length=0.27, faces=1400, tex=1024, ntex=512),
+    'salmon': dict(rot=(0, 0, 180), length=0.85, faces=6000, tex=2048, ntex=1024),
+    'rockfish_copper': dict(rot=(0, 0, 180), length=0.42, faces=5000, tex=2048, ntex=1024),
+    'rockfish_black': dict(rot=(0, 0, 180), length=0.45, faces=5000, tex=2048, ntex=1024),
     'crab_dungeness': dict(rot=(-90, 0, -90), length=0.26, faces=5000, tex=512, base='bottom'),
     'crab_helmet': dict(rot=(0, 0, 90), length=0.13, faces=4000, tex=512, base='bottom'),
     'crab_kelp': dict(rot=(0, 0, 0), length=0.15, faces=4000, tex=512, base='bottom'),
@@ -34,19 +34,28 @@ SCANS = {
     'sunflower_star': dict(rot=(-90, 0, 0), length=0.6, faces=5000, tex=512, base='bottom'),
     'urchin': dict(rot=(0, 0, 0), length=0.11, faces=6000, tex=512, base='bottom'),
     'sea_cucumber': dict(rot=(0, 0, 0), length=0.3, faces=2500, tex=512, base='bottom'),
-    'starry_flounder': dict(rot=(0, 0, 180), length=0.45, faces=3000, tex=1024, base='bottom'),
+    'starry_flounder': dict(rot=(0, 0, 180), length=0.45, faces=3000, tex=2048, ntex=1024, base='bottom'),
     'sculpin': dict(rot=(0, 0, 180), length=0.3, faces=3000, tex=512),
     'prawn': dict(rot=(0, 0, 180), length=0.2, faces=3500, tex=512),
-    'dogfish': dict(rot=(0, 0, 180), length=1.0, faces=5000, tex=1024),
-    'harbor_seal': dict(rot=(90, 0, 0), length=1.6, faces=9000, tex=1024),
+    'dogfish': dict(rot=(0, 0, 180), length=1.0, faces=5000, tex=2048, ntex=1024),
+    'harbor_seal': dict(rot=(90, 0, 0), length=1.6, faces=9000, tex=2048, ntex=1024),
     'orca': dict(rot=(0, 0, 90), length=7.0, faces=9000, tex=1024),
     'humpback': dict(rot=(0, 0, 180), length=14.0, faces=10000, tex=1024),
     'harbor_porpoise': dict(rot=(0, 0, -90), length=1.6, faces=6000, tex=1024),
     'bat_star': dict(rot=(0, 0, 0), length=0.18, faces=2500, tex=512, base='bottom'),
     'scallop': dict(rot=(90, 0, 0), length=0.09, faces=1500, tex=512, base='bottom'),
+    # set pieces around the viewpoint
+    'wreck': dict(rot=(0, 0, 0), length=6.5, faces=14000, tex=2048, ntex=1024, base='bottom', cut_ground=0.2, islands=False),
+    'anchor': dict(rot=(90, 0, 0), length=1.8, faces=3000, tex=1024, base='bottom'),
+    'cliff_field': dict(rot=(0, 0, 0), length=28, faces=14000, tex=2048, ntex=1024, base='bottom'),
+    'cliff_face': dict(rot=(0, 0, 0), length=7, faces=6000, tex=1024, base='bottom'),
+    'barrel': dict(rot=(0, 0, 0), length=0.75, faces=2500, tex=512, base='bottom'),
+    'bottle': dict(rot=(0, 90, 0), length=0.25, faces=1200, tex=512, base='bottom'),
+    'sand_dollar': dict(rot=(90, 0, 0), length=0.08, faces=800, tex=256, base='bottom'),
+    'moon_snail': dict(rot=(0, 0, 0), length=0.11, faces=1500, tex=512, base='bottom'),
     'barnacle_rock': dict(rot=(0, 0, 0), length=1.6, faces=5000, tex=1024, base='bottom'),
     'rock_boulder': dict(rot=(0, 0, 0), length=2.2, faces=4000, tex=1024, base='bottom'),
-    'log': dict(rot=(0, 0, 90), length=4.5, faces=5000, tex=1024, base='bottom', cut_ground=0.04),
+    'log': dict(rot=(0, 0, 90), length=4.5, faces=5000, tex=1024, base='bottom', cut_ground=0.12, cut_up=0.5),
 }
 
 
@@ -176,18 +185,47 @@ def _orient(obj, cfg):
         import bmesh
         mn, mx = _bounds(obj)
         lim = mn.z + (mx.z - mn.z) * cfg['cut_ground']
+        # ground is low AND faces up; a second, higher band catches upward-facing ground that rides up
+        # the sides of the object (sand drifted against a log, the base a wreck was scanned on)
+        lim2 = mn.z + (mx.z - mn.z) * cfg.get('cut_up', cfg['cut_ground'])
         bm = bmesh.new()
         bm.from_mesh(obj.data)
-        dead = [f for f in bm.faces if all(v.co.z < lim for v in f.verts)]
+        bm.normal_update()
+        dead = [f for f in bm.faces if all(v.co.z < lim for v in f.verts)
+                or (f.normal.z > 0.75 and all(v.co.z < lim2 for v in f.verts))]
         bmesh.ops.delete(bm, geom=dead, context='FACES')
         loose = [v for v in bm.verts if not v.link_faces]
         bmesh.ops.delete(bm, geom=loose, context='VERTS')
         bm.to_mesh(obj.data)
         bm.free()
-        # keep only the biggest connected piece (the log), dropping crumbs of ground
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT')
+        # keep only the biggest connected piece (the log), dropping islands of ground
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bm.faces.ensure_lookup_table()
+        seen = set()
+        islands = []
+        for f in bm.faces:
+            if f.index in seen:
+                continue
+            stack = [f]
+            isl = []
+            seen.add(f.index)
+            while stack:
+                cur = stack.pop()
+                isl.append(cur)
+                for e in cur.edges:
+                    for nf in e.link_faces:
+                        if nf.index not in seen:
+                            seen.add(nf.index)
+                            stack.append(nf)
+            islands.append(isl)
+        if len(islands) > 1 and cfg.get('islands', True):
+            biggest = max(islands, key=len)
+            keep = set(f.index for f in biggest)
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index not in keep], context='FACES')
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        bm.to_mesh(obj.data)
+        bm.free()
     mn, mx = _bounds(obj)
     length = mx.x - mn.x
     s = cfg['length'] / length
@@ -287,7 +325,8 @@ def process(key):
     # bake targets
     tex = cfg.get('tex', 1024)
     col = bpy.data.images.new(key + '_col', tex, tex, alpha=False)
-    nrm = bpy.data.images.new(key + '_nrm', tex, tex, alpha=False, is_data=True)
+    ntex = cfg.get('ntex', tex)
+    nrm = bpy.data.images.new(key + '_nrm', ntex, ntex, alpha=False, is_data=True)
     mat = bpy.data.materials.new(key + '_mat')
     mat.use_nodes = True
     nt = mat.node_tree
