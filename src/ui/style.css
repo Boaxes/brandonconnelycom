@@ -14,6 +14,8 @@
 }
 
 * { box-sizing: border-box; }
+/* `hidden` must win over any display rule below, or a closed panel still covers the scene and eats clicks */
+[hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; background: #000; color: var(--paper); font-family: var(--serif); overflow: hidden; height: 100%; }
 a { color: inherit; }
 
