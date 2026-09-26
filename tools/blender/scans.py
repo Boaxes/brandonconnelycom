@@ -56,6 +56,7 @@ SCANS = {
     'barnacle_rock': dict(rot=(0, 0, 0), length=1.6, faces=5000, tex=1024, base='bottom'),
     'rock_boulder': dict(rot=(0, 0, 0), length=2.2, faces=4000, tex=1024, base='bottom'),
     'log': dict(rot=(0, 0, 90), length=4.5, faces=5000, tex=1024, base='bottom', cut_ground=0.12, cut_up=0.5),
+    'driftwood': dict(rot=(0, 0, 90), length=3.2, faces=6000, tex=1024, base='bottom'),
 }
 
 

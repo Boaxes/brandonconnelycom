@@ -42,7 +42,7 @@ export function portfolioPages(): Page[] {
   g.font = `24px ${TYPE}`;
   g.fillStyle = STYLE.ink3;
   g.fillText('click the right-hand page to turn · left to go back', PAGE_W / 2, PAGE_H - 170);
-  g.fillText('← →  keys and the scroll wheel work too', PAGE_W / 2, PAGE_H - 132);
+  g.fillText('← →  keys work too · scroll to look closer', PAGE_W / 2, PAGE_H - 132);
   g.textAlign = 'left';
   pages.push(t);
 

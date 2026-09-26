@@ -210,22 +210,35 @@ export function buildSurface(): THREE.Mesh {
       ${WATER_GLSL}
       uniform float uTime;
       varying vec3 vWorld;
-      float wave(vec2 p, float t) {
-        return sin(p.x * 1.7 + t * 0.9 + sin(p.y * 1.3 - t * 0.6)) * 0.5
-             + sin(p.y * 2.3 - t * 1.1 + sin(p.x * 0.9 + t * 0.4)) * 0.35
-             + sin((p.x + p.y) * 3.7 + t * 1.7) * 0.15;
+      // fine ripples: several short wave trains in different directions, drifting. From 30 ft down only
+      // the light they focus shows, as a thin shifting net, so the contrast is kept low.
+      float ripples(vec2 p, float t) {
+        float r = 0.0;
+        r += sin(dot(p, vec2(0.83, 0.55)) * 7.0 + t * 1.3);
+        r += sin(dot(p, vec2(-0.41, 0.91)) * 9.5 - t * 1.7);
+        r += sin(dot(p, vec2(0.97, -0.26)) * 12.0 + t * 2.1);
+        r += sin(dot(p, vec2(-0.7, -0.7)) * 5.0 - t * 0.9);
+        return r * 0.25;
       }
       void main() {
         vec3 fromCam = vWorld - cameraPosition;
         vec3 v = normalize(fromCam);
-        vec2 p = vWorld.xz * 0.45;
-        float w = wave(p, uTime);
-        // ripples bend the edge of the window and break the light into moving patches
-        float cosT = clamp(v.y + w * 0.035, 0.0, 1.0);
-        float window = smoothstep(0.62, 0.7, cosT);
-        // bright shifting patches where the waves focus the light
-        vec3 sky = vec3(0.72, 0.92, 0.86) * (2.4 + w * 2.2 + pow(max(w, 0.0), 3.0) * 4.0);
-        vec3 mirror = uDeepColor * (0.7 + w * 0.15);
+        // warp the ripple field so the net never lines up into a regular pattern
+        vec2 p = vWorld.xz;
+        p += vec2(sin(p.y * 0.37 + uTime * 0.11) + sin(p.y * 0.91 - uTime * 0.07), sin(p.x * 0.43 - uTime * 0.09) + sin(p.x * 0.83 + uTime * 0.13)) * 0.9;
+        // ripples finer than a pixel would shimmer: fade them out with distance
+        float fine = 1.0 - smoothstep(0.04, 0.2, length(fwidth(p)));
+        float r = ripples(p, uTime) * fine;
+        float r2 = ripples(p * 1.9 + 3.1, uTime * 1.3) * fine;
+        // caustic-like net: bright where two ripple fields cross their zero lines
+        float net = (pow(1.0 - abs(r), 6.0) * 0.6 + pow(1.0 - abs(r2), 8.0) * 0.4) * fine;
+        // Snell's window: a soft bright disc overhead, brightest straight up, its rim wobbling with the waves
+        float cosT = clamp(v.y + r * 0.02, 0.0, 1.0);
+        float window = smoothstep(0.6, 0.78, cosT);
+        // broad patches of brighter and duller light as the swell passes, the fine net on top
+        float swell = sin(p.x * 0.21 + uTime * 0.23) * sin(p.y * 0.17 - uTime * 0.19);
+        vec3 sky = vec3(0.66, 0.88, 0.8) * (1.5 + 1.6 * pow(cosT, 6.0)) * (0.92 + swell * 0.12 + net * 0.22);
+        vec3 mirror = uDeepColor * (0.85 + r * 0.06);
         vec3 c = mix(mirror, sky, window);
         gl_FragColor = vec4(applyWater(c, fromCam), 1.0);
         #include <tonemapping_fragment>

@@ -22,7 +22,6 @@ export interface BookOptions {
   foil: string;         // title colour
   title: string[];      // cover lines, first is largest
   endpaper: string;
-  distance: number;     // how far in front of the camera it's held (m)
   leather: { map: THREE.Texture; normal: THREE.Texture };
 }
 
@@ -363,12 +362,34 @@ export class Book3D {
     this.root.visible = true;
   }
 
+  /** What holds the book up: the diver's hands (the camera if unset). */
+  holder: THREE.Object3D | null = null;
+
+  /**
+   * How far in front of the eye the open book is held: close enough that the spread fills most of the
+   * view (about 80% of the height, or the width between the controls, whichever runs out first), so the type is easy to
+   * read, but clear of the controls; never nearer than 0.2 m.
+   */
+  heldDistance(camera: THREE.Camera) {
+    const cam = camera as THREE.PerspectiveCamera;
+    const fov = this.fitFov ?? cam.fov;
+    const t = Math.tan(THREE.MathUtils.degToRad(fov / 2));
+    // leave the corner card and the book button clear where the window is wide enough to
+    const vw = window.innerWidth;
+    const fw = THREE.MathUtils.clamp((vw - 2 * 200) / vw, 0.62, 0.92);
+    const dh = this.H / (0.8 * 2 * t);
+    const dw = (2.04 * this.W) / (fw * 2 * t * (cam.aspect || 1.6));
+    return Math.max(0.2, dh, dw);
+  }
+  /** the unzoomed field of view the held size is fitted to */
+  fitFov: number | null = null;
+
   private heldPose(camera: THREE.Camera, lowered: number, out: { p: THREE.Vector3; q: THREE.Quaternion }) {
-    // held in front of the camera, tilted back like a book in your hands; lowered = dropped out of frame
-    const d = this.o.distance;
-    _m2.makeRotationX(-0.12 + lowered * 0.9);
-    _m2.setPosition(0, 0.004 - lowered * 0.46, -d + lowered * 0.08);
-    _m.multiplyMatrices(camera.matrixWorld, _m2);
+    // held in front of the eye, tilted back a touch like a book in your hands; lowered = dropped out of frame
+    const d = this.heldDistance(camera);
+    _m2.makeRotationX(-0.08 + lowered * 0.9);
+    _m2.setPosition(0, d * 0.02 - lowered * d * 0.95, -d + lowered * 0.08);
+    _m.multiplyMatrices((this.holder ?? camera).matrixWorld, _m2);
     _m.decompose(out.p, out.q, _s);
     return out;
   }

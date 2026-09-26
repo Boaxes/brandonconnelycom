@@ -8,6 +8,7 @@ const PITCH_MIN = -3;           // straight down
 const PITCH_MAX = 3;            // straight up
 const TURN_TIME = 0.42;         // seconds per step
 const HEADINGS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+export const ZOOM_MAX = 4;
 
 const _q = new THREE.Quaternion();
 const _e = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -16,6 +17,10 @@ const _e = new THREE.Euler(0, 0, 0, 'YXZ');
  * A diver hanging still, about 30 ft down. The camera never moves; the view turns in fixed steps
  * (45° left/right, 30° up/down, all the way round and from straight down to straight up), each step a
  * short eased turn. Breathing and a little handheld drift sit on top.
+ *
+ * Zoom narrows the field of view and swings the view toward the pointer, so whatever is under it stays
+ * under it (a book held up to the eye, a fish across the way). The book is held by `hands`, which follows
+ * the diver's head but not the zoom, so zooming reads the page more closely rather than moving it.
  */
 export class CameraRig {
   /** debug: when set, the camera is placed here instead */
@@ -32,6 +37,14 @@ export class CameraRig {
   private to = new THREE.Quaternion();
   private t = 1;
   private base = new THREE.Quaternion();
+  /** where the diver's hands are: the head's pose without the zoom */
+  readonly hands = new THREE.Object3D();
+  /** field of view at 1x */
+  readonly baseFov: number;
+  zoom = 1;
+  zoomTarget = 1;
+  private off = new THREE.Vector2();       // zoom swing (yaw right +, pitch up +), radians
+  private offTarget = new THREE.Vector2();
 
   constructor(private camera: THREE.PerspectiveCamera) {
     const s = stage();
@@ -39,6 +52,33 @@ export class CameraRig {
     this.to.copy(this.target());
     this.base.copy(this.to);
     camera.quaternion.copy(this.to);
+    this.baseFov = camera.fov;
+  }
+
+  /**
+   * Zoom to `level` about a point on screen (NDC, -1..1). Returns the level actually set.
+   * Zooming in swings the view toward the point so it stays put; zooming out unwinds the swing, all
+   * the way back at 1x.
+   */
+  setZoom(level: number, ndcX = 0, ndcY = 0) {
+    const z0 = this.zoomTarget;
+    const z1 = THREE.MathUtils.clamp(level, 1, ZOOM_MAX);
+    if (Math.abs(z1 - z0) < 1e-4) return z0;
+    if (z1 > z0) {
+      const tanV = Math.tan(THREE.MathUtils.degToRad(this.baseFov / 2)) / z0;
+      const aspect = this.camera.aspect;
+      const k = 1 - z0 / z1;
+      this.offTarget.x += Math.atan(ndcX * tanV * aspect) * k;
+      this.offTarget.y += Math.atan(ndcY * tanV) * k;
+      // never swing further than the edge of the unzoomed view
+      const lim = THREE.MathUtils.degToRad(this.baseFov / 2);
+      this.offTarget.x = THREE.MathUtils.clamp(this.offTarget.x, -lim * aspect, lim * aspect);
+      this.offTarget.y = THREE.MathUtils.clamp(this.offTarget.y, -lim, lim);
+    } else {
+      this.offTarget.multiplyScalar(z1 <= 1 ? 0 : (z1 - 1) / (z0 - 1));
+    }
+    this.zoomTarget = z1;
+    return z1;
   }
 
   /** Continuous yaw (radians clockwise from north) and pitch (radians, up +) of the settled view. */
@@ -50,6 +90,7 @@ export class CameraRig {
   /** Turn by whole steps. */
   step(dYaw: number, dPitch: number) {
     if (!this.enabled) return;
+    this.setZoom(1);
     const p = THREE.MathUtils.clamp(this.pitchStep + dPitch, PITCH_MIN, PITCH_MAX);
     if (dYaw === 0 && p === this.pitchStep) return;
     this.yawStep += dYaw;
@@ -95,8 +136,25 @@ export class CameraRig {
     this.camera.position.set(s.cam.x + noise2(t * 0.04, 8.3) * 0.05, s.cam.y + lift, s.cam.z + noise2(t * 0.04, 2.9) * 0.05);
     this.camera.quaternion.copy(this.base);
     // handheld: low-frequency yaw / pitch / roll drift
-    this.camera.rotateY(noise2(t * 0.21, 11.7) * 0.008);
-    this.camera.rotateX(noise2(t * 0.17, 5.3) * 0.006 + Math.sin(this.breath * Math.PI * 2 + 0.6) * 0.003);
-    this.camera.rotateZ(noise2(t * 0.13, 7.9) * 0.008);
+    // (steadier when zoomed in, the way you'd brace to look closely)
+    const hh = 1 / Math.sqrt(this.zoom);
+    this.camera.rotateY(noise2(t * 0.21, 11.7) * 0.008 * hh);
+    this.camera.rotateX((noise2(t * 0.17, 5.3) * 0.006 + Math.sin(this.breath * Math.PI * 2 + 0.6) * 0.003) * hh);
+    this.camera.rotateZ(noise2(t * 0.13, 7.9) * 0.008 * hh);
+    this.hands.position.copy(this.camera.position);
+    this.hands.quaternion.copy(this.camera.quaternion);
+    this.hands.updateMatrixWorld();
+    // zoom: ease the field of view and the swing toward the pointer
+    const e = 1 - Math.exp(-dt * 10);
+    this.zoom += (this.zoomTarget - this.zoom) * e;
+    this.off.lerp(this.offTarget, e);
+    if (Math.abs(this.zoom - this.zoomTarget) < 1e-3) this.zoom = this.zoomTarget;
+    this.camera.rotateY(-this.off.x);
+    this.camera.rotateX(this.off.y);
+    const fov = this.baseFov / this.zoom;
+    if (Math.abs(this.camera.fov - fov) > 1e-4) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
   }
 }

@@ -1,16 +1,17 @@
 import * as THREE from 'three';
 import type { Agent } from './Agent';
 import { BenthicFish, type Leg, type Scripted } from './behaviors';
-import { floorHeight, headingDir, stage, stageFloor, WORLD, yawOf } from '../scene/Terrain';
+import { floorHeight, headingDir, stage, WORLD, yawOf } from '../scene/Terrain';
 import type { World } from './World';
 import { sound } from '../audio/Sound';
 
 /**
  * Stages the visits. The first minute is scripted, because that's what a visitor actually sees:
  *   ~4 s   a rockfish drifts over to look at the camera
- *   ~9 s   the octopus creeps in and settles by its boulder
+ *   ~10 s  a school of herring sweeps across
  *   ~20 s  a harbor seal comes out of the murk, hangs beside the book for a good look, circles, leaves
- *   ~38 s  orca calls, then the pod passes above as dark shapes
+ *   ~38 s  orca calls, then the pod passes high overhead, dark shapes just under the surface
+ * The octopus is an easter egg: it hides under the wreck from the start and now and then reaches out.
  * After that, visits are drawn at random (with cooldowns). Routes are laid out relative to wherever the
  * visitor is looking at the time, so the moment isn't missed; the orcas and the whale stay high.
  */
@@ -21,10 +22,13 @@ export class Director {
   private queue: { at: number; run: () => void }[] = [];
   private last: Record<string, number> = {};
   private nextRandom = 64;
+  /** something is passing overhead: the controls can suggest looking up */
+  onLookUp: (() => void) | null = null;
 
   constructor(private w: World, private view: () => { yaw: number; pitch: number }) {
     this.at(4, () => this.rockfishHello());
-    this.at(9, () => this.octopusArrives());
+    this.at(0, () => this.octopusHide());
+    this.at(10, () => this.schoolPass('herring', 1.8, 2.5));
     this.at(20, () => this.sealVisit());
     this.at(38, () => this.orcaPass(false));
   }
@@ -53,7 +57,7 @@ export class Director {
       ['rockfish', 2, 30, () => this.rockfishHello()],
       ['porpoise', 1.4, 100, () => this.porpoisePass()],
       ['salmon', 1, 90, () => this.schoolPass('chinook', 1.6, 2)],
-      ['octopus', 1, 120, () => this.octopusWander()],
+      ['octopus', 1.2, 80, () => this.octopusPeek()],
       ['orca', 1, 200, () => this.orcaPass(Math.random() < 0.5)],
       ['humpback', 0.6, 360, () => this.t > 150 && this.humpbackPass()],
     ];
@@ -143,15 +147,19 @@ export class Director {
     }
     if (!bodies.length) return false;
     sound.call('orca', 20);
-    const dist = overhead ? 2.5 : 7.5;
+    this.onLookUp?.();
+    // high up, just under the surface and nearly overhead, so they cross the bright window of the surface
+    // as dark shapes when you look up (the murk swallows anything much further off)
+    const dist = overhead ? 2 : 5;
+    const top = WORLD.surfaceY - stage().cam.y - 1.6;
     bodies.forEach((o, i) => {
-      const dy = 4.2 + i * 0.5 + (Math.random() - 0.5) * 0.4;
-      const lane = dist + i * 1.1;
+      const dy = top - i * 0.35 + (Math.random() - 0.5) * 0.3;
+      const lane = dist + i * 0.9;
       this.at(this.t + 2.5 + i * 2.1, () => {
-        o.start(this.pt(y - dir * 1.5, 17, dy), [
+        o.start(this.pt(y - dir * 1.5, 20, dy), [
           { to: this.pt(y - dir * 0.55, lane, dy), speed: 2.6, doing: 'travelling with the pod' },
           { to: this.pt(y + dir * 0.55, lane, dy), speed: 2.6, doing: 'travelling with the pod' },
-          { to: this.pt(y + dir * 1.5, 18, dy + 0.8), speed: 3, doing: 'travelling with the pod' },
+          { to: this.pt(y + dir * 1.5, 20, dy), speed: 3, doing: 'travelling with the pod' },
         ]);
         if (i === 0) this.hero = o;
         if (i === 1) sound.call('orca', 10);
@@ -187,10 +195,12 @@ export class Director {
     const y = this.view().yaw;
     const dir = Math.random() < 0.5 ? 1 : -1;
     sound.call('humpback', 15);
-    hb.start(this.pt(y - dir * 1.4, 26, 6), [
-      { to: this.pt(y - dir * 0.6, 7, 5.8), speed: 1.6, doing: 'passing overhead, huge and unhurried' },
-      { to: this.pt(y + dir * 0.6, 7, 5.8), speed: 1.6, doing: 'passing overhead, huge and unhurried' },
-      { to: this.pt(y + dir * 1.4, 26, 6.2), speed: 1.8, doing: 'fading into the murk' },
+    this.onLookUp?.();
+    const hy = WORLD.surfaceY - stage().cam.y - 3.3;
+    hb.start(this.pt(y - dir * 1.4, 26, hy), [
+      { to: this.pt(y - dir * 0.6, 5, hy), speed: 1.6, doing: 'passing overhead, huge and unhurried' },
+      { to: this.pt(y + dir * 0.6, 5, hy), speed: 1.6, doing: 'passing overhead, huge and unhurried' },
+      { to: this.pt(y + dir * 1.4, 26, hy), speed: 1.8, doing: 'fading into the murk' },
     ]);
     this.hero = hb;
     this.at(this.t + 7, () => sound.call('humpback', 8));
@@ -213,33 +223,29 @@ export class Director {
     return true;
   }
 
-  /** The octopus creeps in from beside its boulder and settles at its den facing out, and stays. */
-  private octopusArrives(): boolean {
+  /** The octopus is already in its hiding place under the wreck when the dive starts. */
+  private octopusHide(): boolean {
     const o = this.w.scripted('octopus');
     if (!o) return false;
-    const cam = stage().cam;
     const den = this.w.den;
-    const yaw = yawOf(den);
-    const d = den.distanceTo(cam);
-    o.start(stageFloor(yaw + 0.55, d + 1.2), [
-      { to: stageFloor(yaw + 0.22, d + 0.3), speed: 0.14, doing: 'creeping between the boulders' },
-      { to: den.clone(), speed: 0.1, hold: 1e9, face: cam, doing: 'settled against its boulder, watching', radius: 0.2 },
+    o.start(den.clone(), [
+      { to: den.clone(), speed: 0.1, hold: 1e9, face: stage().cam, doing: 'hiding under the wreck, one eye out', radius: 0.2 },
     ]);
+    o.heading = Math.atan2(this.w.denFacing.z, this.w.denFacing.x);
     return true;
   }
 
-  /** Later on, the octopus takes a short walk and comes back. */
-  private octopusWander(): boolean {
+  /** Now and then it reaches out a little way from under the hull, has a feel around, and pulls back. */
+  private octopusPeek(): boolean {
     const o = this.w.pops.get('octopus')?.agents[0] as Scripted | undefined;
-    if (!o || !o.alive) return this.octopusArrives();
-    const cam = stage().cam;
+    if (!o || !o.alive) return this.octopusHide();
     const den = this.w.den;
-    const yaw = yawOf(den) + (Math.random() < 0.5 ? -1 : 1) * (0.15 + Math.random() * 0.2);
-    const away = stageFloor(yaw, den.distanceTo(cam) - 0.4 - Math.random() * 1.2);
+    const out = den.clone().addScaledVector(this.w.denFacing, 0.75 + Math.random() * 0.35);
+    out.y = floorHeight(out.x, out.z);
     o.setLegs([
-      { to: away, speed: 0.12, doing: 'out foraging, feeling under the shells', radius: 0.25 },
-      { to: away.clone(), speed: 0.1, hold: 8 + Math.random() * 8, doing: 'probing a crevice with one arm', radius: 0.3 },
-      { to: den.clone(), speed: 0.12, hold: 1e9, face: cam, doing: 'settled against its boulder, watching', radius: 0.2 },
+      { to: out, speed: 0.08, doing: 'reaching out from under the wreck', radius: 0.1 },
+      { to: out.clone(), speed: 0.08, hold: 5 + Math.random() * 6, face: stage().cam, doing: 'feeling around the planking', radius: 0.2 },
+      { to: den.clone(), speed: 0.1, hold: 1e9, face: stage().cam, doing: 'hiding under the wreck, one eye out', radius: 0.2 },
     ]);
     return true;
   }

@@ -25,7 +25,7 @@ sea cucumber, starry flounder, sculpin, prawn, dogfish, bat star, scallop.
 | scan_barrel.glb | [Crumpled Rusty Metal Barrel](https://sketchfab.com/3d-models/114510c79c0f44479350d6b2902035f7) | hoxsvl |
 | scan_moon_snail.glb | [Lewis' Moon Snail (Euspira lewisii)](https://sketchfab.com/3d-models/3021c842f9fd4772bbd52bb0fea729ab) | RosarioBeachMarineLab |
 | scan_sand_dollar.glb | [Sand Dollar](https://sketchfab.com/3d-models/644cd300b35746df8b6245f9aca132f6) | RISDNaturelab |
-| scan_log.glb | [Log](https://sketchfab.com/3d-models/86272f8b02bc4de1af5626e00c474edb) | megalitharchive |
+| scan_driftwood.glb | [Driftwood](https://sketchfab.com/3d-models/38b45cfa785347a7bed665aafdd4b80a) | Lion1469 |
 
 License: https://creativecommons.org/licenses/by/4.0/
 

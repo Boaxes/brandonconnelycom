@@ -6,7 +6,7 @@
  * falls back to a small synthesised version, so real recordings can be dropped in without code changes.
  * Nothing plays until the first click (browsers require a gesture).
  */
-export type Sfx = 'pickup' | 'open' | 'close' | 'page' | 'discover' | 'lower' | 'raise' | 'click';
+export type Sfx = 'pickup' | 'open' | 'close' | 'page' | 'discover' | 'lower' | 'raise' | 'click' | 'zoom';
 export type Call = 'orca' | 'humpback' | 'seal';
 
 const PREFS_KEY = 'ps-audio';
@@ -118,7 +118,45 @@ export class Sound {
       case 'raise': this.rustle(t, 0.35, 1400, 0.2); break;
       case 'discover': this.chime(t); break;
       case 'click': this.tick(t); break;
+      case 'zoom': this.detent(t, 1); break;
     }
+  }
+
+  private zoomAt = 0;
+  /** A lens ring turning one click, higher as it zooms in. Throttled so a trackpad doesn't buzz. */
+  zoom(level: number, zoomingIn: boolean) {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    if (t - this.zoomAt < 0.07) return;
+    this.zoomAt = t;
+    const rate = 0.85 + (level - 1) * 0.12 + (zoomingIn ? 0.05 : 0);
+    if (this.sample('zoom', this.sfx, 0.8, rate)) return;
+    this.detent(t, rate);
+  }
+
+  private detent(t: number, rate: number) {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.makeNoise(0.05);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2600 * rate;
+    bp.Q.value = 6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    src.connect(bp).connect(g).connect(this.sfx);
+    src.start(t);
+    src.stop(t + 0.05);
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = 520 * rate;
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.025, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    o.connect(g2).connect(this.sfx);
+    o.start(t);
+    o.stop(t + 0.1);
   }
 
   private makeNoise(seconds: number) {

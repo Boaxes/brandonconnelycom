@@ -1,4 +1,4 @@
-/* The dive: the scene fills the window; a few controls sit at the bottom like a slate clipped to a BCD. */
+/* The dive: the scene fills the window; a small paper card of controls sits in the corner. */
 :root {
   --paper: #efe8d6;
   --paper-2: #e6dec9;
@@ -33,53 +33,80 @@ a { color: inherit; }
 .loader-fill { height: 100%; width: 0%; background: rgba(239, 232, 214, 0.7); transition: width 0.25s ease; }
 .loader-sub { margin-top: 12px; font-family: var(--type); font-size: 11px; color: rgba(239, 232, 214, 0.45); letter-spacing: 0.08em; }
 
-/* ---------- controls ---------- */
-#controls {
-  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 20;
-  display: flex; align-items: center; gap: 6px; padding: 6px;
-  background: var(--slate); border: 1px solid var(--slate-edge); border-radius: 14px;
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  transition: transform 0.6s cubic-bezier(.2, .8, .2, 1), opacity 0.4s ease, gap 0.5s ease, padding 0.5s ease;
-  opacity: 0; pointer-events: none;
+/* ---------- controls: a small paper card in the corner, and the book button in the middle ---------- */
+:root {
+  --card: rgba(243, 238, 226, 0.94);
+  --card-edge: rgba(42, 38, 34, 0.12);
+  --card-ink: #2d2924;
+  --card-ink-off: rgba(45, 41, 36, 0.34);
+  --card-hover: rgba(42, 38, 34, 0.07);
 }
-body.ready #controls { opacity: 1; pointer-events: auto; }
-#controls .group { display: flex; align-items: center; gap: 2px; transition: max-width 0.5s ease, opacity 0.35s ease; max-width: 400px; overflow: hidden; }
-#controls .group + .group { border-left: 1px solid var(--slate-edge); padding-left: 6px; }
+#controls {
+  position: fixed; right: 18px; bottom: 18px; z-index: 20;
+  padding: 8px 8px 8px; width: 164px;
+  background: var(--card); color: var(--card-ink); border: 1px solid var(--card-edge); border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  transition: opacity 0.4s ease, transform 0.5s cubic-bezier(.2, .8, .2, 1), width 0.5s cubic-bezier(.2, .8, .2, 1), padding 0.5s ease;
+  opacity: 0; pointer-events: none; transform: translateY(8px);
+}
+body.ready #controls { opacity: 1; pointer-events: auto; transform: none; }
+#controls .heading {
+  font-family: var(--type); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; text-align: center;
+  color: rgba(45, 41, 36, 0.6); padding: 2px 0 6px; white-space: nowrap; overflow: hidden;
+  transition: opacity 0.3s ease, max-height 0.5s ease; max-height: 24px;
+}
+#controls .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
 .ctl {
-  position: relative; display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
-  background: transparent; border: 0; border-radius: 10px; color: rgba(239, 232, 214, 0.82); cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1; padding: 0;
+  background: transparent; border: 0; border-radius: 10px; color: var(--card-ink); cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, opacity 0.35s ease;
 }
 .ctl svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.ctl:hover { background: rgba(239, 232, 214, 0.1); color: #fff; }
-.ctl:active { transform: scale(0.94); }
-.ctl:focus-visible { outline: 2px solid rgba(239, 232, 214, 0.6); outline-offset: 1px; }
-.ctl[aria-pressed="false"] { color: rgba(239, 232, 214, 0.38); }
+.ctl:hover { background: var(--card-hover); }
+.ctl:active { transform: scale(0.93); }
+.ctl:focus-visible { outline: 2px solid rgba(45, 41, 36, 0.45); outline-offset: -2px; }
+.ctl[aria-pressed="false"] { color: var(--card-ink-off); }
 .ctl[aria-pressed="false"] svg { stroke-dasharray: 3 2; }
-.ctl[data-a="watch"][aria-pressed="false"] { color: rgba(239, 232, 214, 0.82); }
+.ctl[data-a="watch"][aria-pressed="false"] { color: var(--card-ink); }
 .ctl[data-a="watch"][aria-pressed="false"] svg { stroke-dasharray: none; }
-.ctl.sm { width: 32px; }
-.ctl.xs { width: 30px; height: 18px; border-radius: 6px; }
-.ctl.xs svg { width: 16px; height: 16px; }
-.look .pad { display: flex; flex-direction: column; align-items: center; min-width: 78px; }
-.look .heading { font-family: var(--type); font-size: 11px; letter-spacing: 0.08em; color: rgba(239, 232, 214, 0.75); white-space: nowrap; line-height: 1; padding: 1px 0; }
+.ctl[data-a="zoom"][aria-pressed="true"] { background: rgba(42, 38, 34, 0.06); }
+/* the look pad reads as a cross: the arrows are lighter than the tools in the corners */
+.ctl[data-a="up"], .ctl[data-a="down"], .ctl[data-a="left"], .ctl[data-a="right"] { color: rgba(45, 41, 36, 0.72); }
 .badge {
-  position: absolute; top: 3px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   background: var(--stamp); color: #fff; font: 600 10px/16px system-ui, sans-serif; text-align: center;
 }
 .ctl.pulse { animation: pulse 0.7s ease; }
-@keyframes pulse { 0% { transform: scale(1); } 35% { transform: scale(1.25); background: rgba(239, 232, 214, 0.2); } 100% { transform: scale(1); } }
+.ctl.nudge { animation: nudge 1.5s ease-in-out 4; color: var(--stamp) !important; }
+@keyframes nudge { 0%, 100% { transform: translateY(0); background: transparent; } 40% { transform: translateY(-3px); background: rgba(141, 59, 47, 0.12); } }
+@keyframes pulse { 0% { transform: scale(1); } 35% { transform: scale(1.25); background: rgba(141, 59, 47, 0.14); } 100% { transform: scale(1); } }
 
-/* watching the water: everything folds away except the eye */
-body.watching #controls { gap: 0; padding: 4px; transform: translateX(-50%) translateY(6px); }
-body.watching #controls .group:not(:last-child) { max-width: 0; opacity: 0; padding: 0; border: 0; }
-body.watching #controls .group:last-child { border: 0; padding-left: 0; }
+/* watching the water: the card folds down to just the eye */
+body.watching #controls { width: 56px; padding: 6px; }
+body.watching #controls .heading { opacity: 0; max-height: 0; padding: 0; }
+body.watching #controls .grid { grid-template-columns: 1fr; }
+body.watching #controls .ctl:not([data-a="watch"]) { display: none; }
+body.watching #controls .ctl[data-a="watch"] { color: var(--stamp); }
+
+#book-toggle {
+  position: fixed; left: 50%; bottom: 18px; z-index: 20; transform: translate(-50%, 16px);
+  display: flex; align-items: center; gap: 8px; padding: 10px 18px 10px 14px;
+  background: var(--card); color: var(--card-ink); border: 1px solid var(--card-edge); border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32); cursor: pointer;
+  font-family: var(--type); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  opacity: 0; pointer-events: none; transition: opacity 0.45s ease, transform 0.5s cubic-bezier(.2, .8, .2, 1), background 0.15s ease;
+}
+#book-toggle svg { width: 20px; height: 20px; fill: none; stroke: var(--stamp); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#book-toggle:hover { background: #f8f4ea; }
+#book-toggle:focus-visible { outline: 2px solid rgba(45, 41, 36, 0.45); outline-offset: 2px; }
+#book-toggle[aria-pressed="true"] { background: #e9e2d1; }
+body.ready.has-book #book-toggle { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+body.watching #book-toggle { opacity: 0; pointer-events: none; transform: translate(-50%, 16px); }
 
 /* ---------- the hint under the book ---------- */
 #hint {
-  position: fixed; left: 50%; bottom: 84px; transform: translate(-50%, 8px); z-index: 15; pointer-events: none;
-  font-family: var(--type); font-size: 13px; letter-spacing: 0.1em; color: rgba(239, 232, 214, 0.85);
+  position: fixed; left: 50%; top: 70%; transform: translate(-50%, 8px); z-index: 15; pointer-events: none;
+  font-family: var(--type); font-size: 13px; letter-spacing: 0.1em; color: rgba(239, 232, 214, 0.9);
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); opacity: 0; transition: opacity 0.9s ease, transform 0.9s ease;
 }
 #hint.on { opacity: 1; transform: translate(-50%, 0); animation: breathe 3.2s ease-in-out 1s infinite; }
@@ -126,8 +153,8 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
 #fallback p { font-family: var(--type); font-size: 12px; color: var(--paper); text-align: center; margin: 20px; }
 
 @media (max-width: 640px) {
-  #controls { bottom: 10px; gap: 2px; }
-  .ctl { width: 36px; height: 36px; }
-  .look .pad { min-width: 64px; }
+  #controls { right: 10px; bottom: 10px; width: 138px; padding: 6px; }
+  #book-toggle { bottom: 10px; left: 16px; transform: none; }
+  body.ready.has-book #book-toggle { transform: none; }
   #banner { left: 10px; right: 10px; top: 10px; flex-wrap: wrap; }
 }

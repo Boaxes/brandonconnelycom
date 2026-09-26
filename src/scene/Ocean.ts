@@ -31,6 +31,7 @@ const WaterPostShader = {
     uTorchCos: { value: new THREE.Vector2(Math.cos(TORCH.angle), Math.cos(TORCH.angle * (1 - TORCH.penumbra))) },
     uTorchColor: { value: TORCH.color },
     uBeam: { value: 0.09 },
+    uShafts: { value: 0.55 },
     uFrame: { value: 0 },
     ...waterUniforms(),
   },
@@ -57,6 +58,7 @@ const WaterPostShader = {
     uniform vec2 uTorchCos;
     uniform vec3 uTorchColor;
     uniform float uBeam;
+    uniform float uShafts;
     uniform float uFrame;
     varying vec2 vUv;
 
@@ -134,6 +136,14 @@ const WaterPostShader = {
         beam += cone * silt * waterTransmit(dl + t) / (1.0 + dl * dl * 0.3);
       }
       col += uTorchColor * beam * stepLen * uBeam;
+
+      // ---- sunlight shafts: faint streaks radiating from overhead, only through thick water, drifting
+      vec3 dw = normalize(mat3(uCamWorld) * rd);
+      float ang = atan(dw.x, dw.z);
+      float sh = sin(ang * 23.0 + uTime * 0.07) * 0.5 + sin(ang * 37.0 - uTime * 0.05 + 1.3) * 0.3 + sin(ang * 61.0 + uTime * 0.11) * 0.2;
+      sh = pow(sh * 0.5 + 0.5, 3.0);
+      float upward = smoothstep(0.1, 0.75, dw.y) * (1.0 - smoothstep(0.9, 0.99, dw.y));
+      col += uWaterColor * sh * upward * (1.0 - exp(-0.12 * min(dist, 30.0))) * uShafts;
       gl_FragColor = vec4(col, 1.0);
     }
   `,
@@ -224,7 +234,7 @@ export class Ocean {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.2, 70);
+    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.05, 70);
     this.camera.position.set(0, 6, 30);
 
     stage(); // sets the surface height from the viewpoint

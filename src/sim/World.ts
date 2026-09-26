@@ -10,6 +10,7 @@ import { floorHeight, floorNormal, randomFloorAround, randomFloorInSector, stage
 import { makeMaterial, OCC_MAX, shared } from '../scene/UnderwaterMaterial';
 import { asset, hasAsset } from '../scene/Assets';
 import { mulberry32 } from '../util/noise';
+import { addObstacle, bottomAt, escapeDir, finishObstacles, resetObstacles } from './Obstacles';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -86,8 +87,11 @@ export class World implements Habitat {
   }
 
   populate(view: () => { yaw: number; pitch: number }) {
-    stage();
+    const s = stage();
     this.buildScenery();
+    resetObstacles(s.cam);
+    for (const m of this.surfaces) addObstacle(m.geometry, m.matrix);
+    finishObstacles();
     this.buildFixedLife();
     this.buildFish();
     this.buildBenthos();
@@ -122,6 +126,30 @@ export class World implements Habitat {
     const g = asset('scan:' + key).geometry;
     if (!g.boundingBox) g.computeBoundingBox();
     return g.boundingBox!;
+  }
+
+  /**
+   * Settle a placed piece onto the terrain: its bottom band of vertices is compared with the floor under
+   * each one, and the piece is lowered (or raised) until nearly all of that band is under the sediment,
+   * then pushed in a little more. On a slope that buries the uphill side rather than leaving the
+   * downhill side hanging in the water.
+   */
+  private ground(key: string, pl: Place, bury = 0.08) {
+    const g = asset('scan:' + key).geometry;
+    const bb = this.bounds(key);
+    const h = bb.max.y - bb.min.y;
+    const m = new THREE.Matrix4().compose(pl.p, pl.q, pl.s);
+    const pos = g.getAttribute('position');
+    const step = Math.max(1, Math.floor(pos.count / 2000));
+    const gaps: number[] = [];
+    for (let i = 0; i < pos.count; i += step) {
+      if (pos.getY(i) > bb.min.y + h * 0.15) continue;
+      _v.fromBufferAttribute(pos, i).applyMatrix4(m);
+      gaps.push(_v.y - floorHeight(_v.x, _v.z));
+    }
+    if (!gaps.length) return;
+    gaps.sort((a, b) => a - b);
+    pl.p.y -= gaps[Math.floor(gaps.length * 0.92)] + bury * h * pl.s.y;
   }
 
   /** Register a placed piece as an obstacle (approximated by circles along its long axis). */
@@ -175,14 +203,14 @@ export class World implements Habitat {
         q: q(rnd() * Math.PI * 2, (rnd() - 0.5) * 0.2, (rnd() - 0.5) * 0.2),
         s: new THREE.Vector3(k * (0.85 + rnd() * 0.3), k * (0.75 + rnd() * 0.45), k * (0.85 + rnd() * 0.3)),
       };
-      p.y -= (bb.max.y - bb.min.y) * pl.s.y * 0.12; // bed it into the sediment
+      this.ground(kind, pl, 0.1);
       if (!rockPlaces.has(kind)) rockPlaces.set(kind, []);
       rockPlaces.get(kind)!.push(pl);
       this.obstacle(kind, pl);
       return pl;
     };
-    // N: the octopus's boulder behind the book, and a pair of rocks framing the view
-    const denRock = boulder(stageFloor(24 * D, 5.8), 2.2, 'rock_boulder');
+    // N: a big boulder behind the book, and a few rocks framing the view
+    boulder(stageFloor(24 * D, 5.8), 2.2, 'rock_boulder');
     boulder(stageFloor(-30 * D, 4.2), 1.3);
     boulder(stageFloor(-14 * D, 7.5), 1.8);
     boulder(stageFloor(40 * D, 3.4), 0.8);
@@ -199,39 +227,48 @@ export class World implements Habitat {
       this.surfaces.push(...this.scanInstances(kind, pl, 0.92, kind === 'rock_boulder' ? undefined : 0x9a9a92));
     }
 
-    // ---- the octopus den: far enough out from its boulder that the whole animal clears the rock
-    if (denRock) {
-      const r = Math.max(...this.rocks.filter((o) => o.pos.distanceTo(denRock.p) < 1.5).map((o) => o.r + o.pos.distanceTo(denRock.p)), 1);
-      this.denFacing.subVectors(s.cam, denRock.p).setY(0).normalize();
-      this.den.copy(denRock.p).addScaledVector(this.denFacing, r + 1.3);
-      this.den.y = floorHeight(this.den.x, this.den.z);
-    }
-
-    // ---- N: the book's rock — the flat-topped piece of the scanned set, just in front of the camera
-    if (hasAsset('scan:rockset_3')) {
-      // tall enough that the book on top sits in the lower part of the starting (level) view
-      const bb = this.bounds('rockset_3');
-      const k = 1.05 / Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-      const p = stageFloor(3 * D, 2.45);
-      const want = 0.7; // top height above the floor
-      const pl: Place = { p, q: q(0.3), s: new THREE.Vector3(k, want / (bb.max.y - bb.min.y) + 0.05, k) };
-      p.y -= 0.05;
-      const proxies = this.scanInstances('rockset_3', [pl], 0.92, 0x9a9a92);
+    // ---- N: the book's rock. The big boulder, just in front of the camera and tall enough that the book
+    // lies a little below the middle of the opening view, tipped toward the diver so its cover reads.
+    if (hasAsset('scan:rock_boulder')) {
+      const bb = this.bounds('rock_boulder');
+      const k = 1.25 / Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+      const at = stageFloor(2 * D, 1.8);
+      const topY = s.cam.y - 0.16;
+      const sy = (topY - at.y + 0.12) / (bb.max.y - bb.min.y);
+      const pl: Place = { p: at.clone(), q: q(-0.2), s: new THREE.Vector3(k, sy, k * 0.9) };
+      pl.p.y = topY - bb.max.y * sy;
+      const proxies = this.scanInstances('rock_boulder', [pl], 0.92, 0x8e8c84);
       this.surfaces.push(...proxies);
-      this.obstacle('rockset_3', pl);
-      if (!this.topAt(proxies, p.x, p.z, this.bookRest.pos, this.bookRest.up)) {
-        this.bookRest.pos.copy(p).setY(p.y + (bb.max.y - bb.min.y) * pl.s.y);
+      this.obstacle('rock_boulder', pl);
+      // rest it on the rock just in front of the summit, cover tilted toward the camera
+      const toCam = new THREE.Vector3().subVectors(s.cam, at).setY(0).normalize();
+      const c = at.clone().addScaledVector(toCam, 0.08);
+      if (!this.topAt(proxies, c.x, c.z, this.bookRest.pos)) this.bookRest.pos.set(c.x, topY, c.z);
+      const side = new THREE.Vector3(0, 1, 0).cross(toCam).normalize();
+      const n = this.bookRest.up.set(0, 1, 0).applyAxisAngle(side, 0.5);
+      // lift it until no part of the rock pokes through the tilted cover
+      let lift = 0;
+      const b = this.bookRest.pos;
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        for (const r of [0.08, 0.17]) {
+          const ox = Math.cos(a) * r;
+          const oz = Math.sin(a) * r;
+          if (!this.topAt(proxies, b.x + ox, b.z + oz, _v)) continue;
+          const plane = b.y - (n.x * ox + n.z * oz) / n.y;
+          lift = Math.max(lift, _v.y - plane);
+        }
       }
-      // a flat top: keep the book near level unless the surface really tilts
-      this.bookRest.up.lerp(new THREE.Vector3(0, 1, 0), 0.6).normalize();
+      b.y += lift + 0.01;
     } else {
       stageFloor(0, 2.2, this.bookRest.pos);
     }
 
     // ---- set pieces
     // scans shot in daylight on land read bleached down here: `tint` pulls them into the water's palette
-    const piece = (key: string, pl: Place, obstacle = true, roughness = 0.9, tint?: number) => {
+    const piece = (key: string, pl: Place, obstacle = true, roughness = 0.9, tint?: number, bury = 0.04) => {
       if (!hasAsset('scan:' + key)) return null;
+      this.ground(key, pl, bury);
       const proxies = this.scanInstances(key, [pl], roughness, tint);
       if (obstacle) this.obstacle(key, pl, 0.7);
       this.surfaces.push(...proxies);
@@ -239,25 +276,28 @@ export class World implements Habitat {
     };
     // E: the wreck lying at an angle across the view, half sunk in the silt
     const wreckAt = stageFloor(98 * D, 5.6);
-    wreckAt.y -= 0.25;
     this.landmarks.push(wreckAt.clone().add(new THREE.Vector3(0, 0.9, 0)));
-    piece('wreck', { p: wreckAt, q: q(across(98 * D) + 0.5, 0.03, -0.12), s: new THREE.Vector3(1, 1, 1) }, true, 0.9, 0xb0a890);
-    piece('barrel', { p: stageFloor(78 * D, 3.9).add(new THREE.Vector3(0, -0.12, 0)), q: q(1.1, 1.45, 0.2), s: new THREE.Vector3(1, 1, 1) }, true, 0.8, 0x8a7a6c);
+    const wreck: Place = { p: wreckAt, q: q(across(98 * D) + 0.5, 0.03, -0.12), s: new THREE.Vector3(1, 1, 1) };
+    piece('wreck', wreck, true, 0.9, 0xb0a890, 0.12);
+    this.wreckDen(wreck);
+    piece('barrel', { p: stageFloor(78 * D, 3.9), q: q(1.1, 1.45, 0.2), s: new THREE.Vector3(1, 1, 1) }, true, 0.8, 0x8a7a6c);
     // W: the anchor, lying on its side where the floor falls away
     this.landmarks.push(stageFloor(268 * D, 3.2).add(new THREE.Vector3(0, 0.2, 0)));
     this.landmarks.push(stageFloor(50 * D, 5).add(new THREE.Vector3(0, 0.6, 0)));   // the reef
     this.landmarks.push(stageFloor(140 * D, 3.5));                                   // the sand-dollar bed
     this.landmarks.push(stageFloor(182 * D, 7).add(new THREE.Vector3(0, 1.2, 0)));  // the boulder pile
-    this.landmarks.push(stageFloor(206 * D, 3.9), stageFloor(318 * D, 4.4));         // the logs
-    piece('anchor', { p: stageFloor(268 * D, 3.2).add(new THREE.Vector3(0, -0.05, 0)), q: q(0.4, 0, 0.08), s: new THREE.Vector3(1.2, 1.2, 1.2) }, true, 0.75, 0x7a6558);
-    // SW and NW: two waterlogged logs
-    if (hasAsset('scan:log')) {
+    this.landmarks.push(stageFloor(206 * D, 3.9), stageFloor(322 * D, 4.2));         // the driftwood
+    piece('anchor', { p: stageFloor(268 * D, 3.2), q: q(0.4, 0, 0.08), s: new THREE.Vector3(1.2, 1.2, 1.2) }, true, 0.75, 0x7a6558, 0.1);
+    // SW and NW: two big pieces of waterlogged driftwood, the kind every Puget Sound beach is piled with
+    const wood = hasAsset('scan:driftwood') ? 'driftwood' : hasAsset('scan:log') ? 'log' : null;
+    if (wood) {
       const places: Place[] = [
-        { p: stageFloor(206 * D, 3.9).add(new THREE.Vector3(0, -0.04, 0)), q: q(across(206 * D) + 0.4, 0, 0.03), s: new THREE.Vector3(0.9, 0.9, 0.9) },
-        { p: stageFloor(318 * D, 4.4).add(new THREE.Vector3(0, -0.04, 0)), q: q(across(318 * D) - 0.5, 0, -0.03), s: new THREE.Vector3(1.05, 1.05, 1.05) },
+        { p: stageFloor(206 * D, 3.9), q: q(across(206 * D) + 0.4, 0, 0.03), s: new THREE.Vector3(1, 1, 1) },
+        { p: stageFloor(322 * D, 4.2), q: q(across(322 * D) - 0.5, 0, -0.03), s: new THREE.Vector3(0.85, 0.85, 0.85) },
       ];
-      this.surfaces.push(...this.scanInstances('log', places, 0.95, 0x7d7a68));
-      for (const pl of places) this.obstacle('log', pl, 0.8);
+      for (const pl of places) this.ground(wood, pl, 0.18);
+      this.surfaces.push(...this.scanInstances(wood, places, 0.95, 0x7d7a68));
+      for (const pl of places) this.obstacle(wood, pl, 0.8);
     }
     // everywhere: empty shells lying about, some upside down, half sunk in the silt
     if (hasAsset('scan:scallop')) {
@@ -270,6 +310,28 @@ export class World implements Habitat {
       }
       this.scanInstances('scallop', places, 0.6);
     }
+  }
+
+  /**
+   * The octopus's hiding place: under the overhang of the wreck's hull, at the end nearer the camera,
+   * where only its arms show from under the planking.
+   */
+  private wreckDen(pl: Place) {
+    const cam = stage().cam;
+    const bb = this.bounds('wreck');
+    const m = new THREE.Matrix4().compose(pl.p, pl.q, pl.s);
+    // the end of the hull nearer the camera, on the camera's side, just inside the rim
+    let best: THREE.Vector3 | null = null;
+    for (const ex of [bb.min.x * 0.62, bb.max.x * 0.62]) {
+      for (const ez of [bb.min.z * 0.9, bb.max.z * 0.9]) {
+        const w = new THREE.Vector3(ex, 0, ez).applyMatrix4(m);
+        if (!best || w.distanceTo(cam) < best.distanceTo(cam)) best = w;
+      }
+    }
+    this.denFacing.subVectors(cam, best!).setY(0).normalize();
+    // back in under the planking, so from the camera only the arms show
+    this.den.copy(best!).addScaledVector(this.denFacing, -0.55);
+    this.den.y = floorHeight(this.den.x, this.den.z);
   }
 
   /** Point on the top surface of a random rock or prop (with its normal), within reach, or false. */
@@ -354,7 +416,7 @@ export class World implements Habitat {
       for (let i = 0; i < n; i++) {
         const f = new BenthicFish(key, { maxSpeed: 1.6, maxForce: 3, cruise: 0.35, turnRate: 3, clearance: 0.3, size: 0.45 }, ['prawn'], { idle, hunt: 'snapping at a prawn', eat: 'swallowing' }, [lo, hi]);
         f.home.copy(where());
-        f.home.y = floorHeight(f.home.x, f.home.z) + lo + rnd() * (hi - lo);
+        f.home.y = bottomAt(f.home.x, f.home.z) + lo + rnd() * (hi - lo);
         f.pos.copy(f.home);
         f.goal.copy(f.home);
         this.addAgent(key, f);
@@ -416,7 +478,7 @@ export class World implements Habitat {
       ['orca', 5, { maxSpeed: 4.5, maxForce: 2.2, cruise: 2.6, turnRate: 0.8, clearance: 3, bankAmount: 0.6, size: 7 }],
       ['porpoise', 3, { maxSpeed: 5, maxForce: 5, cruise: 3.2, turnRate: 2, clearance: 1.5, bankAmount: 1, size: 1.6 }],
       ['humpback', 1, { maxSpeed: 2.5, maxForce: 0.8, cruise: 1.6, turnRate: 0.3, clearance: 4, bankAmount: 0.3, size: 14 }],
-      ['octopus', 1, { maxSpeed: 0.6, maxForce: 1, cruise: 0.12, size: 2.2 }],
+      ['octopus', 1, { maxSpeed: 0.6, maxForce: 1, cruise: 0.12, size: 1.5 }],
     ];
     for (const [key, n, opts] of pools) {
       if (this.pops.get(key)?.agents.length) continue;
@@ -617,21 +679,16 @@ export class World implements Habitat {
           }
         }
       }
-      // swimmers out of rocks and props (crawlers already steer round them)
-      if (!(a instanceof Crab)) {
-        for (const rk of this.rocks) {
-          if (rk.top !== undefined && a.pos.y > rk.top + ra * 0.5) continue;
-          const dx = a.pos.x - rk.pos.x;
-          const dz = a.pos.z - rk.pos.z;
-          const d = Math.hypot(dx, dz);
-          const min = rk.r + ra;
-          if (d < min && d > 1e-5) {
-            // just below the top of a rock, rising clears it; beside a tall one, slide round it
-            if (rk.top !== undefined && rk.top - a.pos.y < 0.5) a.pos.y += (min - d) * 0.5;
-            else {
-              a.pos.x += (dx / d) * (min - d);
-              a.pos.z += (dz / d) * (min - d);
-            }
+      // swimmers out of rocks and props (crawlers already steer round them). Swimmers normally rise over
+      // them on their own (the height map counts as floor); anything that still ends up inside slides
+      // out sideways a little each frame and stops pushing inward, rather than jumping to the top.
+      if (!(a instanceof Crab) && !(a instanceof Scripted && a.crawl)) {
+        if (escapeDir(a.pos, ra * 0.5, _v)) {
+          if (_v.y > 0.5) a.pos.y += 0.01;
+          else {
+            a.pos.addScaledVector(_v, 0.025);
+            const into = a.vel.dot(_v);
+            if (into < 0) a.vel.addScaledVector(_v, -into);
           }
         }
       }

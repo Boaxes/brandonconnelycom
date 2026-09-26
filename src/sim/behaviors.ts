@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Agent, randomFloorPoint, randomWaterPoint, type AgentOpts } from './Agent';
 import { floorHeight, floorNormal, stage, stageWater, yawOf, WORLD } from '../scene/Terrain';
+import { bottomAt } from './Obstacles';
 import { noise2 } from '../util/noise';
 
 /** What behaviors can ask of the world. Implemented by World. */
@@ -333,7 +334,7 @@ export class BenthicFish extends Agent implements Behavior {
       if (this.timer < 0) {
         // pick a new hover spot near home
         this.goal.copy(this.home).add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 3));
-        this.goal.y = Math.max(this.goal.y, floorHeight(this.goal.x, this.goal.z) + this.hover[0]);
+        this.goal.y = Math.max(this.goal.y, bottomAt(this.goal.x, this.goal.z) + this.hover[0]);
         this.timer = 3 + Math.random() * 6;
         if (this.prey.length && Math.random() < 0.35) {
           const p = h.preyNear(this.prey, this.pos, 2.5);
@@ -537,7 +538,7 @@ export class Scripted extends Agent implements Behavior {
   crawl = false;   // stays on the floor (octopus)
   done = true;
   private holdT = 0;
-  private heading = 0;
+  heading = 0;
   private up = new THREE.Vector3();
   private fwd = new THREE.Vector3();
   constructor(public key: string, opts: AgentOpts) {
@@ -616,7 +617,7 @@ export class Scripted extends Agent implements Behavior {
       return;
     }
     // keep off the bottom
-    const floor = floorHeight(this.pos.x, this.pos.z) + (this.opts.clearance ?? 0.5);
+    const floor = bottomAt(this.pos.x, this.pos.z) + (this.opts.clearance ?? 0.5);
     if (this.pos.y < floor) this.acc.y += (floor - this.pos.y) * this.opts.maxForce;
     this.integrate(dt);
     if (this.holdT > 0) {

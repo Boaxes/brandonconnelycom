@@ -19,6 +19,7 @@ const I = {
   waves: '<path d="M3 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 14c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
   sfx: '<path d="M5 10v4h3l4 3.5v-11L8 10z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5M17.8 7.3a6.6 6.6 0 0 1 0 9.4"/>',
   eye: '<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.8"/>',
+  zoom: '<circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5M8.5 10.5h4M10.5 8.5v4"/>',
 };
 const icon = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 
@@ -29,9 +30,15 @@ export interface HudCallbacks {
   ambience(on: boolean): void;
   sfx(on: boolean): void;
   watch(on: boolean): void;
+  zoom(on: boolean): void;
 }
 
-/** The control widget, the discovery animation, hints, and an accessible copy of the portfolio. */
+/**
+ * The controls: a small paper card in the bottom-right corner (field log, look-around pad, zoom, sound,
+ * effects, watch the water) and, once the book has been picked up, a single button at the bottom middle
+ * to bring it back up or put it down. Also the discovery animation, hints, and an accessible copy of
+ * the portfolio.
+ */
 export class Hud {
   private root: HTMLElement;
   private heading: HTMLElement;
@@ -39,37 +46,32 @@ export class Hud {
   private banner: HTMLElement;
   private hint: HTMLElement;
   private logBtn: HTMLElement;
+  private bookBtn: HTMLButtonElement;
   private watching = false;
 
-  constructor(private cb: HudCallbacks, prefs: { ambience: boolean; sfx: boolean }) {
+  constructor(private cb: HudCallbacks, prefs: { ambience: boolean; sfx: boolean; zoom: boolean }) {
     this.root = el(`
       <div id="controls" role="toolbar" aria-label="Dive controls">
-        <div class="group">
-          <button class="ctl" data-a="book" title="The portfolio (B)" aria-label="Open the portfolio">${icon(I.book)}</button>
+        <div class="heading" aria-live="polite">N · level</div>
+        <div class="grid">
           <button class="ctl" data-a="log" title="Field log (L)" aria-label="Open the field log">${icon(I.log)}<span class="badge" hidden>0</span></button>
-        </div>
-        <div class="group look" aria-label="Look around">
-          <button class="ctl sm" data-a="left" title="Look left (A / ←)" aria-label="Look left">${icon(I.left)}</button>
-          <div class="pad">
-            <button class="ctl xs" data-a="up" title="Look up (W / ↑)" aria-label="Look up">${icon(I.up)}</button>
-            <span class="heading" aria-live="polite">N · level</span>
-            <button class="ctl xs" data-a="down" title="Look down (S / ↓)" aria-label="Look down">${icon(I.down)}</button>
-          </div>
-          <button class="ctl sm" data-a="right" title="Look right (D / →)" aria-label="Look right">${icon(I.right)}</button>
-        </div>
-        <div class="group">
-          <button class="ctl" data-a="ambience" aria-pressed="${prefs.ambience}" title="Sound: the water and the animals" aria-label="Sound">${icon(I.waves)}</button>
-          <button class="ctl" data-a="sfx" aria-pressed="${prefs.sfx}" title="Effects: the book and the log" aria-label="Sound effects">${icon(I.sfx)}</button>
-        </div>
-        <div class="group">
+          <button class="ctl" data-a="up" title="Look up (W / ↑)" aria-label="Look up">${icon(I.up)}</button>
           <button class="ctl" data-a="watch" aria-pressed="false" title="Watch the water (H)" aria-label="Watch the water">${icon(I.eye)}</button>
+          <button class="ctl" data-a="left" title="Look left (A / ←)" aria-label="Look left">${icon(I.left)}</button>
+          <button class="ctl" data-a="zoom" aria-pressed="${prefs.zoom}" title="Zoom: scroll to look closer (Z)" aria-label="Zoom with the scroll wheel">${icon(I.zoom)}</button>
+          <button class="ctl" data-a="right" title="Look right (D / →)" aria-label="Look right">${icon(I.right)}</button>
+          <button class="ctl" data-a="ambience" aria-pressed="${prefs.ambience}" title="Sound: the water and the animals" aria-label="Sound">${icon(I.waves)}</button>
+          <button class="ctl" data-a="down" title="Look down (S / ↓)" aria-label="Look down">${icon(I.down)}</button>
+          <button class="ctl" data-a="sfx" aria-pressed="${prefs.sfx}" title="Effects: the book, the log, the zoom" aria-label="Sound effects">${icon(I.sfx)}</button>
         </div>
       </div>`);
-    document.body.appendChild(this.root);
+    this.bookBtn = el<HTMLButtonElement>(`
+      <button id="book-toggle" data-a="book" aria-pressed="false" title="The portfolio (B)">${icon(I.book)}<span>Portfolio</span></button>`);
+    document.body.append(this.root, this.bookBtn);
     this.heading = this.root.querySelector('.heading')!;
     this.badge = this.root.querySelector('.badge')!;
     this.logBtn = this.root.querySelector('[data-a="log"]')!;
-    this.root.addEventListener('click', (e) => {
+    const onClick = (e: Event) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-a]');
       if (!b) return;
       const a = b.dataset.a!;
@@ -79,12 +81,14 @@ export class Hud {
       else if (a === 'right') cb.look(1, 0);
       else if (a === 'up') cb.look(0, 1);
       else if (a === 'down') cb.look(0, -1);
-      else if (a === 'ambience' || a === 'sfx') {
+      else if (a === 'ambience' || a === 'sfx' || a === 'zoom') {
         const on = b.getAttribute('aria-pressed') !== 'true';
         b.setAttribute('aria-pressed', String(on));
-        (a === 'ambience' ? cb.ambience : cb.sfx)(on);
+        (a === 'ambience' ? cb.ambience : a === 'sfx' ? cb.sfx : cb.zoom)(on);
       } else if (a === 'watch') this.setWatch(!this.watching);
-    });
+    };
+    this.root.addEventListener('click', onClick);
+    this.bookBtn.addEventListener('click', onClick);
 
     this.banner = el('<div id="banner" aria-live="polite" hidden></div>');
     this.hint = el('<div id="hint" hidden></div>');
@@ -102,16 +106,40 @@ export class Hud {
 
   setHeading(text: string) { this.heading.textContent = text; }
 
+  /** The book button appears once the book has been picked up; pressed while it's being read. */
+  setBook(inHand: boolean, reading: boolean) {
+    document.body.classList.toggle('has-book', inHand);
+    this.bookBtn.setAttribute('aria-pressed', String(reading));
+    this.bookBtn.title = reading ? 'Put the portfolio down (B)' : 'Read the portfolio (B)';
+  }
+
+  /** Draw the eye to a control for a few seconds (e.g. the up arrow when something passes overhead). */
+  nudge(action: string) {
+    const b = this.root.querySelector<HTMLElement>(`[data-a="${action}"]`);
+    if (!b) return;
+    b.classList.remove('nudge');
+    void b.offsetWidth;
+    b.classList.add('nudge');
+    setTimeout(() => b.classList.remove('nudge'), 6000);
+  }
+
+  setZoom(on: boolean) {
+    this.root.querySelector('[data-a="zoom"]')!.setAttribute('aria-pressed', String(on));
+  }
+
   setCount(n: number) {
     this.badge.hidden = n === 0;
     this.badge.textContent = String(n);
   }
 
-  showHint(text: string | null) {
+  /** A quiet hint under a point on screen (CSS px), or hide it. */
+  showHint(text: string | null, x = window.innerWidth / 2, y = window.innerHeight * 0.7) {
     if (!text) {
       this.hint.classList.remove('on');
       return;
     }
+    this.hint.style.left = x + 'px';
+    this.hint.style.top = y + 'px';
     this.hint.textContent = text;
     this.hint.hidden = false;
     requestAnimationFrame(() => this.hint.classList.add('on'));

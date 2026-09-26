@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { floorHeight, randomFloorAround, WORLD } from '../scene/Terrain';
+import { randomFloorAround, WORLD } from '../scene/Terrain';
+import { bottomAt } from './Obstacles';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -96,7 +97,8 @@ export class Agent {
     if (this.pos.x < -half) this.acc.x += f * ((-half - this.pos.x) / marginXZ + 0.4);
     if (this.pos.z > half) this.acc.z -= f * ((this.pos.z - half) / marginXZ + 0.4);
     if (this.pos.z < -half) this.acc.z += f * ((-half - this.pos.z) / marginXZ + 0.4);
-    const floor = floorHeight(this.pos.x, this.pos.z);
+    // rocks and props count as floor: swimmers rise over them the way they rise over a slope
+    const floor = bottomAt(this.pos.x, this.pos.z);
     const clearance = this.opts.clearance ?? 1.2;
     const gap = this.pos.y - floor;
     if (gap < minY + clearance) {
@@ -105,7 +107,7 @@ export class Agent {
     }
     // look ahead along velocity for rising floor
     _v2.copy(this.pos).addScaledVector(this.vel, 1.2);
-    const fAhead = floorHeight(_v2.x, _v2.z);
+    const fAhead = bottomAt(_v2.x, _v2.z);
     if (_v2.y - fAhead < clearance + 0.8) this.acc.y += f * 1.2;
     if (this.pos.y > maxY) {
       this.acc.y -= f * (1 + (this.pos.y - maxY) * 2);

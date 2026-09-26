@@ -1,6 +1,6 @@
 # Puget Sound portfolio
 
-A portfolio you read on the floor of Puget Sound. You arrive in the dark about thirty feet down; the light comes up on a red leather book lying on a rock in front of you. Click it and it rises into your hands and opens: the portfolio, with real page turns. Around you the water is alive — photoscanned animals with their own behaviour, a scripted first minute of visits (a curious rockfish, an octopus, a harbor seal, orcas passing overhead), and a field log you fill in by clicking animals.
+A portfolio you read on the floor of Puget Sound. You arrive in the dark about thirty feet down; the light comes up on a red leather book lying on a rock in front of you. Click it and it rises into your hands and opens: the portfolio, with real page turns. Around you the water is alive — photoscanned animals with their own behaviour, a scripted first minute of visits (a curious rockfish, herring, a harbor seal, orcas passing overhead), an octopus hiding somewhere for the observant, and a field log you fill in by clicking animals.
 
 Plain **Vite + TypeScript + Three.js**. No React, no framework. Everything renders in one WebGL canvas, including both books; the controls are ordinary HTML/CSS, and a visually hidden HTML copy of the portfolio keeps it readable for screen readers and search engines.
 
@@ -24,14 +24,17 @@ All text lives in [`src/content.ts`](src/content.ts): name, tagline, about parag
 
 | Action | Effect |
 | --- | --- |
-| Click the book | Pick it up and open it; click the right page to turn, the left to go back (← → , PageUp/PageDown, space and the scroll wheel work too); links on the pages open |
+| Click the book | Pick it up and open it; click the right page to turn, the left to go back (← → , PageUp/PageDown and space work too); links on the pages open |
+| Scroll | Zoom toward the pointer, up to 4× — into the page you're reading or at an animal across the way (a lens click with each notch). The magnifier button / `Z` switches it off, and then the wheel turns pages |
 | Click an animal | Logs it in the field log the first time (sound, a specimen card flies into the log) |
 | Look pad, `A`/`D`/`W`/`S`, arrow keys, drag | Turn the view in steps: 45° left/right all the way round, 30° up/down from straight down to straight up |
-| Book button / `B` | Raise or lower the portfolio |
+| Portfolio button (bottom middle) / `B` | Raise or lower the portfolio; appears once the book has been picked up |
 | Log button / `L` | Open the field log: an index of species (click one to read its page) |
 | Waves / speaker buttons | Sound (water and animals) and effects (book, pages, logging), separately |
 | Eye / `H` | Watch the water: the book drops out of view and the controls fold away |
-| `Esc` | Lower the book you're reading |
+| `Esc` | Zoom back out, or lower the book you're reading |
+
+Everything except the portfolio button sits in a small paper card in the bottom-right corner: the field log, the look pad around the zoom toggle, sound and effects, and the eye.
 
 ## How it is put together
 
@@ -49,15 +52,16 @@ src/
     UnderwaterMaterial.ts shared shader patch: swim deformation, water absorption, caustics, contact AO
     Terrain.ts            heightfield seafloor and the stage: the fixed viewpoint and heading-based placement
     Environment.ts        backdrop, silt, daylight, the surface overhead, the diver's torch
-    CameraRig.ts          stepped look-around with breathing and handheld drift
+    CameraRig.ts          stepped look-around, zoom toward the pointer, breathing and handheld drift
     Assets.ts             GLB loader for the baked scans (the big visitors load after the reveal)
   sim/
     Agent.ts, behaviors.ts   steering; schools, hunters, rockfish, bottom walkers, fixed life, scripted routes
     Species.ts            species table + one InstancedMesh per species
-    World.ts              the ring of scenery, populations, soft collisions, picking
+    World.ts              the ring of scenery (settled onto the terrain), populations, soft collisions, picking
+    Obstacles.ts          height map of the rocks and props, so swimmers go over and around what is really there
     Director.ts           the scripted first minute, then randomised visits with cooldowns
   audio/Sound.ts          sound and effects buses; recordings from public/sounds if present, synth otherwise
-  ui/                     controls, discovery animation, hints, loader
+  ui/                     the corner card and book button, discovery animation, hints, loader
 tools/blender/            scan pipeline (and the older procedural generator), run inside Blender
 public/models/            baked photogrammetry GLBs; see CREDITS.md
 public/textures/          CC0 sand / gravel / rock / leather textures from Poly Haven
@@ -65,17 +69,19 @@ public/textures/          CC0 sand / gravel / rock / leather textures from Poly 
 
 ### The place
 
-About 30 ft down on a rocky Puget Sound bottom, 4–6 m of visibility. The camera never moves; the view turns in steps, so the scenery is a ring with a landmark in each direction: the book on its rock with the octopus's boulder behind (N), a rockfish reef (NE), a wooden wreck (E), a sand flat with sand dollars and moon snails (SE), a pile of big boulders up a rising slope (S, SW), an old anchor where the floor drops away (W), sunken logs (SW, NW). Overhead is the surface: Snell's window, bright and moving with the waves, seen through nine metres of green water.
+About 30 ft down on a rocky Puget Sound bottom, 4–6 m of visibility. The camera never moves; the view turns in steps, so the scenery is a ring with a landmark in each direction: the book on a boulder with more rocks behind (N), a rockfish reef (NE), a wooden wreck (E), a sand flat with sand dollars and moon snails (SE), a pile of big boulders up a rising slope (S, SW), an old anchor where the floor drops away (W), waterlogged driftwood (SW, NW). Overhead is the surface: Snell's window, a soft bright disc netted with rippled light, faint shafts of sunlight slanting down through nine metres of green water. Every piece of scenery is settled onto the terrain under it, so nothing floats on a slope.
 
 Everything alive, and every rock, log and prop, is a photogrammetry scan (CC0 / CC BY / CC BY-NC, see `public/models/CREDITS.md`), cleaned up and re-baked to a single colour + normal map. Land scans are tinted down into the water's palette.
 
 ### The first minute
 
-`Director.ts` scripts what a visitor actually sees, relative to wherever they're looking: a rockfish comes to look at the lens (~4 s), the octopus creeps in and settles by its boulder (~9 s), a harbor seal comes out of the murk and hangs beside the book looking at you before circling off (~20 s), and at ~38 s orca calls, then the pod passes above. After that visits are drawn at random with cooldowns: seals, herring and salmon, porpoises, orcas (sometimes straight overhead — look up), rarely a humpback singing as it passes over, the octopus taking a walk.
+`Director.ts` scripts what a visitor actually sees, relative to wherever they're looking: a rockfish comes to look at the lens (~4 s), a school of herring sweeps across (~10 s), a harbor seal comes out of the murk and hangs beside the book looking at you before circling off (~20 s), and at ~38 s orca calls, then the pod passes high overhead just under the surface — dark shapes against the light, with the look-up arrow on the controls nudging you. After that visits are drawn at random with cooldowns: seals, herring and salmon, porpoises, orcas, rarely a humpback singing as it passes over.
+
+The octopus is an easter egg: it hides under the wreck's hull (east) from the start, and now and then reaches out a little way and pulls back in.
 
 ### The books
 
-Pages are canvases typeset at load (fonts are waited for) and shown as textures. The leaf that turns is a strip of 28 segments bent around the spine each frame, with the free edge lagging behind so it curls. Clicks on a page are mapped back to canvas coordinates to find links. The portfolio book is held at 0.5 m and the depth of field focuses on it; lowering it hands focus back to the water.
+Pages are canvases typeset at load (fonts are waited for) and shown as textures. The leaf that turns is a strip of 28 segments bent around the spine each frame, with the free edge lagging behind so it curls. Clicks on a page are mapped back to canvas coordinates to find links. A book in hand is held at whatever distance makes the spread fill most of the view without running under the controls, the lens stops down so the whole page is sharp, and zooming reads it more closely; lowering it hands focus back to the water.
 
 ### Behaviour
 
@@ -84,7 +90,7 @@ Pages are canvases typeset at load (fonts are waited for) and shown as textures.
 - **Dogfish** patrol low and hunt prawns and herring.
 - **Crabs, prawns, flounder, sculpin, sea cucumbers** forage around a home spot and flee octopus and seals; Dungeness and flounder bury.
 - **Seals, orcas, porpoises, the humpback, the octopus** follow the director's steered routes, with lingering and gaze.
-- Bodies push apart when they overlap, and swimmers slide around rocks and props.
+- Bodies push apart when they overlap. Rocks and props are baked into a height map from their real geometry: swimmers rise over them like a slope, and anything that ends up inside slides out sideways rather than jumping.
 
 ## Regenerating the models
 
@@ -113,7 +119,7 @@ The site is fully static. `npm run build` puts everything in `dist/`.
 
 ## Sounds
 
-`src/audio/Sound.ts` plays a recording for each effect and call if one exists: put `<name>.mp3` files in `public/sounds/` and list the names in `public/sounds/manifest.json` (`pickup`, `open`, `close`, `page`, `lower`, `raise`, `discover`, `click`, `ambience-loop`, `orca`, `humpback`, `seal`). Anything missing falls back to a small synthesised version.
+`src/audio/Sound.ts` plays a recording for each effect and call if one exists: put `<name>.mp3` files in `public/sounds/` and list the names in `public/sounds/manifest.json` (`pickup`, `open`, `close`, `page`, `lower`, `raise`, `discover`, `click`, `zoom`, `ambience-loop`, `orca`, `humpback`, `seal`). Anything missing falls back to a small synthesised version.
 
 ## Development helpers
 

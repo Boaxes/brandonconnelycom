@@ -30,7 +30,7 @@ export const SCANS: Record<string, { swim: SwimRule; core?: number }> = {
   orca: { swim: 'body' },
   humpback: { swim: 'body' },
   rock_boulder: { swim: 'static' },
-  log: { swim: 'static' },
+  driftwood: { swim: 'static' },
   wreck: { swim: 'static' },
   anchor: { swim: 'static' },
   barrel: { swim: 'static' },
