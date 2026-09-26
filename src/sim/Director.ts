@@ -153,9 +153,10 @@ export class Director {
     this.breathT = 2.5;
   }
 
-  /** the sea lion's nose (the scan is 1.9 m nose to tail, centred) */
+  /** the sea lion's nostrils: in the scan (1.9 m nose to tail, centred on its body) the snout tip sits
+   *  12 cm above the body's axis, so it's placed through the body's full rotation, head cock included */
   private nose(s: Scripted, out: THREE.Vector3) {
-    return out.copy(s.pos).addScaledVector(s.forward, 0.93 * s.scale);
+    return out.set(0.955, 0.13, 0).multiplyScalar(s.scale).applyQuaternion(s.quat).add(s.pos);
   }
   private breathT = 0;
   private breathLeft = 0;

@@ -389,14 +389,106 @@ def process(key):
     path = f'{OUT}/scan_{key}.glb'
     bpy.ops.object.select_all(action='DESELECT')
     lo.select_set(True)
+    _export(lo, path)
+    return {'key': key, 'faces_before': before, 'faces': len(lo.data.polygons), 'bytes': os.path.getsize(path),
+            'renders': _render(lo, key + '_out')}
+
+
+def _fill_holes(img, dark=10 / 255, fringe=60 / 255, grow=2, keep=(), normal=False, also=None):
+    """Paint over what the bake missed, returning the mask it filled (rows bottom-up, as blender stores
+    them). Where no ray found the scan (under a chin, in a fold) the colour bake leaves black and the
+    normal bake leaves junk.
+      colour: every near-black pixel, plus a `grow`-px fringe of dark JPEG ringing round it, except inside
+        `keep`: boxes (u0, v0, u1, v1, as fractions of the image from its top-left) around genuinely black
+        features such as an eye. That also covers the black specks along seams and the space between
+        islands (so mip-mapping can't bleed black into the seams).
+      normal: every pixel pointing into the surface (blue < 0.5; a bake miss, which the torch lights
+        black), plus `also` (the colour's mask, resampled), since a missed colour pixel is a missed normal.
+    Fills from the surrounding pixels with a push-pull pyramid, so a hole takes on the fur around it."""
+    import numpy as np
+    w, h = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(h, w, 4)
+    rgb = px[:, :, :3]
+    if normal:
+        hole = rgb[:, :, 2] < 0.5
+        if also is not None:
+            ah, aw = also.shape
+            ys = (np.arange(h) * ah // h)[:, None]
+            xs = (np.arange(w) * aw // w)[None, :]
+            hole = hole | also[ys, xs]
+    else:
+        lum = rgb.max(axis=2)
+        hole = lum < dark
+        for _ in range(grow):
+            hole = hole | ((np.roll(hole, 1, 0) | np.roll(hole, -1, 0) | np.roll(hole, 1, 1) | np.roll(hole, -1, 1)) & (lum < fringe))
+        for u0, v0, u1, v1 in keep:
+            hole[h - int(v1 * h):h - int(v0 * h), int(u0 * w):int(u1 * w)] = False
+    # push-pull: average the valid pixels down a pyramid, then fill holes from the level below
+    levels = [(rgb * (~hole)[..., None], (~hole).astype(np.float32))]
+    while levels[-1][1].shape[0] > 1:
+        c, wt = levels[-1]
+        hh, ww = wt.shape[0] // 2, wt.shape[1] // 2
+        c2 = c[:hh * 2, :ww * 2].reshape(hh, 2, ww, 2, 3).sum(axis=(1, 3))
+        w2 = wt[:hh * 2, :ww * 2].reshape(hh, 2, ww, 2).sum(axis=(1, 3))
+        levels.append((c2, w2))
+    fill = levels[-1][0] / np.maximum(levels[-1][1], 1e-6)[..., None]
+    for c, wt in reversed(levels[:-1]):
+        up = np.repeat(np.repeat(fill, 2, 0), 2, 1)
+        up = np.pad(up, ((0, wt.shape[0] - up.shape[0]), (0, wt.shape[1] - up.shape[1]), (0, 0)), mode='edge')
+        own = c / np.maximum(wt, 1e-6)[..., None]
+        a = np.clip(wt, 0, 1)[..., None]
+        fill = own * a + up * (1 - a)
+    rgb[hole] = fill[hole]
+    if normal:
+        # re-normalise what was filled (an average of unit normals is shorter than one)
+        n = rgb * 2 - 1
+        n /= np.maximum(np.linalg.norm(n, axis=2, keepdims=True), 1e-6)
+        rgb[hole] = (n[hole] + 1) / 2
+    px[:, :, :3] = rgb
+    img.pixels[:] = px.ravel()
+    img.update()
+    return hole
+
+# Black features to keep when filling bake holes, per scan: boxes in the exported colour texture
+# (u0, v0, u1, v1 from its top-left). They depend on the baked layout, so re-check after a new process().
+KEEP_DARK = {
+    'ca_sea_lion': [(0.148, 0.078, 0.168, 0.095)],  # the eye
+}
+
+
+def refill(key):
+    """Fix bake holes in an already-exported scan without re-baking: re-import it, fill its colour
+    and normal textures (a missed normal-map pixel points into the body, which the torch lights black), export it
+    again with the same settings. Run after process() when a scan shows black patches."""
+    _clear()
+    path = f'{OUT}/scan_{key}.glb'
+    _quiet(bpy.ops.import_scene.gltf, filepath=path)
+    obj = next(o for o in bpy.context.scene.objects if o.type == 'MESH')
+    imgs = [n.image for slot in obj.material_slots for n in slot.material.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image]
+    cols = [i for i in imgs if i.colorspace_settings.name != 'Non-Color']
+    nrms = [i for i in imgs if i.colorspace_settings.name == 'Non-Color']
+    filled = {}
+    mask = None
+    for i in cols:
+        mask = _fill_holes(i, keep=KEEP_DARK.get(key, ()))
+        filled[i.name] = int(mask.sum())
+    for i in nrms:
+        filled[i.name] = int(_fill_holes(i, normal=True, also=mask).sum())
+    for i in imgs:
+        i.pack()
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    _export(obj, path)
+    return {'key': key, 'filled_px': filled, 'bytes': os.path.getsize(path), 'renders': _render(obj, key + '_refill')}
+
+
+def _export(obj, path):
     _quiet(bpy.ops.export_scene.gltf,
         filepath=path, export_format='GLB', use_selection=True, export_apply=True,
         export_normals=True, export_texcoords=True, export_materials='EXPORT', export_tangents=False,
         export_image_format='JPEG', export_image_quality=85, export_yup=True,
         export_animations=False, export_skins=False, export_cameras=False, export_lights=False,
     )
-    return {'key': key, 'faces_before': before, 'faces': len(lo.data.polygons), 'bytes': os.path.getsize(path),
-            'renders': _render(lo, key + '_out')}
 
 
 # ---------------------------------------------------------------------------------------------
