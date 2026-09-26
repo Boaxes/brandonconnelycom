@@ -11,7 +11,6 @@ export const CREDITS: { title: string; author: string; license: string; url: str
   { title: "Rocks Set Stone Collection Scan", author: "perz_scans", license: 'CC BY', url: 'https://sketchfab.com/3d-models/b45a40fd145c4b9ba7bc5351d344db17' },
   { title: "Driftwood", author: "Lion1469", license: 'CC BY', url: 'https://sketchfab.com/3d-models/38b45cfa785347a7bed665aafdd4b80a' },
   { title: "Model 86 - California Sea Lion", author: "DigitalLife3D", license: 'CC BY-NC', url: 'https://sketchfab.com/3d-models/3a0cef26f2ec4e17907bb43e53b5b471' },
-  { title: "orcas (killer whales), recorded at the MARS observatory", author: "MBARI_MARS (Freesound)", license: 'CC BY-NC', url: 'https://freesound.org/s/458854/' },
   { title: "Model 75A - Harbor Porpoise", author: "DigitalLife3D", license: 'CC BY-NC', url: 'https://sketchfab.com/3d-models/eb02e57f17d741329a66844a3a8d2094' },
   { title: "Wooden boat wreck 500k", author: "lightdatavision", license: 'CC BY', url: 'https://sketchfab.com/3d-models/595934a89fb04653932eebcdabb78cc7' },
   { title: "Heavy Rusty Anchor", author: "incg5764", license: 'CC BY', url: 'https://sketchfab.com/3d-models/3f95a9814ab14cf78e4999e990ac82ff' },

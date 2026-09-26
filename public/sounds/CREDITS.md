@@ -1,8 +1,7 @@
 # Sound credits
 
-All from [Freesound](https://freesound.org), trimmed, normalised and re-encoded (mono 128 kbps MP3; the
-water is a seamless stereo loop). Everything is CC0 except the orca recording, which is CC BY-NC 4.0
-(https://creativecommons.org/licenses/by-nc/4.0/; non-commercial use, this is a personal portfolio).
+All CC0, from [Freesound](https://freesound.org): trimmed, normalised and re-encoded (mono 128 kbps MP3;
+the water is a seamless stereo loop).
 
 | File | Source | Author | License |
 | --- | --- | --- | --- |
@@ -18,7 +17,7 @@ water is a seamless stereo loop). Everything is CC0 except the orca recording, w
 | ping.mp3 | [hint.wav](https://freesound.org/people/dland/sounds/320181/) | dland | CC0 |
 | click.mp3 | [Normal click](https://freesound.org/people/Breviceps/sounds/448086/) | Breviceps | CC0 |
 | zoom.mp3 | [Praktica MTL5 - Focus ring (Norbert Boron)](https://freesound.org/people/NorbertBoron/sounds/725281/) | NorbertBoron | CC0 |
-| orca.mp3 | [orcas (killer whales)](https://freesound.org/people/MBARI_MARS/sounds/458854/) | MBARI_MARS | CC BY-NC 4.0 |
+| orca.mp3 | [Thar'she blows](https://freesound.org/people/kaekhor/sounds/533985/) (a surfacing breath, low-passed to sound heard from underwater) | kaekhor | CC0 |
 | humpback.mp3 | [Diving with whales.wav](https://freesound.org/people/KEVOY/sounds/82325/) | KEVOY | CC0 |
 | sealion.mp3 | [Quick sea lion bark](https://freesound.org/people/RavenWolfProds/sounds/503658/) | RavenWolfProds | CC0 |
 | sealion-growl.mp3 | [Lobo Marino Grunendo - Growling Sea Lion](https://freesound.org/people/Diim_1/sounds/849186/) | Diim_1 | CC0 |

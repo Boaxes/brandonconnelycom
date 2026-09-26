@@ -243,6 +243,30 @@ export class Hunter extends Agent implements Behavior {
     if (this.state === 'breathe') this.contain(0.5, WORLD.surfaceY + 1);
     else this.contain(0.5, WORLD.surfaceY - 0.6);
     this.integrate(dt);
+    if (!cfg.airBreather) this.keepSwimming();
+  }
+
+  /**
+   * Sharks can't stop: they need water moving over their gills. Keep a minimum forward speed along the
+   * level, and never let them climb or dive steeper than about 25° (rising over a rock is a slope, not
+   * a hover nose-up).
+   */
+  private keepSwimming() {
+    const min = this.opts.cruise * 0.75;
+    let hs = Math.hypot(this.vel.x, this.vel.z);
+    if (hs < min) {
+      _a.set(this.forward.x, 0, this.forward.z);
+      if (_a.lengthSq() < 1e-4) _a.set(Math.cos(this.phase), 0, Math.sin(this.phase));
+      _a.normalize();
+      if (hs > 1e-3) _a.lerp(_b.set(this.vel.x / hs, 0, this.vel.z / hs), 0.5).normalize();
+      this.vel.x = _a.x * min;
+      this.vel.z = _a.z * min;
+      hs = min;
+    }
+    const maxVy = hs * 0.47;
+    this.vel.y = THREE.MathUtils.clamp(this.vel.y, -maxVy, maxVy);
+    this.forward.y = THREE.MathUtils.clamp(this.forward.y, -0.42, 0.42);
+    this.forward.normalize();
   }
 }
 

@@ -3,7 +3,7 @@
  *   - background: the water, a seamless loop that runs the whole time
  *   - effects: everything that happens — the book, pages, the zoom, logging a species, animal calls
  * Each sound is a recording from /sounds/<name>.mp3 (listed in /sounds/manifest.json; CC0 from
- * Freesound, and one CC BY-NC orca recording, see the credits), with a small synthesised stand-in used
+ * Freesound, see the credits), with a small synthesised stand-in used
  * only if a file fails to load. Browsers keep audio locked until the first click or key press anywhere;
  * `unlock()` is wired to that.
  */

@@ -43,6 +43,10 @@ export class CameraRig {
   readonly baseFov: number;
   zoom = 1;
   zoomTarget = 1;
+  /** the opening shot: close on the book; released once, it pulls back to the diver's spot */
+  private intro: { pos: THREE.Vector3; quat: THREE.Quaternion } | null = null;
+  private introOut = -1; // < 0: holding the opening shot; 0..1: pulling back
+  onIntroDone: (() => void) | null = null;
   private off = new THREE.Vector2();       // zoom swing (yaw right +, pitch up +), radians
   private offTarget = new THREE.Vector2();
 
@@ -87,9 +91,25 @@ export class CameraRig {
   get heading() { return HEADINGS[((this.yawStep % 8) + 8) % 8]; }
   get pitchLabel() { return this.pitchStep === 0 ? 'level' : `${this.pitchStep > 0 ? 'up' : 'down'} ${Math.abs(this.pitchStep) * 30}°`; }
 
+  /** Hold the camera at `pos` looking at `look` until `releaseIntro()`. */
+  startIntro(pos: THREE.Vector3, look: THREE.Vector3) {
+    const m = new THREE.Matrix4().lookAt(pos, look, new THREE.Vector3(0, 1, 0));
+    this.intro = { pos: pos.clone(), quat: new THREE.Quaternion().setFromRotationMatrix(m) };
+    this.introOut = -1;
+  }
+
+  /** One slow, scripted pull-back from the opening shot to the diver's spot. */
+  releaseIntro() {
+    if (this.intro && this.introOut < 0) this.introOut = 0;
+  }
+
+  get inIntro() { return !!this.intro; }
+
   /** Turn by whole steps. */
   step(dYaw: number, dPitch: number) {
     if (!this.enabled) return;
+    // still in the opening shot: the first turn pulls back instead
+    if (this.intro) { this.releaseIntro(); return; }
     this.setZoom(1);
     const p = THREE.MathUtils.clamp(this.pitchStep + dPitch, PITCH_MIN, PITCH_MAX);
     if (dYaw === 0 && p === this.pitchStep) return;
@@ -135,6 +155,20 @@ export class CameraRig {
     const lift = Math.sin(this.breath * Math.PI * 2) * 0.04 + noise2(t * 0.05, 3.1) * 0.05;
     this.camera.position.set(s.cam.x + noise2(t * 0.04, 8.3) * 0.05, s.cam.y + lift, s.cam.z + noise2(t * 0.04, 2.9) * 0.05);
     this.camera.quaternion.copy(this.base);
+    if (this.intro) {
+      let k = 1;
+      if (this.introOut >= 0) {
+        this.introOut = Math.min(1, this.introOut + dt / 3.6);
+        const e = this.introOut;
+        k = 1 - (e < 0.5 ? 4 * e * e * e : 1 - (-2 * e + 2) ** 3 / 2);
+      }
+      this.camera.position.lerp(this.intro.pos, k);
+      this.camera.quaternion.slerp(this.intro.quat, k);
+      if (this.introOut >= 1) {
+        this.intro = null;
+        this.onIntroDone?.();
+      }
+    }
     // handheld: low-frequency yaw / pitch / roll drift
     // (steadier when zoomed in, the way you'd brace to look closely)
     const hh = 1 / Math.sqrt(this.zoom);

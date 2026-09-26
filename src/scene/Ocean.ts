@@ -225,7 +225,8 @@ export class Ocean {
   private frame = 0;
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+    // antialias applies to the default framebuffer only: the held book, drawn there after the post
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -273,15 +274,45 @@ export class Ocean {
     this.lens = new ShaderPass(LensShader);
     this.composer.addPass(this.lens);
 
+    // the overlay: whatever is held up to the eye (the book), drawn after the water effects
+    this.overlayCam.position.set(0, 0, 0);
+    this.overlay.add(new THREE.HemisphereLight(0xfff6e6, 0x6a6058, 2.4));
+    const key = new THREE.DirectionalLight(0xfff1dc, 2.2);
+    key.position.set(-0.6, 0.8, 1.2);
+    this.overlay.add(key);
+    // a veil over the water while reading, so the page stands off it
+    this.veil = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.ShaderMaterial({
+        transparent: true, depthTest: false, depthWrite: false, toneMapped: false,
+        uniforms: { uAmount: { value: 0 } },
+        vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+        fragmentShader: 'uniform float uAmount; varying vec2 vUv; void main() { float r = length(vUv - 0.5); gl_FragColor = vec4(0.01, 0.03, 0.03, uAmount * (0.75 + r * 0.5)); }',
+      }),
+    );
+    this.veil.frustumCulled = false;
+    this.veilScene.add(this.veil);
+
     window.addEventListener('resize', () => this.resize());
     this.resize();
   }
+
+  /** Scene and camera for things held up to the eye. Narrow field of view: nearly flat, like a document. */
+  readonly overlay = new THREE.Scene();
+  readonly overlayCam = new THREE.PerspectiveCamera(22, window.innerWidth / window.innerHeight, 0.05, 30);
+  private veil!: THREE.Mesh;
+  /** the veil is drawn in its own pass first (transparent things would otherwise draw over the book) */
+  private veilScene = new THREE.Scene();
+  /** 0..1: how much the water is dimmed behind the overlay */
+  veilAmount = 0;
 
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.overlayCam.aspect = w / h;
+    this.overlayCam.updateProjectionMatrix();
     this.renderer.setSize(w, h);
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
@@ -313,6 +344,9 @@ export class Ocean {
     }
   }
 
+  /** dims the torch (close up on the book in the opening shot it would blow everything out) */
+  torchScale = 1;
+
   /** 0 = black (the dive starts in darkness), 1 = full light. Eased by the intro. */
   fade = 0;
 
@@ -320,7 +354,7 @@ export class Ocean {
     shared.time.value = time;
     const f = this.fade * this.fade;
     this.renderer.toneMappingExposure = 1.4 * f;
-    this.torch.intensity = TORCH.intensity * THREE.MathUtils.smoothstep(this.fade, 0.25, 0.6);
+    this.torch.intensity = TORCH.intensity * THREE.MathUtils.smoothstep(this.fade, 0.25, 0.6) * this.torchScale;
     (this.particles.material as THREE.ShaderMaterial).uniforms.uCamPos.value.copy(this.camera.position);
     const u = this.water.uniforms;
     u.uNear.value = this.camera.near;
@@ -332,5 +366,18 @@ export class Ocean {
     this.lens.uniforms.uTime.value = time;
     this.adapt(dt);
     this.composer.render();
+    // the overlay on top, straight to the screen: sharp, no fog, no depth of field, no lens effects
+    const veil = this.veil.material as THREE.ShaderMaterial;
+    veil.uniforms.uAmount.value = this.veilAmount * 0.38;
+    if (this.overlay.children.length > 2) {
+      const r = this.renderer;
+      r.setRenderTarget(null);
+      r.autoClear = false;
+      r.toneMappingExposure = 1.35;
+      if (this.veilAmount > 0.002) r.render(this.veilScene, this.overlayCam);
+      r.clearDepth();
+      r.render(this.overlay, this.overlayCam);
+      r.autoClear = true;
+    }
   }
 }
