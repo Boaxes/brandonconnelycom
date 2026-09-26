@@ -69,7 +69,10 @@ export class Book3D {
   private anim = 1;           // pose transition 0..1
   private from = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
   private rest = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
-  private tex = new Map<Page, { t: THREE.CanvasTexture; v: number }>();
+  /** each page's texture, and the page versions it holds (all of it, and the parts drawn in full) */
+  private tex = new Map<Page, { t: THREE.CanvasTexture; v: number; full: number }>();
+  /** where a page's moving parts are copied out to on their way to the GPU (one canvas per size) */
+  private patches = new Map<string, CanvasRenderingContext2D>();
   private endTex: THREE.CanvasTexture;
   private clock = 0;
   private liveDt = 0;
@@ -266,23 +269,62 @@ export class Book3D {
       const t = new THREE.CanvasTexture(page.canvas);
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 8;
-      e = { t, v: page.version };
+      e = { t, v: page.version, full: page.fullVersion };
       this.tex.set(page, e);
-    } else if (e.v !== page.version) {
-      e.t.needsUpdate = true;
-      e.v = page.version;
-    }
+    } else this.upload(page, e);
     return e.t;
   }
 
-  /** Re-upload any pages whose canvases were redrawn (e.g. a species was just logged). */
+  /** Re-upload any pages whose canvases were redrawn (their moving parts, or a picture arriving). */
   refresh() {
-    for (const [page, e] of this.tex) {
-      if (e.v !== page.version) {
-        e.t.needsUpdate = true;
-        e.v = page.version;
+    for (const [page, e] of this.tex) this.upload(page, e);
+  }
+
+  /** The renderer, so an animating page can send just its moving parts to the GPU instead of the whole page. */
+  renderer: THREE.WebGLRenderer | null = null;
+
+  private upload(page: Page, e: { t: THREE.CanvasTexture; v: number; full: number }) {
+    if (e.v === page.version) return;
+    if (e.full !== page.fullVersion || !this.patch(page, e.t)) e.t.needsUpdate = true;
+    e.v = page.version;
+    e.full = page.fullVersion;
+  }
+
+  /**
+   * Copy just the page's moving parts into its texture (a 1024×1434 page 30 times a second, twice over for
+   * a spread, was most of what the GPU did for the book). Only once the whole page is on the GPU and no
+   * full upload is waiting; false if it can't, and the whole page goes as before.
+   */
+  private patch(page: Page, t: THREE.CanvasTexture) {
+    const r = this.renderer;
+    if (!r || !page.liveRects.length) return false;
+    const props = r.properties.get(t) as { __webglTexture?: WebGLTexture; __version?: number };
+    if (!props.__webglTexture || props.__version !== t.version) return false;
+    const gl = r.getContext() as WebGL2RenderingContext;
+    const st = r.state;
+    st.bindTexture(gl.TEXTURE_2D, props.__webglTexture, gl.TEXTURE0);
+    // as three uploads it: flipped, straight alpha, no colour conversion (sRGB has the working space's primaries)
+    st.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, t.flipY);
+    st.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, t.premultiplyAlpha);
+    st.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    st.pixelStorei(gl.UNPACK_ALIGNMENT, t.unpackAlignment);
+    for (const rc of page.liveRects) {
+      const key = rc.w + 'x' + rc.h;
+      let g = this.patches.get(key);
+      if (!g) {
+        const c = document.createElement('canvas');
+        c.width = rc.w;
+        c.height = rc.h;
+        g = c.getContext('2d')!;
+        g.globalCompositeOperation = 'copy';
+        this.patches.set(key, g);
       }
+      g.drawImage(page.canvas, rc.x, rc.y, rc.w, rc.h, 0, 0, rc.w, rc.h);
+      // (the texture is flipped: its rows count up from the bottom of the page)
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, rc.x, t.flipY ? PAGE_H - rc.y - rc.h : rc.y, gl.RGBA, gl.UNSIGNED_BYTE, g.canvas);
     }
+    gl.generateMipmap(gl.TEXTURE_2D);
+    return true;
   }
 
   setPages(pages: Page[]) {

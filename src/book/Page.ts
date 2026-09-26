@@ -17,6 +17,15 @@ export interface Hit {
   page?: number;
 }
 
+export interface Rect { x: number; y: number; w: number; h: number }
+
+/** The smallest whole-pixel rect on the page holding (x, y, w, h). */
+export function pixelRect(x: number, y: number, w: number, h: number): Rect {
+  const x0 = Math.max(0, Math.floor(x)), y0 = Math.max(0, Math.floor(y));
+  const x1 = Math.min(PAGE_W, Math.ceil(x + w)), y1 = Math.min(PAGE_H, Math.ceil(y + h));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 export interface PageStyle {
   paper: string;
   ink: string;
@@ -53,6 +62,16 @@ export class Page {
   readonly bottom = PAGE_H - 120;
   /** set when the page content changes, so the texture re-uploads */
   version = 0;
+  /**
+   * set when anything other than the moving parts changes: until it does, only `liveRects` need
+   * re-uploading when the page animates
+   */
+  fullVersion = 0;
+  /**
+   * Where the moving parts draw (page px, whole pixels). Each tick puts the still page back and redraws
+   * only inside these, and only these go to the GPU; empty means the whole page.
+   */
+  liveRects: Rect[] = [];
   /** Hand-composed pages: draws the whole page (again whenever one of its pictures arrives). */
   compose: ((p: Page) => void) | null = null;
   /** Moving parts, drawn over the composed page every frame while it's in view. */
@@ -117,6 +136,7 @@ export class Page {
       g.textAlign = 'left';
     }
     this.version++;
+    this.fullVersion++;
   }
 
   /** Redraw a composed page from scratch (its moving parts go back on top at the next tick). */
@@ -125,6 +145,7 @@ export class Page {
     this.compose?.(this);
     this.base = null;
     this.version++;
+    this.fullVersion++;
   }
 
   /** Draw the moving parts for time `t`: the still page is kept aside and put back under them each time. */
@@ -136,8 +157,22 @@ export class Page {
       this.base.height = PAGE_H;
       this.base.getContext('2d')!.drawImage(this.canvas, 0, 0);
     }
-    this.g.drawImage(this.base, 0, 0);
-    this.live(this.g, t);
+    const g = this.g;
+    const rects = this.liveRects;
+    if (!rects.length) {
+      g.drawImage(this.base, 0, 0);
+      this.live(g, t);
+    } else {
+      g.save();
+      g.beginPath();
+      for (const r of rects) {
+        g.drawImage(this.base, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
+        g.rect(r.x, r.y, r.w, r.h);
+      }
+      g.clip();
+      this.live(g, t);
+      g.restore();
+    }
     this.version++;
   }
 
@@ -171,6 +206,7 @@ export class Page {
     g.fillText(str, x, this.y + lineH * 0.72);
     this.y += lineH;
     this.version++;
+    this.fullVersion++;
   }
 
   hit(x: number, y: number, w: number, h: number, target: { href?: string; page?: number }) {

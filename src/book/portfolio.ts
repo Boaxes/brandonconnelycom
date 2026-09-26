@@ -1,6 +1,6 @@
 import { content } from '../content';
 import { CC0_NOTE, CREDITS } from '../credits';
-import { flow, Page, PAGE_W, TYPE, type Block, type PageStyle } from './Page';
+import { flow, Page, PAGE_W, pixelRect, TYPE, type Block, type PageStyle } from './Page';
 import { INK, INK2, INK3, RED, Print, caption, label, para, penLine, serifFont, tape, typeFont, type G } from './ink';
 import { picture, clip, type Picture, type Clip } from './media';
 import { aboutSketch, cascadiaPipeline, tourismModel } from './diagrams';
@@ -129,6 +129,8 @@ function aboutPage(n: number) {
       y = para(g, pt.text, L + 46, y + 50, W - 46, { size: 30, lh: 46 }) + 36;
     });
     sketchY = y + 20;
+    const a = sketch.area;
+    p.liveRects = [pixelRect(a.x, a.y + sketchY, a.w, a.h)];
     g.save();
     g.translate(0, sketchY);
     sketch.still(g);
@@ -153,6 +155,7 @@ function cascadiaLeft(n: number) {
     y = meta(g, `${c.role} · ${c.when}`, y);
     y = para(g, c.intro, L, y + 8, W, { size: 27, lh: 39 }) + 22;
     diagram = cascadiaPipeline(L, y, W);
+    p.liveRects = [pixelRect(diagram.area.x, diagram.area.y, diagram.area.w, diagram.area.h)];
     diagram.still(g);
     y += diagram.height + 26;
     c.notes.forEach((t) => { y = note(g, t, y, undefined, 24); });
@@ -249,15 +252,21 @@ function tourismPage(n: number) {
     y = para(g, c.text, L, y + 6, W, { size: 26, lh: 37 }) + 12;
     y = para(g, c.result, L, y, W, { size: 26, lh: 37, italic: true, color: INK2 }) + 26;
     diagram = tourismModel(L, y, W);
+    p.liveRects = [pixelRect(diagram.area.x, diagram.area.y, diagram.area.w, diagram.area.h)];
     diagram.still(g);
     y += diagram.height + 14;
     link(p, short(c.repo) + ' →', { href: c.repo }, L, y, 22);
   }, (g, t) => diagram?.live(g, t));
 }
 
+/** how far past a print's picture its tape can reach (px) */
+const TAPE_REACH = 76;
+
 /** A print that shows a looping video: paper and tape are part of the page, the picture moves. */
 function videoPrint(pr: Print, v: Clip, trim = 0) {
   return {
+    /** where `live` draws: the picture and the tape over its corners */
+    get area() { const b = pr.bounds(TAPE_REACH); return pixelRect(b.x, b.y, b.w, b.h); },
     still(g: G) { pr.back(g); },
     live(g: G) {
       if (v.ready) pr.picture(g, v.video, v.video.videoWidth, v.video.videoHeight, trim);
@@ -283,6 +292,7 @@ function teguPage(n: number) {
     prints[0].y = y;
     prints[1].y = y + 26;
     vids.forEach((v) => v.still(g));
+    p.liveRects = vids.map((v) => v.area);
     caption(g, 'seed 1 · 100 steps', prints[0].below.x, prints[0].below.y, 22, INK);
     caption(g, 'seed 2 · 100 steps', prints[1].below.x, prints[1].below.y, 22, INK);
     y = prints[1].below.y + 22;
@@ -309,6 +319,7 @@ function reptilePage(n: number) {
     y = meta(g, `${c.stack} · team of three`, y);
     pr.y = y + 30;
     vid.still(g);
+    p.liveRects = [vid.area];
     caption(g, 'Reptibot: a care question, then a data one with its SQL', pr.below.x, pr.below.y - 4, 21);
     y = pr.below.y + 30;
     y = para(g, c.text, L, y, W, { size: 26, lh: 37 }) + 10;
@@ -345,6 +356,7 @@ function numericalPage(n: number, pair: Experiment[], first: boolean) {
   p.compose = (p) => {
     const g = p.g;
     header(g, 'Projects');
+    p.liveRects = items.filter((it) => it.film).map(({ pr }) => { const b = pr.bounds(TAPE_REACH); return pixelRect(b.x, b.y, b.w, b.h); });
     if (first) {
       const y = title(g, 'Numerical Experiments', 118);
       para(g, content.numericalIntro, L, y + 4, W, { size: 27, lh: 39, italic: true, color: INK2 });

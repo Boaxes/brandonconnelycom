@@ -44,6 +44,8 @@ export function aboutSketch(x: number, y: number, w: number) {
   const boxes: Box[] = names.map(([t, s], i) => ({ x: x + i * (bw + gap), y, w: bw, h: bh, title: t, sub: s }));
   const paths: Pt[][] = boxes.slice(0, 3).map((b) => [[b.x + b.w + 6, b.y + bh / 2], [b.x + b.w + gap - 6, b.y + bh / 2]]);
   return {
+    /** where `live` draws */
+    area: { x: x - 12, y: y - 12, w: w + 24, h: bh + 24 },
     still(g: G) {
       boxes.forEach((b, i) => card(g, b, 400 + i * 11, { titleSize: 25, subSize: 18 }));
       paths.forEach((p, i) => penArrow(g, p, 470 + i * 5, { width: 1.8 }));
@@ -103,6 +105,8 @@ export function cascadiaPipeline(x: number, y: number, w: number) {
 
   return {
     height: 490,
+    /** where `live` draws */
+    area: { x: x - 16, y: y - 12, w: w + 32, h: 490 + 24 },
     still(g: G) {
       penBox(g, vm.x, vm.y, vm.w, vm.h, 0, { dash: true });
       label(g, 'DIGITALOCEAN SERVER', vm.x + 14, vm.y + 20, typeFont(19), INK3, vm.w - 20, 'left');
@@ -232,6 +236,8 @@ export function tourismModel(x: number, y: number, w: number) {
 
   return {
     height: 650,
+    /** where `live` draws (the loops back to the visitors run down the left margin) */
+    area: { x: m2 - 14, y: y - 12, w: x + w - m2 + 26, h: 650 + 24 },
     still(g: G) {
       card(g, visitors, 700);
       card(g, taxed, 703);

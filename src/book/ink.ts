@@ -210,6 +210,15 @@ export class Print {
     });
   }
 
+  /** The page area the print covers, as turned, `pad` px beyond the picture on every side (tape reaches ~70). */
+  bounds(pad: number) {
+    const c = Math.cos(this.angle), s = Math.sin(this.angle);
+    const hw = this.w / 2 + pad, hh = this.h / 2 + pad;
+    const ex = Math.abs(c) * hw + Math.abs(s) * hh, ey = Math.abs(s) * hw + Math.abs(c) * hh;
+    const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+    return { x: cx - ex, y: cy - ey, w: 2 * ex, h: 2 * ey };
+  }
+
   /** Where the caption goes: just under the print, a little in from its left edge. */
   get below() { return { x: this.x + 4, y: this.y + this.h + this.border + 36 }; }
 }

@@ -81,6 +81,7 @@ async function boot() {
   }, layout.pages);
   ocean.scene.add(portfolio.root);
   portfolio.onSound = (s) => sound.play(s);
+  portfolio.renderer = ocean.renderer;
   // held in the diver's hands, sized to the unzoomed view
   portfolio.holder = rig.hands;
   portfolio.fitFov = rig.baseFov;
