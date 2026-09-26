@@ -419,6 +419,29 @@ export class Ocean {
   /** dims the torch (close up on the book in the opening shot it would blow everything out) */
   torchScale = 1;
 
+  /**
+   * Draw everything once, in view or not, hidden or not, so that the first sight of anything later doesn't
+   * stall a frame: a scan's textures go to the GPU and its shaders are built (on Metal the GPU pipeline is
+   * only made at the first real draw) the first time it's drawn, and most of the scenery is out of view
+   * until the diver turns round. Called under the loader, while the screen is black.
+   */
+  warmUp() {
+    const saved: [THREE.Object3D, boolean, boolean, number][] = [];
+    this.scene.traverse((o) => {
+      const m = o as THREE.InstancedMesh;
+      saved.push([o, o.visible, o.frustumCulled, m.isInstancedMesh ? m.count : -1]);
+      o.visible = true;
+      o.frustumCulled = false;
+      if (m.isInstancedMesh && m.count === 0) m.count = 1;
+    });
+    this.render(0, 0);
+    for (const [o, visible, culled, count] of saved) {
+      o.visible = visible;
+      o.frustumCulled = culled;
+      if (count >= 0) (o as THREE.InstancedMesh).count = count;
+    }
+  }
+
   render(time: number, dt: number) {
     shared.time.value = time;
     const f = this.fade * this.fade;

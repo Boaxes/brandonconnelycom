@@ -173,8 +173,10 @@ export class Book3D {
     for (const g of [this.leafGeoF, this.leafGeoB]) {
       g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 3).fill(1), 3));
     }
-    this.leafFront = new THREE.Mesh(this.leafGeoF, new THREE.MeshBasicMaterial({ side: THREE.FrontSide, color: 0xebe4d2, vertexColors: true }));
-    this.leafBack = new THREE.Mesh(this.leafGeoB, new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: 0xebe4d2, vertexColors: true }));
+    // (a texture from the start, though they get a page's at each turn, so the shaders built for them before
+    // the first turn are the ones it uses)
+    this.leafFront = new THREE.Mesh(this.leafGeoF, new THREE.MeshBasicMaterial({ side: THREE.FrontSide, color: 0xebe4d2, vertexColors: true, map: this.endTex }));
+    this.leafBack = new THREE.Mesh(this.leafGeoB, new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: 0xebe4d2, vertexColors: true, map: this.endTex }));
     this.leafPivot.add(this.leafFront, this.leafBack);
     this.leafPivot.visible = false;
     this.root.add(this.leafPivot);
@@ -635,6 +637,25 @@ export class Book3D {
       }
     }
     this.tickPages(dt);
+    this.prefetch();
+  }
+
+  /**
+   * While a spread is open and nothing is turning, put the neighbouring spreads' pages on the GPU, one a
+   * frame, so a turn doesn't wait on uploading them.
+   */
+  private prefetch() {
+    const r = this.renderer;
+    if (!r || !this.reading || this.flip) return;
+    for (const s of [this.spread + 1, this.spread - 1]) {
+      if (s < 0 || s > this.maxSpread()) continue;
+      for (const i of [2 * s - 1, 2 * s]) {
+        const page = this.pageAt(i);
+        if (!page || this.tex.has(page)) continue;
+        r.initTexture(this.texFor(i));
+        return;
+      }
+    }
   }
 
   /** Animated pages move only while they can be seen: the open spread, and both sides of a turning leaf. */

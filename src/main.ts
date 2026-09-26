@@ -291,7 +291,7 @@ async function boot() {
 
   // ---------------------------------------------------------------- the loop
   loaderProgress(1, 'ready');
-  ocean.render(0, 1 / 60); // warm up shaders before revealing
+  ocean.warmUp(); // shaders, GPU pipelines and textures for everything, before revealing
   // the visit starts on "View portfolio": that click also unlocks the sound, so the opening can start with it
   const begin = () => {
     if (diveT >= 0) return;
