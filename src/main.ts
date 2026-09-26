@@ -5,16 +5,22 @@ import { loadAll, loadLate } from './scene/Assets';
 import { World } from './sim/World';
 import { SPECIES } from './sim/Species';
 import { stage } from './scene/Terrain';
-import { aimTorch } from './scene/Environment';
+import { aimTorch, TORCH } from './scene/Environment';
 import { shared } from './scene/UnderwaterMaterial';
 import { sound } from './audio/Sound';
 import { Book3D } from './book/Book3D';
 import { portfolioPages } from './book/portfolio';
 import { FieldLog } from './ui/fieldlog';
 import { content } from './content';
-import { Hud, loaderDone, loaderProgress, showFallback } from './ui/hud';
+import { Hud, loaderDone, loaderProgress, loaderReady, showFallback } from './ui/hud';
 
-const INTRO = 5.5; // seconds for the light to come up
+/**
+ * The opening, in seconds from the "begin" click: out of silence a drone and the diver's breathing swell
+ * up in the black; the torch clicks on and sweeps onto the book; then daylight seeps down from above.
+ */
+const TORCH_ON = 2.8;
+const DAY_FROM = 3.6;
+const DAY_TO = 12;
 
 async function fontsReady() {
   const wait = Promise.all([
@@ -64,10 +70,12 @@ async function boot() {
     return t;
   };
   const leather = { map: tex('leather_diff.jpg', true), normal: tex('leather_nor_gl.jpg', false) };
+  const introEye = new THREE.Vector3();
+  const layout = portfolioPages();
   const portfolio = new Book3D({
     width: 0.2, height: 0.28, thickness: 0.03, cover: 0xc23a2c, foil: '#d9b76a', leather,
     title: [content.fullName, 'Portfolio', content.title], endpaper: '#6e2a22',
-  }, portfolioPages());
+  }, layout.pages);
   ocean.scene.add(portfolio.root);
   portfolio.onSound = (s) => sound.play(s);
   // held in the diver's hands, sized to the unzoomed view
@@ -81,9 +89,13 @@ async function boot() {
     portfolio.root.updateMatrixWorld();
     const c = portfolio.restCentre;
     const back = new THREE.Vector3().subVectors(s.cam, c).setY(0).normalize();
-    rig.startIntro(c.clone().addScaledVector(back, 0.36).add(new THREE.Vector3(0, 0.36, 0)), c.clone().add(new THREE.Vector3(0, 0.02, 0)));
+    // low enough to see over the rock behind the book, where the sea lion comes to stare
+    introEye.copy(c).addScaledVector(back, 0.5).add(new THREE.Vector3(0, 0.25, 0));
+    rig.startIntro(introEye, c.clone().add(new THREE.Vector3(0, 0.07, 0)));
   }
   const reading = () => (portfolio.reading ? portfolio : null);
+  /** the book is up in front of the eye (rising, held, or being raised) */
+  const bookUp = () => portfolio.state === 'lifting' || portfolio.state === 'held' || portfolio.state === 'raising';
 
   // ---------------------------------------------------------------- controls
   // scroll-to-zoom starts on; nothing (zoom, sound, the field log) is remembered between visits
@@ -120,7 +132,7 @@ async function boot() {
   const toggleBook = () => {
     sound.unlock();
     rig.setZoom(1);
-    if (portfolio.state === 'rest') portfolio.pickUp();
+    if (portfolio.state === 'rest') { field.close(); portfolio.pickUp(); }
     else if (portfolio.state === 'lowered' || portfolio.state === 'lowering') {
       field.close();
       leaveWatch();
@@ -132,10 +144,18 @@ async function boot() {
     if (field.isOpen) { field.close(); return; }
     rig.setZoom(1);
     leaveWatch();
+    // the book and the log are never open together
+    portfolio.lower();
     field.open();
     sound.play('open');
   };
   field.onClose = () => sound.play('close');
+  // quick jump: one fast turn straight to a section
+  hud.setSections(layout.sections, (page) => {
+    sound.unlock();
+    portfolio.resetZoom();
+    portfolio.showPage(page, true);
+  });
   rig.onChange = () => hud.setHeading(`${rig.heading} · ${rig.pitchLabel}`);
   // orcas or the whale overhead: nudge the up arrow unless the diver is already looking up
   world.director.onLookUp = () => { if (rig.pitchStep < 1) hud.nudge('up'); };
@@ -183,6 +203,8 @@ async function boot() {
       h.book.click(h.hit);
       return;
     }
+    // animals can't be logged while the book or the field log is in the way
+    if (bookUp() || field.isOpen) return;
     const a = world.pick(e.clientX, e.clientY);
     if (!a) return;
     const def = SPECIES[a.key];
@@ -209,6 +231,7 @@ async function boot() {
       case 'z': case 'Z': setZoomOn(!zoomOn); hud.setZoom(zoomOn); break;
       case 'Escape':
         if (field.isOpen) field.close();
+        else if (book && book.zoomLevel > 1.01) book.resetZoom();
         else if (rig.zoomTarget > 1) rig.setZoom(1);
         else book?.lower();
         break;
@@ -236,6 +259,13 @@ async function boot() {
     const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
     const nx = (e.clientX / window.innerWidth) * 2 - 1;
     const ny = -(e.clientY / window.innerHeight) * 2 + 1;
+    if (bookUp()) {
+      // reading: bring the book closer along the pointer's line (the view doesn't turn, the page stays square)
+      const z0 = portfolio.zoomLevel;
+      const z1 = portfolio.zoomAt(z0 * Math.exp(-dy * 0.0022), nx, ny, ocean.camera);
+      if (Math.abs(z1 - z0) > 1e-3) sound.zoom(z1, z1 > z0);
+      return;
+    }
     const from = rig.zoomTarget;
     const to = rig.setZoom(from * Math.exp(-dy * 0.0022), nx, ny);
     if (Math.abs(to - from) < 1e-3) return;
@@ -251,11 +281,18 @@ async function boot() {
   // ---------------------------------------------------------------- the loop
   loaderProgress(1, 'ready');
   ocean.render(0, 1 / 60); // warm up shaders before revealing
-  setTimeout(() => {
+  // the dive starts on "begin": that click also unlocks the sound, so the opening can start with it
+  let diveT = -1;
+  const begin = () => {
+    if (diveT >= 0) return;
+    sound.unlock();
+    void sound.ready.then(() => sound.opener());
+    diveT = 0;
     loaderDone();
     document.body.classList.add('ready');
     hud.setHeading(`${rig.heading} · ${rig.pitchLabel}`);
-  }, 250);
+  };
+  loaderReady(begin);
   // the big visitors aren't due for a while: fetch them behind the scenes
   loadLate().then(() => world.buildScriptedPools());
 
@@ -264,16 +301,46 @@ async function boot() {
   const look = new THREE.Vector3();
   let simT = 0;
   let lastBookState = '';
+  let torchLit = false;
+  let openerStarted = false;
   /** one tick of everything; the dev helpers below call it directly to fast-forward */
   const step = (dt: number, render = true) => {
+    if (diveT < 0) {
+      // waiting for "begin": black
+      ocean.fade = 0;
+      if (render) ocean.render(simT, dt);
+      return;
+    }
     simT += dt;
+    diveT += dt;
     const t = simT;
-    ocean.fade = Math.min(1, t / INTRO);
+    ocean.fade = Math.min(1, diveT / 0.3);
+    // the torch: off in the black, then a click and a couple of flickers, pointed off to one side so it
+    // sweeps across onto the book
+    if (!torchLit && diveT >= TORCH_ON) {
+      torchLit = true;
+      sound.torchClick();
+      TORCH.dir.set(0.55, 0.4, -1).normalize();
+    }
+    const tt = diveT - TORCH_ON;
+    ocean.torchOn = tt < 0 ? 0 : tt < 0.06 ? 1 : tt < 0.14 ? 0.15 : tt < 0.2 ? 0.9 : tt < 0.26 ? 0.35 : 1;
+    // daylight seeps down from above
+    const day = THREE.MathUtils.smoothstep(diveT, DAY_FROM, DAY_TO);
+    ocean.daylight = day * day * (0.6 + 0.4 * day);
+    if (!openerStarted && diveT >= TORCH_ON + 0.4) {
+      openerStarted = true;
+      world.director.opener(introEye);
+    }
     rig.update(dt, t);
     world.update(dt, t);
     portfolio.update(dt, ocean.camera);
-    // the opening shot ends when the book is picked up: the camera pulls back as it rises into the hands
-    if (rig.inIntro && portfolio.state !== 'rest') rig.releaseIntro();
+    // the opening shot ends when the book is picked up: the camera pulls back as it rises into the hands,
+    // and the sea lion that was watching bolts
+    if (rig.inIntro && portfolio.state !== 'rest') {
+      rig.releaseIntro();
+      world.director.openerBolt();
+    }
+    if (bookUp() && rig.zoomTarget > 1) rig.setZoom(1);
     const bookState = portfolio.state + portfolio.reading;
     if (bookState !== lastBookState) {
       lastBookState = bookState;
@@ -295,7 +362,9 @@ async function boot() {
         if (d > best) { best = d; aimAt.copy(p); }
       }
     }
-    aimTorch(ocean.torch, ocean.camera, hero ? hero.pos : null, aimAt, dt);
+    // on the opening shot the torch stays on the book, whatever else turns up
+    if (rig.inIntro && portfolio.state === 'rest') aimTorch(ocean.torch, ocean.camera, portfolio.restCentre, aimAt, dt);
+    else aimTorch(ocean.torch, ocean.camera, hero ? hero.pos : null, aimAt, dt);
     // focus: the page when reading; what was zoomed on; far off when looking up at the surface; else the torch's target
     const ft = book ? book.heldDistance(ocean.camera)
       : rig.inIntro && portfolio.state === 'rest' ? ocean.camera.position.distanceTo(portfolio.restCentre)
@@ -304,9 +373,20 @@ async function boot() {
     // close over the book the torch is turned down, then comes up as the camera pulls back
     const ts = rig.inIntro ? THREE.MathUtils.clamp(ocean.camera.position.distanceTo(portfolio.restCentre ?? aimAt) / 2.2, 0.28, 1) : 1;
     ocean.torchScale += (ts - ocean.torchScale) * Math.min(1, dt * 2);
-    // a book held up close would be all blur at the water's aperture: stop down while reading
-    const ap = book ? 0.02 : 0.22;
-    shared.aperture.value += (ap - shared.aperture.value) * Math.min(1, dt * 4);
+    // the book in the diver's hands is never blurred (from the first frame of the lift); the water behind
+    // it keeps its depth of field. The dome-port distortion eases off so lines of type stay straight.
+    const up = bookUp() || portfolio.state === 'lowering';
+    ocean.sharpNear = up ? ocean.camera.position.distanceTo(portfolio.root.position) + 0.4 : 0;
+    ocean.barrel += ((bookUp() ? 0 : 1) - ocean.barrel) * Math.min(1, dt * 6);
+    // the quick-jump card sits just off the book's left edge while it's open
+    if (portfolio.reading) {
+      const edge = portfolio.screenLeft(ocean.camera);
+      let active = 0;
+      // the section the left-hand page belongs to (a section starting on the right page is still ahead)
+      const leftPage = Math.max(0, 2 * portfolio.spread - 1);
+      layout.sections.forEach((sec, i) => { if (sec.page <= leftPage) active = i; });
+      hud.showJump(true, active, edge.x, edge.y);
+    } else hud.showJump(false);
     if (render) ocean.render(t, dt);
   };
   let last = performance.now();
@@ -326,6 +406,7 @@ async function boot() {
     // dev helpers: fast-forward the simulation (the rAF loop pauses in hidden tabs), and render one
     // frame and save it through the vite shot plugin
     const w = window as unknown as { advance: (s: number) => number; shot: (name: string) => Promise<string> };
+    (window as unknown as { begin: () => void }).begin = begin;
     w.advance = (seconds: number) => {
       for (let i = 0; i < Math.round(seconds * 30); i++) step(1 / 30, false);
       return simT;

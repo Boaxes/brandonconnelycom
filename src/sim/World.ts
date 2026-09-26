@@ -251,17 +251,21 @@ export class World implements Habitat {
 
     // ---- N: the book's rock. The big boulder, just in front of the camera and tall enough that the book
     // lies a little below the middle of the opening view, tipped toward the diver so its cover reads.
-    if (hasAsset('scan:rock_boulder')) {
-      const bb = this.bounds('rock_boulder');
-      const k = 1.25 / Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+    // The opening shot looks at it from half a metre, so it's a high-resolution scan (Poly Haven's
+    // boulder_01, scaled evenly), falling back to the boulder used elsewhere.
+    const heroKey = hasAsset('scan:hero_rock') ? 'hero_rock' : hasAsset('scan:rock_boulder') ? 'rock_boulder' : null;
+    if (heroKey) {
+      const bb = this.bounds(heroKey);
       const at = stageFloor(2 * D, 1.8);
       const topY = s.cam.y - 0.16;
       const sy = (topY - at.y + 0.12) / (bb.max.y - bb.min.y);
-      const pl: Place = { p: at.clone(), q: q(-0.2), s: new THREE.Vector3(k, sy, k * 0.9) };
+      const k = heroKey === 'hero_rock' ? sy : 1.25 / Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+      // long side across the line of sight
+      const pl: Place = { p: at.clone(), q: q(heroKey === 'hero_rock' ? across(2 * D) + Math.PI / 2 : -0.2), s: new THREE.Vector3(k, sy, k * 0.9) };
       pl.p.y = topY - bb.max.y * sy;
-      const proxies = this.scanInstances('rock_boulder', [pl], 0.92, 0x8e8c84);
+      const proxies = this.scanInstances(heroKey, [pl], 0.9, heroKey === 'hero_rock' ? 0x8f968c : 0x8e8c84);
       this.surfaces.push(...proxies);
-      this.obstacle('rock_boulder', pl);
+      this.obstacle(heroKey, pl);
       // rest it on the rock just in front of the summit, cover tilted toward the camera
       const toCam = new THREE.Vector3().subVectors(s.cam, at).setY(0).normalize();
       const c = at.clone().addScaledVector(toCam, 0.08);
@@ -680,7 +684,7 @@ export class World implements Habitat {
       // swimmers out of rocks and props (crawlers already steer round them). Swimmers normally rise over
       // them on their own (the height map counts as floor); anything that still ends up inside slides
       // out sideways a little each frame and stops pushing inward, rather than jumping to the top.
-      if (!(a instanceof Crab) && !(a instanceof Scripted && a.crawl)) {
+      if (!(a instanceof Crab) && !(a instanceof Scripted && (a.crawl || a.settling))) {
         if (escapeDir(a.pos, ra * 0.5, _v)) {
           if (_v.y > 0.5) a.pos.y += 0.01;
           else {

@@ -20,4 +20,4 @@ export const CREDITS: { title: string; author: string; license: string; url: str
 ];
 
 /** CC0 sources, credited as a courtesy. */
-export const CC0_NOTE = 'Most animals are CC0 photogrammetry by ffishAsia & floraZia on Sketchfab. Sand, gravel, rock and leather textures are CC0 from Poly Haven. Sounds are CC0 recordings from Freesound (listed in public/sounds/CREDITS.md).';
+export const CC0_NOTE = 'Most animals are CC0 photogrammetry by ffishAsia & floraZia on Sketchfab. Sand, gravel, rock and leather textures, and the rock the book rests on (Boulder 01), are CC0 from Poly Haven. Sounds are CC0 recordings from Freesound (listed in public/sounds/CREDITS.md).';

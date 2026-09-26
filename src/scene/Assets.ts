@@ -30,6 +30,8 @@ export const SCANS: Record<string, { swim: SwimRule; core?: number }> = {
   orca: { swim: 'body' },
   humpback: { swim: 'body' },
   rock_boulder: { swim: 'static' },
+  // the book's rock, seen from half a metre in the opening: a CC0 Poly Haven scan with 2K maps
+  hero_rock: { swim: 'static' },
   driftwood: { swim: 'static' },
   wreck: { swim: 'static' },
   anchor: { swim: 'static' },

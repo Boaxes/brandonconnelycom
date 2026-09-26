@@ -9,7 +9,9 @@ import { sound } from '../audio/Sound';
  * Stages the visits. The first minute is scripted, because that's what a visitor actually sees:
  *   ~4 s   a rockfish drifts over to look at the camera
  *   ~10 s  a school of herring sweeps across
- *   ~20 s  a California sea lion comes out of the murk, hangs beside the book for a good look, circles, leaves
+ *   opening: a California sea lion circles through the half-light, settles behind the book's rock and
+ *          stares into the lens until the book is picked up, then darts off (see `opener`)
+ *   ~70 s  a sea lion comes out of the murk, hangs beside the book for a good look, circles, leaves
  *   ~38 s  orca calls, then the pod passes high overhead, dark shapes just under the surface
  * The octopus is an easter egg: it hides in a crevice between two boulders to the south from the start,
  * and now and then edges out a little and back.
@@ -30,7 +32,7 @@ export class Director {
     this.at(4, () => this.rockfishHello());
     this.at(0, () => this.octopusHide());
     this.at(10, () => this.schoolPass('herring', 1.8, 2.5));
-    this.at(20, () => this.sealionVisit());
+    this.at(70, () => this.sealionVisit());
     this.at(38, () => this.orcaPass(false));
   }
 
@@ -126,6 +128,46 @@ export class Director {
     this.hero = s;
     sound.call('sealion', 8);
     return true;
+  }
+
+  private openerBody: Scripted | null = null;
+
+  /**
+   * The opening hook: while the light comes up, a sea lion swims a slow loop past the camera, then settles
+   * behind the book's rock, head and shoulders over it, and stares into the lens (`eye`).
+   */
+  opener(eye: THREE.Vector3) {
+    const s = this.w.scripted('sealion');
+    if (!s) return;
+    const book = this.w.bookRest.pos;
+    const toCam = new THREE.Vector3().subVectors(stage().cam, book).setY(0).normalize();
+    const back = toCam.clone().negate();
+    const right = new THREE.Vector3(0, 1, 0).cross(toCam).normalize();
+    const at = (r: number, b: number, up: number) => book.clone().addScaledVector(right, r).addScaledVector(back, b).add(new THREE.Vector3(0, up, 0));
+    s.start(at(4.2, 2.6, 0.6), [
+      { to: at(1.2, 1.0, 0.5), speed: 1.5, doing: 'circling in the half-light' },
+      { to: at(-1.1, 1.2, 0.4), speed: 1.4, doing: 'circling in the half-light' },
+      { to: at(-1.5, 2.0, 0.25), speed: 1.3, doing: 'curving round behind the rock' },
+      { to: at(0.1, 1.3, -0.14), speed: 1.0, hold: 1e9, face: eye, doing: 'staring at you over the rock', radius: 0.25, settle: true },
+    ]);
+    this.openerBody = s;
+  }
+
+  /** The book's been picked up: the sea lion startles and darts off. */
+  openerBolt() {
+    const s = this.openerBody;
+    this.openerBody = null;
+    if (!s || !s.alive) return;
+    const book = this.w.bookRest.pos;
+    const toCam = new THREE.Vector3().subVectors(stage().cam, book).setY(0).normalize();
+    const away = toCam.clone().negate();
+    const side = new THREE.Vector3(0, 1, 0).cross(toCam).normalize().multiplyScalar(Math.random() < 0.5 ? 1 : -1);
+    s.setLegs([
+      { to: book.clone().addScaledVector(away, 2.5).addScaledVector(side, 2.5).add(new THREE.Vector3(0, 1.2, 0)), speed: 4.5, doing: 'bolting' },
+      { to: book.clone().addScaledVector(away, 16).addScaledVector(side, 8).add(new THREE.Vector3(0, 3, 0)), speed: 4, doing: 'gone' },
+    ]);
+    s.vel.addScaledVector(away, 2).add(new THREE.Vector3(0, 1.5, 0));
+    sound.sealionDart();
   }
 
   /**

@@ -31,6 +31,7 @@ const WaterPostShader = {
     uTorchCos: { value: new THREE.Vector2(Math.cos(TORCH.angle), Math.cos(TORCH.angle * (1 - TORCH.penumbra))) },
     uTorchColor: { value: TORCH.color },
     uBeam: { value: 0.09 },
+    uSharpNear: { value: 0 },
     uShafts: { value: 0.26 },
     uFrame: { value: 0 },
     ...waterUniforms(),
@@ -53,6 +54,7 @@ const WaterPostShader = {
     uniform float uTime;
     uniform float uFocus;
     uniform float uAperture;
+    uniform float uSharpNear;
     uniform vec3 uTorchPos;
     uniform vec3 uTorchDir;
     uniform vec2 uTorchCos;
@@ -74,6 +76,8 @@ const WaterPostShader = {
       return z >= 0.99999 ? uFar : -perspectiveDepthToViewZ(z, uNear, uFar);
     }
     float cocPx(float d) {
+      // whatever the diver holds up to read is always sharp
+      if (d < uSharpNear) return 0.0;
       return min(uAperture * abs(1.0 / uFocus - 1.0 / max(d, 0.05)) * 60.0 * uPxScale, 6.0 * uPxScale);
     }
     float hash13(vec3 p) {
@@ -155,6 +159,7 @@ const LensShader = {
     tDiffuse: { value: null as THREE.Texture | null },
     uTime: { value: 0 },
     uResolution: { value: new THREE.Vector2(1, 1) },
+    uBarrel: { value: 1 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -164,6 +169,7 @@ const LensShader = {
     uniform sampler2D tDiffuse;
     uniform float uTime;
     uniform vec2 uResolution;
+    uniform float uBarrel;
     varying vec2 vUv;
     vec2 barrel(vec2 uv, float k) {
       vec2 c = uv - 0.5;
@@ -176,11 +182,13 @@ const LensShader = {
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
       // slight barrel distortion (dome port) with a touch of lateral colour at the edges
-      float k = -0.035;
+      // (eased off while reading, so lines of type stay straight)
+      float k = -0.035 * uBarrel;
       vec3 c;
-      c.r = texture2D(tDiffuse, barrel(vUv, k * 1.012)).r;
+      float ca = 1.0 + 0.012 * uBarrel;
+      c.r = texture2D(tDiffuse, barrel(vUv, k * ca)).r;
       c.g = texture2D(tDiffuse, barrel(vUv, k)).g;
-      c.b = texture2D(tDiffuse, barrel(vUv, k * 0.988)).b;
+      c.b = texture2D(tDiffuse, barrel(vUv, k * (2.0 - ca))).b;
       // vignette
       vec2 d = vUv - 0.5;
       d.x *= uResolution.x / uResolution.y * 0.8;
@@ -247,7 +255,9 @@ export class Ocean {
     this.scene.add(buildSurface());
     this.particles = buildParticles();
     this.scene.add(this.particles);
-    for (const l of buildLights()) this.scene.add(l);
+    this.lights = buildLights() as THREE.Light[];
+    for (const l of this.lights) this.scene.add(l);
+    this.lightBase = this.lights.map((l) => l.intensity);
     this.torch = buildTorch();
     this.camera.add(this.torch);
     this.camera.add(this.torch.target);
@@ -316,6 +326,33 @@ export class Ocean {
   /** 0 = black (the dive starts in darkness), 1 = full light. Eased by the intro. */
   fade = 0;
 
+  /** depth (m) nearer than which nothing is blurred: set to the book while it's held up */
+  sharpNear = 0;
+  /** 0..1: how much of the dome-port lens distortion to apply (none while reading) */
+  barrel = 1;
+
+  /**
+   * 0..1: daylight reaching the bottom. At 0 the water is black and only the torch lights anything; it
+   * scales the ambient lights, the colour the water scatters, the caustics and the surface overhead.
+   */
+  daylight = 1;
+  /** 0..1: the torch switched on (the opening turns it on with a flicker) */
+  torchOn = 1;
+  private lights: THREE.Light[] = [];
+  private lightBase: number[] = [];
+  private waterBase = shared.waterColor.value.clone();
+  private deepBase = shared.deepColor.value.clone();
+  private causticBase = shared.causticStrength.value;
+
+  private applyDaylight() {
+    const d = this.daylight;
+    this.lights.forEach((l, i) => (l.intensity = this.lightBase[i] * d));
+    shared.waterColor.value.copy(this.waterBase).multiplyScalar(d);
+    shared.deepColor.value.copy(this.deepBase).multiplyScalar(d);
+    shared.causticStrength.value = this.causticBase * d;
+    shared.daylight.value = d;
+  }
+
   /** dims the torch (close up on the book in the opening shot it would blow everything out) */
   torchScale = 1;
 
@@ -323,7 +360,8 @@ export class Ocean {
     shared.time.value = time;
     const f = this.fade * this.fade;
     this.renderer.toneMappingExposure = 1.4 * f;
-    this.torch.intensity = TORCH.intensity * THREE.MathUtils.smoothstep(this.fade, 0.25, 0.6) * this.torchScale;
+    this.torch.intensity = TORCH.intensity * THREE.MathUtils.smoothstep(this.fade, 0.25, 0.6) * this.torchScale * this.torchOn;
+    this.applyDaylight();
     (this.particles.material as THREE.ShaderMaterial).uniforms.uCamPos.value.copy(this.camera.position);
     const u = this.water.uniforms;
     u.uNear.value = this.camera.near;
@@ -333,6 +371,8 @@ export class Ocean {
     u.uCamWorld.value.copy(this.camera.matrixWorld);
     u.uFrame.value = this.frame++ % 64;
     this.lens.uniforms.uTime.value = time;
+    this.lens.uniforms.uBarrel.value = this.barrel;
+    u.uSharpNear.value = this.sharpNear;
     this.adapt(dt);
     this.composer.render();
   }

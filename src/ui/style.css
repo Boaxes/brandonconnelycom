@@ -33,6 +33,13 @@ a { color: inherit; }
 .loader-title { font-family: var(--type); font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(239, 232, 214, 0.75); margin-bottom: 16px; }
 .loader-bar { height: 1px; background: rgba(239, 232, 214, 0.15); }
 .loader-fill { height: 100%; width: 0%; background: rgba(239, 232, 214, 0.7); transition: width 0.25s ease; }
+.begin {
+  font-family: var(--type); font-size: 14px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(239, 232, 214, 0.9);
+  background: transparent; border: 1px solid rgba(239, 232, 214, 0.35); border-radius: 999px; padding: 14px 28px; cursor: pointer;
+  transition: background 0.3s ease, border-color 0.3s ease; animation: beginIn 1.2s ease both;
+}
+.begin:hover, .begin:focus-visible { background: rgba(239, 232, 214, 0.08); border-color: rgba(239, 232, 214, 0.7); outline: none; }
+@keyframes beginIn { from { opacity: 0; transform: translateY(6px); } }
 .loader-sub { margin-top: 12px; font-family: var(--type); font-size: 11px; color: rgba(239, 232, 214, 0.45); letter-spacing: 0.08em; }
 
 /* ---------- controls: a small paper card in the corner, and the book button in the middle ---------- */
@@ -163,22 +170,23 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
 
 /* ---------- the field log: a sheet of ruled notebook paper down the middle of the screen ---------- */
 #fieldlog {
-  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(4, 12, 10, 0.35);
+  position: fixed; inset: 0; z-index: 30; display: flex; justify-content: center; background: rgba(4, 12, 10, 0.35);
   opacity: 0; transition: opacity 0.3s ease;
 }
 #fieldlog.on { opacity: 1; }
 #fieldlog .sheet {
   --rule: rgba(60, 50, 30, 0.14);
   --margin: rgba(178, 60, 50, 0.42);
-  position: relative; width: min(760px, calc(100vw - 32px)); max-height: min(86vh, 900px); overflow-y: auto;
-  padding: 44px 56px 48px 96px; color: var(--ink); font-family: var(--serif);
+  /* a full-height column of notebook paper, the water showing either side */
+  position: relative; width: min(760px, 100vw); height: 100%; overflow-y: auto;
+  padding: 56px 56px 64px 96px; color: var(--ink); font-family: var(--serif);
   background:
     linear-gradient(90deg, transparent 0, transparent 70px, var(--margin) 70px, var(--margin) 71px, transparent 71px),
     repeating-linear-gradient(180deg, transparent 0, transparent 27px, var(--rule) 27px, var(--rule) 28px),
     var(--paper);
   background-attachment: local;
   box-shadow: 6px 0 0 #d9cfb6, -6px 0 0 #d9cfb6, 0 18px 50px rgba(0, 0, 0, 0.5);
-  transform: translateY(18px) rotate(-0.4deg); transition: transform 0.4s cubic-bezier(.2, .9, .3, 1);
+  transform: translateY(24px); transition: transform 0.4s cubic-bezier(.2, .9, .3, 1);
 }
 #fieldlog.on .sheet { transform: none; }
 #fieldlog .sheet::before {
@@ -187,7 +195,7 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
 }
 #fieldlog .body { position: relative; }
 #fieldlog .close {
-  position: absolute; top: 12px; right: 14px; z-index: 2; width: 34px; height: 34px; border: 0; background: transparent;
+  position: sticky; float: right; top: 0; margin: -40px -40px 0 0; z-index: 2; width: 34px; height: 34px; border: 0; background: transparent;
   font: 26px/1 var(--type); color: var(--ink-2); cursor: pointer; border-radius: 50%;
 }
 #fieldlog .close:hover { color: var(--ink); background: rgba(42, 38, 34, 0.06); }
@@ -197,13 +205,13 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
 #fieldlog p { margin: 0 0 14px; line-height: 28px; font-size: 15px; }
 #fieldlog p.dim { color: var(--ink-2); }
 #fieldlog p.latin { font-style: italic; color: var(--ink-2); margin-top: -8px; }
-#fieldlog .log { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 14px; margin-top: 8px; }
+#fieldlog .log { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 14px; margin-top: 16px; }
 #fieldlog .sp {
-  display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 4px; border: 0; background: transparent; text-align: left;
+  display: flex; align-items: center; gap: 8px; min-height: 84px; padding: 0 4px; border: 0; background: transparent; text-align: left;
   font-family: var(--type); font-size: 13px; color: var(--ink-3); line-height: 1.3; cursor: pointer; border-radius: 3px;
 }
 #fieldlog .sp:hover { background: rgba(42, 38, 34, 0.05); color: var(--ink-2); }
-#fieldlog .sp svg { width: 40px; height: 30px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: 0.45; }
+#fieldlog .sp svg { width: 52px; height: 38px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: 0.45; }
 #fieldlog .sp small { display: block; font-size: 11px; color: var(--ink-3); }
 #fieldlog .sp.seen { color: var(--ink); }
 #fieldlog .sp.seen svg { opacity: 1; stroke: var(--pencil); }
@@ -215,4 +223,33 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
 @media (max-width: 640px) {
   #fieldlog .sheet { padding: 40px 18px 30px 44px; background-position: -40px 0, 0 0, 0 0; }
   #fieldlog .log { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- quick jump: a small card beside the open book, in the same style as the corner controls ---------- */
+#jump {
+  position: fixed; left: 16px; top: 50%; z-index: 20; width: 188px; padding: 8px;
+  background: var(--card); color: var(--card-ink); border: 1px solid var(--card-edge); border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  transform: translate(-10px, -50%); opacity: 0; pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.45s cubic-bezier(.2, .8, .2, 1);
+}
+body.jump-on #jump { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+#jump .heading {
+  font-family: var(--type); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; text-align: center;
+  color: rgba(45, 41, 36, 0.6); padding: 2px 0 6px;
+}
+#jump button {
+  display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--card-ink); cursor: pointer; text-align: left;
+  font-family: var(--type); font-size: 13px; letter-spacing: 0.02em;
+  transition: background 0.15s ease;
+}
+#jump button:hover { background: var(--card-hover); }
+#jump button:focus-visible { outline: 2px solid rgba(45, 41, 36, 0.45); outline-offset: -2px; }
+#jump button .n { font-size: 10.5px; color: rgba(45, 41, 36, 0.45); }
+#jump button.on { background: rgba(141, 59, 47, 0.1); color: var(--stamp); }
+#jump button.on .n { color: var(--stamp); }
+@media (max-width: 900px) {
+  #jump { width: 150px; }
+  #jump button { padding: 6px 8px; font-size: 12px; }
 }

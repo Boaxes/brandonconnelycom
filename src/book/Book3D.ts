@@ -26,12 +26,14 @@ export interface BookOptions {
 }
 
 const LEAF_SEG = 28;
-const FLIP_TIME = 0.62;
+const FLIP_TIME = 0.72;
+const QUICK_FLIP = 0.3;
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
 const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
+const _light = new THREE.Vector3(-0.3, 0.35, 1).normalize();
 
 function ease(t: number) { return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2; }
 
@@ -60,7 +62,7 @@ export class Book3D {
   private leafPivot = new THREE.Group();
   private open = 0;           // cover angle 0..π
   private openTarget = 0;
-  private flip: { t: number; dir: 1 | -1; to: number } | null = null;
+  private flip: { t: number; dir: 1 | -1; to: number; time: number } | null = null;
   private anim = 1;           // pose transition 0..1
   private from = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
   private rest = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
@@ -138,8 +140,13 @@ export class Book3D {
     this.leafGeoB = new THREE.PlaneGeometry(W, H, LEAF_SEG, 1);
     const uvB = this.leafGeoB.getAttribute('uv') as THREE.BufferAttribute;
     for (let i = 0; i < uvB.count; i++) uvB.setX(i, 1 - uvB.getX(i));
-    this.leafFront = new THREE.Mesh(this.leafGeoF, new THREE.MeshBasicMaterial({ side: THREE.FrontSide, color: 0xebe4d2 }));
-    this.leafBack = new THREE.Mesh(this.leafGeoB, new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: 0xebe4d2 }));
+    // the leaf wears exactly the pages' paper tint; its shading comes from how it actually bends (vertex
+    // colours, 1.0 when flat), so it never changes colour as it lifts off or lands
+    for (const g of [this.leafGeoF, this.leafGeoB]) {
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 3).fill(1), 3));
+    }
+    this.leafFront = new THREE.Mesh(this.leafGeoF, new THREE.MeshBasicMaterial({ side: THREE.FrontSide, color: 0xebe4d2, vertexColors: true }));
+    this.leafBack = new THREE.Mesh(this.leafGeoB, new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: 0xebe4d2, vertexColors: true }));
     this.leafPivot.add(this.leafFront, this.leafBack);
     this.leafPivot.visible = false;
     this.root.add(this.leafPivot);
@@ -311,6 +318,29 @@ export class Book3D {
       pos.needsUpdate = true;
       geo.computeBoundingSphere();
     }
+    // shade by the bend: each column's facing toward a light up and to the left of the reader, relative
+    // to lying flat (so flat = exactly the page colour on either side)
+    const L = _light;
+    const flat = L.z;
+    const pos = this.leafGeoF.getAttribute('position') as THREE.BufferAttribute;
+    for (const [geo, sign] of [[this.leafGeoF, 1], [this.leafGeoB, -1]] as const) {
+      const col = geo.getAttribute('color') as THREE.BufferAttribute;
+      for (let i = 0; i <= n; i++) {
+        const a = Math.max(0, i - 1);
+        const b = Math.min(n, i + 1);
+        const tx = pos.getX(b) - pos.getX(a);
+        const tz = pos.getZ(b) - pos.getZ(a);
+        // normal of the strip at this column (perpendicular to its tangent, facing +z when flat)
+        const len = Math.hypot(tx, tz) || 1;
+        const nx = (-tz / len) * sign;
+        const nz = (tx / len) * sign;
+        const lit = (nx * L.x + nz * L.z) / flat;
+        const shade = THREE.MathUtils.clamp(0.62 + 0.38 * lit, 0.62, 1.0);
+        col.setXYZ(i, shade, shade, shade);
+        col.setXYZ(i + n + 1, shade, shade, shade);
+      }
+      col.needsUpdate = true;
+    }
   }
 
   // ---------------------------------------------------------------- page turning
@@ -321,9 +351,12 @@ export class Book3D {
   prev() { this.flipTo(this.spread - 1); }
 
   /** Turn to the spread containing page `i`. */
-  showPage(i: number) { this.flipTo(Math.floor((i + 1) / 2)); }
+  showPage(i: number, quick = false) { this.flipTo(Math.floor((i + 1) / 2), quick); }
+  /** The spread a page is on. */
+  spreadOf(i: number) { return Math.floor((i + 1) / 2); }
 
-  flipTo(target: number) {
+  /** Turn to a spread. However far it is, one leaf turns over and lands on it; `quick` for jumps. */
+  flipTo(target: number, quick = false) {
     target = THREE.MathUtils.clamp(target, 0, this.maxSpread());
     if (target === this.spread || this.flip || this.state !== 'held') return;
     const dir: 1 | -1 = target > this.spread ? 1 : -1;
@@ -337,7 +370,7 @@ export class Book3D {
       this.setMap(this.leafBack, 2 * this.spread - 1);
       this.setMap(this.leftPage, 2 * target - 1);
     }
-    this.flip = { t: 0, dir, to: target };
+    this.flip = { t: 0, dir, to: target, time: quick ? QUICK_FLIP : FLIP_TIME };
     this.leafPivot.visible = true;
     this.curl(dir === 1 ? 0 : Math.PI, 0);
     this.onSound?.('page');
@@ -362,6 +395,18 @@ export class Book3D {
     this.root.visible = true;
   }
 
+  /** Where the open spread's left edge and middle are on screen (CSS px), for placing things beside it. */
+  screenLeft(camera: THREE.Camera) {
+    this.root.updateMatrixWorld();
+    const a = _p.set(-this.W, this.H / 2, 0).applyMatrix4(this.root.matrixWorld).project(camera);
+    const ax = a.x, ay = a.y;
+    const b = _p.set(-this.W, -this.H / 2, 0).applyMatrix4(this.root.matrixWorld).project(camera);
+    return {
+      x: (Math.min(ax, b.x) + 1) / 2 * window.innerWidth,
+      y: (1 - (ay + b.y) / 2) / 2 * window.innerHeight,
+    };
+  }
+
   /** Centre of the closed book where it rests (for framing the opening shot). */
   get restCentre() {
     return new THREE.Vector3(this.W / 2, 0, this.th / 2).applyMatrix4(this.root.matrixWorld);
@@ -379,9 +424,9 @@ export class Book3D {
     const cam = camera as THREE.PerspectiveCamera;
     const fov = this.fitFov ?? cam.fov;
     const t = Math.tan(THREE.MathUtils.degToRad(fov / 2));
-    // leave the corner card and the book button clear where the window is wide enough to
+    // leave the corner card, and the section list beside the book, clear where the window is wide enough to
     const vw = window.innerWidth;
-    const fw = THREE.MathUtils.clamp((vw - 2 * 200) / vw, 0.62, 0.92);
+    const fw = THREE.MathUtils.clamp((vw - 2 * 235) / vw, 0.6, 0.92);
     const dh = this.H / (0.8 * 2 * t);
     const dw = (2.04 * this.W) / (fw * 2 * t * (cam.aspect || 1.6));
     return Math.max(0.2, dh, dw);
@@ -389,11 +434,49 @@ export class Book3D {
   /** the unzoomed field of view the held size is fitted to */
   fitFov: number | null = null;
 
-  private heldPose(camera: THREE.Camera, lowered: number, out: { p: THREE.Vector3; q: THREE.Quaternion }) {
-    // held in front of the eye, tilted back a touch like a book in your hands; lowered = dropped out of frame
+  /**
+   * Reading closer: the book is brought toward the eye along the line through the pointer, staying square
+   * to the view (the view itself doesn't turn), so what's under the pointer stays under it and the lines
+   * of type stay straight.
+   */
+  mag = 1;
+  private magTarget = 1;
+  private off = new THREE.Vector2();
+  private offTarget = new THREE.Vector2();
+
+  zoomAt(level: number, ndcX: number, ndcY: number, camera: THREE.PerspectiveCamera) {
+    if (this.state !== 'held' && this.state !== 'lifting') return this.magTarget;
+    const m0 = this.magTarget;
+    const m1 = THREE.MathUtils.clamp(level, 1, 3);
+    if (Math.abs(m1 - m0) < 1e-4) return m0;
     const d = this.heldDistance(camera);
-    _m2.makeRotationX(-0.08 + lowered * 0.9);
-    _m2.setPosition(0, d * 0.02 - lowered * d * 0.95, -d + lowered * 0.08);
+    const t = Math.tan(THREE.MathUtils.degToRad((this.fitFov ?? camera.fov) / 2));
+    const a = camera.aspect;
+    const d0 = d / m0;
+    const d1 = d / m1;
+    this.offTarget.x += ndcX * t * a * (d1 - d0);
+    this.offTarget.y += ndcY * t * (d1 - d0);
+    if (m1 <= 1.001) this.offTarget.set(0, 0);
+    // keep the page covering the view where it can
+    const hh = d1 * t;
+    const hw = hh * a;
+    const mx = Math.max(0, this.W - hw);
+    const my = Math.max(0, this.H / 2 - hh);
+    this.offTarget.x = THREE.MathUtils.clamp(this.offTarget.x, -mx, mx);
+    this.offTarget.y = THREE.MathUtils.clamp(this.offTarget.y, -my, my);
+    this.magTarget = m1;
+    return m1;
+  }
+  resetZoom() { this.magTarget = 1; this.offTarget.set(0, 0); }
+  get zoomLevel() { return this.magTarget; }
+
+  private heldPose(camera: THREE.Camera, lowered: number, out: { p: THREE.Vector3; q: THREE.Quaternion }) {
+    // held in front of the eye, tilted back a touch like a book in your hands; lowered = dropped out of
+    // frame. Brought closer to read, it squares up to the eye.
+    const d = this.heldDistance(camera) / this.mag;
+    const sq = THREE.MathUtils.clamp((this.mag - 1) * 2, 0, 1);
+    _m2.makeRotationX(-0.08 * (1 - sq) + lowered * 0.9);
+    _m2.setPosition(this.off.x, d * 0.02 * (1 - sq) + this.off.y - lowered * d * 0.95, -d + lowered * 0.08);
     _m.multiplyMatrices((this.holder ?? camera).matrixWorld, _m2);
     _m.decompose(out.p, out.q, _s);
     return out;
@@ -410,6 +493,7 @@ export class Book3D {
 
   lower() {
     if (this.state !== 'held' && this.state !== 'raising') return;
+    this.resetZoom();
     this.state = 'lowering';
     this.anim = 0;
     this.onSound?.('lower');
@@ -429,6 +513,9 @@ export class Book3D {
   get inHand() { return this.state !== 'rest'; }
 
   update(dt: number, camera: THREE.Camera) {
+    const e = 1 - Math.exp(-dt * 12);
+    this.mag += (this.magTarget - this.mag) * e;
+    this.off.lerp(this.offTarget, e);
     // pose
     const tgt = { p: _p, q: _q };
     if (this.state === 'lifting') {
@@ -467,20 +554,16 @@ export class Book3D {
     // page turn
     if (this.flip) {
       const f = this.flip;
-      f.t = Math.min(1, f.t + dt / FLIP_TIME);
+      f.t = Math.min(1, f.t + dt / f.time);
       const k = ease(f.t);
       const theta = f.dir === 1 ? Math.PI * k : Math.PI * (1 - k);
-      // the free edge lags behind the spine, curling the sheet
-      this.curl(theta, -f.dir * 0.9 * Math.sin(Math.PI * f.t));
-      const shade = 0.92 - 0.22 * Math.sin(Math.PI * f.t);
-      (this.leafFront.material as THREE.MeshBasicMaterial).color.setScalar(shade);
-      (this.leafBack.material as THREE.MeshBasicMaterial).color.setScalar(shade);
+      // the free edge trails the spine as the sheet lifts, then catches up and lays flat
+      const s = Math.sin(Math.PI * f.t);
+      this.curl(theta, -f.dir * 1.05 * s * s * (1.15 - 0.3 * f.t));
       if (f.t >= 1) {
         this.spread = f.to;
         this.flip = null;
         this.leafPivot.visible = false;
-        (this.leafFront.material as THREE.MeshBasicMaterial).color.setScalar(0.92);
-        (this.leafBack.material as THREE.MeshBasicMaterial).color.setScalar(0.92);
         this.showSpread();
       }
     }

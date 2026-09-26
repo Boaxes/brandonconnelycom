@@ -9,6 +9,9 @@ By [ffishAsia & floraZia](https://sketchfab.com/ffishAsia-and-floraZia) on Sketc
 octopus, herring, salmon, both rockfish, Dungeness and helmet crab stand-ins, decorator crab, urchin,
 sea cucumber, starry flounder, sculpin, prawn, dogfish, bat star, scallop.
 
+From [Poly Haven](https://polyhaven.com/a/boulder_01) (Jenelle van Heerden): `scan_hero_rock.glb`, the book's rock
+(Boulder 01, 2K maps).
+
 ## CC BY 4.0
 
 | File | Model | Author |

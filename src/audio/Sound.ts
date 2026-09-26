@@ -22,6 +22,8 @@ export class Sound {
   private buffers = new Map<string, AudioBuffer>();
   private ambStarted = false;
   private noiseBuf: AudioBuffer | null = null;
+  /** resolves once the recordings are loaded (or have failed) */
+  ready: Promise<void> = Promise.resolve();
 
   /** Call from a user gesture (any click or key). Creates the context, loads the recordings, starts the water. */
   unlock() {
@@ -48,7 +50,7 @@ export class Sound {
     this.water.connect(this.sfx);
     this.noiseBuf = this.makeNoise(2);
     // the water starts once the recordings are in (or have failed), so it's the real loop from the start
-    void this.loadRecordings().finally(() => this.startAmbience());
+    this.ready = this.loadRecordings().finally(() => this.startAmbience());
     if (ctx.state === 'suspended') void ctx.resume();
   }
 
@@ -303,6 +305,27 @@ export class Sound {
       o.connect(g).connect(this.amb);
       o.start();
     }
+  }
+
+  // ---------------------------------------------------------------- the opening
+
+  /** Out of silence: a low drone swells and the diver's breathing comes in (on the background bus). */
+  opener() {
+    if (!this.ctx) return;
+    this.sample('drone', this.amb, 1.1, 1);
+    this.sample('breath', this.amb, 0.75, 1, 0.8);
+  }
+
+  /** The torch switching on. */
+  torchClick() {
+    if (!this.ctx || !this.sfxOn) return;
+    if (!this.sample('torch', this.sfx, 0.9)) this.tick(this.ctx.currentTime);
+  }
+
+  /** The sea lion startling and darting off. */
+  sealionDart() {
+    if (!this.ctx || !this.sfxOn) return;
+    this.sample('sealion-dart', this.water, 0.9);
   }
 
   /** An animal call (on the effects bus, through the water); `dist` in metres softens it. */

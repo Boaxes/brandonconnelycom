@@ -21,3 +21,7 @@ the water is a seamless stereo loop).
 | humpback.mp3 | [Diving with whales.wav](https://freesound.org/people/KEVOY/sounds/82325/) | KEVOY | CC0 |
 | sealion.mp3 | [Quick sea lion bark](https://freesound.org/people/RavenWolfProds/sounds/503658/) | RavenWolfProds | CC0 |
 | sealion-growl.mp3 | [Lobo Marino Grunendo - Growling Sea Lion](https://freesound.org/people/Diim_1/sounds/849186/) | Diim_1 | CC0 |
+| breath.mp3 | [Underwater scuba diver](https://freesound.org/people/davi-sh/sounds/490661/) (two breaths, softened) | davi-sh | CC0 |
+| drone.mp3 | [drone "underwater" (sfx)](https://freesound.org/people/Yuval/sounds/210996/) (the swell under the opening) | Yuval | CC0 |
+| torch.mp3 | [Torch Click 1](https://freesound.org/people/BenjaminNelan/sounds/410359/) | BenjaminNelan | CC0 |
+| sealion-dart.mp3 | [Underwater Motion](https://freesound.org/people/NapierFreesound/sounds/760849/) mixed with [Scuba_bubbles.mp3](https://freesound.org/people/sbvitug/sounds/634225/) | NapierFreesound, sbvitug | CC0 |

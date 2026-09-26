@@ -10,8 +10,13 @@ const STYLE: PageStyle = {
   accent: '#7d2a22',
 };
 
-/** The red portfolio book: a title page, then the portfolio flowed across as many pages as it needs. */
-export function portfolioPages(): Page[] {
+export interface Section { id: string; label: string; page: number }
+
+/**
+ * The red portfolio book: a title page, then the portfolio flowed across as many pages as it needs.
+ * Also returns the page each section starts on, for the quick-jump panel beside the book.
+ */
+export function portfolioPages(): { pages: Page[]; sections: Section[] } {
   const pages: Page[] = [];
   let n = 0;
   const make = (header = true) => new Page({ ...STYLE, header: header ? content.fullName + ' · ' + content.title : undefined }, ++n);
@@ -42,16 +47,16 @@ export function portfolioPages(): Page[] {
   g.font = `24px ${TYPE}`;
   g.fillStyle = STYLE.ink3;
   g.fillText('click the right-hand page to turn · left to go back', PAGE_W / 2, PAGE_H - 170);
-  g.fillText('← →  keys work too · scroll to look closer', PAGE_W / 2, PAGE_H - 132);
+  g.fillText('jump to a section with the list beside the book · scroll to read closer', PAGE_W / 2, PAGE_H - 132);
   g.textAlign = 'left';
   pages.push(t);
 
   const blocks: Block[] = [];
-  blocks.push({ kind: 'heading', text: 'About' });
+  blocks.push({ kind: 'heading', text: 'About', id: 'about' });
   for (const p of content.about) blocks.push({ kind: 'para', text: p });
   blocks.push({ kind: 'break' });
 
-  blocks.push({ kind: 'heading', text: 'Selected work' });
+  blocks.push({ kind: 'heading', text: 'Selected work', id: 'work' });
   content.projects.forEach((p, i) => {
     if (i) blocks.push({ kind: 'rule' });
     blocks.push({ kind: 'sub', text: p.name });
@@ -62,7 +67,7 @@ export function portfolioPages(): Page[] {
   });
   blocks.push({ kind: 'break' });
 
-  blocks.push({ kind: 'heading', text: 'Experience' });
+  blocks.push({ kind: 'heading', text: 'Experience', id: 'experience' });
   content.experience.forEach((e, i) => {
     if (i) blocks.push({ kind: 'space', h: 16 });
     blocks.push({ kind: 'sub', text: `${e.role}, ${e.org}` });
@@ -71,14 +76,14 @@ export function portfolioPages(): Page[] {
   });
   blocks.push({ kind: 'break' });
 
-  blocks.push({ kind: 'heading', text: 'Toolkit' });
+  blocks.push({ kind: 'heading', text: 'Toolkit', id: 'toolkit' });
   for (const [k, v] of Object.entries(content.skills)) {
     blocks.push({ kind: 'meta', text: k.toUpperCase() });
     blocks.push({ kind: 'para', text: v.join(', ') });
   }
   blocks.push({ kind: 'break' });
 
-  blocks.push({ kind: 'heading', text: 'Say hello' });
+  blocks.push({ kind: 'heading', text: 'Say hello', id: 'contact' });
   blocks.push({ kind: 'para', text: 'Email is fastest. I read everything.' });
   blocks.push({ kind: 'link', text: content.email, href: 'mailto:' + content.email });
   blocks.push({ kind: 'link', text: 'GitHub', href: content.links.github });
@@ -88,10 +93,22 @@ export function portfolioPages(): Page[] {
   blocks.push({ kind: 'para', small: true, italic: true, text: 'This book is sitting on the floor of Puget Sound, about thirty feet down. Everything moving around it is simulated; click an animal in the water to log it in the field notebook.' });
   blocks.push({ kind: 'break' });
 
-  blocks.push({ kind: 'heading', text: 'Credits' });
+  blocks.push({ kind: 'heading', text: 'Credits', id: 'credits' });
   blocks.push({ kind: 'para', small: true, text: CC0_NOTE + ' These models are used under the licences noted, each cleaned up and re-baked for this scene:' });
   for (const c of CREDITS) blocks.push({ kind: 'link', small: true, text: `${c.title} — ${c.author} (${c.license})`, href: c.url });
 
-  pages.push(...flow(blocks, () => make()));
-  return pages;
+  const anchors: Record<string, number> = {};
+  const first = pages.length;
+  pages.push(...flow(blocks, () => make(), anchors));
+  const sections: Section[] = [
+    { id: 'cover', label: 'Title page', page: 0 },
+    { id: 'about', label: 'About', page: 0 },
+    { id: 'work', label: 'Selected work', page: 0 },
+    { id: 'experience', label: 'Experience', page: 0 },
+    { id: 'toolkit', label: 'Toolkit', page: 0 },
+    { id: 'contact', label: 'Contact', page: 0 },
+    { id: 'credits', label: 'Credits', page: 0 },
+  ].filter((s) => s.id === 'cover' || anchors[s.id] !== undefined)
+    .map((s) => ({ ...s, page: s.id === 'cover' ? 0 : first + anchors[s.id] }));
+  return { pages, sections };
 }

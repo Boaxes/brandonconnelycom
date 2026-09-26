@@ -551,6 +551,8 @@ export interface Leg {
   face?: THREE.Vector3;   // while lingering, turn to look at this (the camera)
   doing?: string;
   radius?: number;        // arrival radius
+  /** glide exactly onto the point for the last metre and stay put (a posed moment, e.g. behind a rock) */
+  settle?: boolean;
 }
 
 /**
@@ -593,8 +595,33 @@ export class Scripted extends Agent implements Behavior {
     this.legs = legs;
     this.holdT = 0;
   }
+  /** gliding onto a settle point: collisions and floor-keeping leave it alone */
+  get settling() {
+    const leg = this.legs[0];
+    return !!leg?.settle && this.pos.distanceTo(leg.to) < 1.2;
+  }
+
   update(dt: number) {
     const leg = this.legs[0];
+    if (leg?.settle && !this.crawl && this.pos.distanceTo(leg.to) < 1.2) {
+      // posed: ease onto the mark and hold, turning to look at `face`
+      if (leg.doing) this.doing = leg.doing;
+      this.pos.lerp(leg.to, 1 - Math.exp(-dt * 1.6));
+      this.vel.multiplyScalar(1 - Math.min(1, dt * 3));
+      this.speedMul = 0.5;
+      if (this.holdT <= 0 && leg.hold) this.holdT = leg.hold;
+      if (this.holdT > 0) {
+        this.holdT -= dt;
+        if (this.holdT <= 0) { this.legs.shift(); return; }
+      }
+      if (leg.face) {
+        _a.subVectors(leg.face, this.pos).normalize();
+        this.forward.lerp(_a, Math.min(1, dt * 2)).normalize();
+        this.orient(this.forward, _b.set(0, 1, 0));
+      }
+      this.bend *= 1 - Math.min(1, dt * 3);
+      return;
+    }
     if (!leg) {
       this.done = true;
       this.keepSpeed(this.opts.cruise, 0.3);

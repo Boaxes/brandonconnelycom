@@ -24,12 +24,12 @@ All text lives in [`src/content.ts`](src/content.ts): name, tagline, about parag
 
 | Action | Effect |
 | --- | --- |
-| Click the book | Pick it up and open it; click the right page to turn, the left to go back (← → , PageUp/PageDown and space work too); links on the pages open |
-| Scroll | Zoom toward the pointer, up to 4× — into the page you're reading or at an animal across the way (a lens click with each notch). The magnifier button / `Z` switches it off, and then the wheel turns pages |
+| Click the book | Pick it up and open it; click the right page to turn, the left to go back (← → , PageUp/PageDown and space work too); links on the pages open. While it's up, a small **Sections** card beside it jumps straight to any section with one quick page turn |
+| Scroll | Reading: bring the book closer to the eye along the pointer's line, up to 3× (the page stays square, lines stay straight). Otherwise: zoom the view toward the pointer, up to 4×. A lens click with each notch; the magnifier button / `Z` switches zoom off, and then the wheel turns pages |
 | Click an animal | Logs it in the field log the first time (sound, a specimen card flies into the log) |
 | Look pad, `A`/`D`/`W`/`S`, arrow keys, drag | Turn the view in steps: 45° left/right all the way round, 30° up/down from straight down to straight up |
 | Portfolio button (bottom middle) / `B` | Raise or lower the portfolio; appears once the book has been picked up |
-| Log button / `L` | Open the field log, a sheet of ruled notebook paper: an index of species (click one to read its page) |
+| Log button / `L` | Open the field log, a full-height column of ruled notebook paper: an index of species (click one to read its page). The book goes down while it's open; raising the book closes it |
 | Waves / speaker buttons | Background (the water) and effects (book, pages, zoom, logging, animal calls), separately; both start on |
 | Eye / `H` | Watch the water: the book drops out of view and the controls fold away |
 | `Esc` | Close the field log, zoom back out, or lower the book you're reading |
@@ -74,7 +74,7 @@ Everything alive, and every rock, log and prop, is a photogrammetry scan (CC0 / 
 
 ### The opening
 
-The camera starts close over the book on its rock, torch turned down, the rest of the dive blurred behind it — nothing to see but the book, and the view can't be turned yet. Clicking the book starts a scripted pull-back: as the book rises into the diver's hands the camera eases back to the diver's spot, and from then on the view turns freely.
+It starts with "Begin the dive" (browsers won't play sound before a click). Then, in the black, a low drone and the diver's breathing swell up; the torch clicks on with a flicker and sweeps through the silt onto the book, close up on its rock (a high-resolution Poly Haven boulder, since it's seen from half a metre); and pale daylight seeps down from above over the next eight seconds. In the half-light a sea lion swims a loop past the camera and settles behind the rock, staring over it into the lens. The torch stays on the book and the view can't be turned. Clicking the book is the only way on: the sea lion startles and bolts, the book rises into the diver's hands, and the camera makes one scripted pull-back to the diver's spot; from then on the view turns freely.
 
 ### The first minute
 
@@ -84,7 +84,7 @@ The octopus is an easter egg: camouflaged and wedged into a crevice between two 
 
 ### The books
 
-Pages are canvases typeset at load (fonts are waited for) and shown as textures. The leaf that turns is a strip of 28 segments bent around the spine each frame, with the free edge lagging behind so it curls. Clicks on a page are mapped back to canvas coordinates to find links. A book in hand is held at whatever distance makes the spread fill most of the view without running under the controls, the lens stops down so the whole page is sharp, and zooming reads it more closely; lowering it hands focus back to the water.
+Pages are canvases typeset at load (fonts are waited for) and shown as textures. The book stays in the water, lit by the scene and held in the diver's hands, but anything nearer than its far edge is exempt from the depth-of-field blur, so it's sharp from the first frame of the lift, and the dome-port lens distortion eases off while it's up so lines of type stay straight. The turning leaf is a strip bent around the spine each frame, the free edge trailing; it wears exactly the pages' paper tint and is shaded by how each part of it faces the light, so it never changes colour as it lifts off or lands. Clicks on a page are mapped back to canvas coordinates to find links. Lowering the book hands focus back to the water.
 
 ### Behaviour
 
@@ -122,7 +122,7 @@ The site is fully static. `npm run build` puts everything in `dist/`.
 
 ## Sounds
 
-Every sound is a recording in `public/sounds/`, listed in `manifest.json` and credited in `public/sounds/CREDITS.md`: CC0 clips from Freesound (water ambience, book handling, page turns, cloth, a pencil scribble for logging, a lens focus ring for the zoom, humpback song, sea lion barks, and a whale's surfacing breath, low-passed, for the orcas). They were trimmed and normalised in Blender (`aud`); the water is a seamless loop. `src/audio/Sound.ts` plays them on two buses — background (the water) and effects (everything else, including animal calls, lightly muffled as if through water) — and falls back to a small synthesised version of anything that fails to load. Audio starts on the first click or key press anywhere; browsers don't allow it sooner.
+Every sound is a recording in `public/sounds/`, listed in `manifest.json` and credited in `public/sounds/CREDITS.md`: CC0 clips from Freesound (water ambience, book handling, page turns, cloth, a pencil scribble for logging, a lens focus ring for the zoom, humpback song, sea lion barks and a bolt of bubbles, a whale's surfacing breath, low-passed, for the orcas, and for the opening a drone, a diver's breathing and a torch click). They were trimmed and normalised in Blender (`aud`); the water is a seamless loop. `src/audio/Sound.ts` plays them on two buses — background (the water) and effects (everything else, including animal calls, lightly muffled as if through water) — and falls back to a small synthesised version of anything that fails to load. Audio starts on the first click or key press anywhere; browsers don't allow it sooner.
 
 Nothing is remembered between visits: sound, zoom and the field log all start fresh on every load.
 

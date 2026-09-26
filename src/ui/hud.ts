@@ -123,6 +123,47 @@ export class Hud {
     setTimeout(() => b.classList.remove('nudge'), 6000);
   }
 
+  // ---------------------------------------------------------------- quick jump beside the book
+
+  private jump: HTMLElement | null = null;
+  private jumpActive = -1;
+  private jumpPos = '';
+
+  /** The quick-jump card: one entry per section of the book; `go` turns straight to it. */
+  setSections(sections: { label: string; page: number }[], go: (page: number) => void) {
+    this.jump = el(`
+      <nav id="jump" aria-label="Jump to a section of the portfolio">
+        <div class="heading">Sections</div>
+        ${sections.map((s, i) => `<button data-page="${s.page}" data-i="${i}"><span class="n">${String(i + 1).padStart(2, '0')}</span>${esc(s.label)}</button>`).join('')}
+      </nav>`);
+    document.body.appendChild(this.jump);
+    this.jump.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-page]');
+      if (b) go(Number(b.dataset.page));
+    });
+    this.jump.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+  }
+
+  /** Show the card beside the book (right edge at `right` px from the left), with `active` highlighted. */
+  showJump(on: boolean, active = -1, right = 0, midY = window.innerHeight / 2) {
+    if (!this.jump) return;
+    document.body.classList.toggle('jump-on', on);
+    if (!on) return;
+    if (active !== this.jumpActive) {
+      this.jumpActive = active;
+      this.jump.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', i === active));
+    }
+    const w = this.jump.offsetWidth || 180;
+    const x = Math.max(16, Math.round(right - w - 22));
+    const y = Math.round(midY);
+    const pos = `${x},${y}`;
+    if (pos !== this.jumpPos) {
+      this.jumpPos = pos;
+      this.jump.style.left = x + 'px';
+      this.jump.style.top = y + 'px';
+    }
+  }
+
   setZoom(on: boolean) {
     this.root.querySelector('[data-a="zoom"]')!.setAttribute('aria-pressed', String(on));
   }
@@ -211,6 +252,22 @@ export function loaderProgress(p: number, sub?: string) {
     const s = document.getElementById('loader-sub');
     if (s) s.textContent = sub;
   }
+}
+
+/**
+ * Loaded: the bar gives way to a quiet "begin" button. The dive (and its sound) starts on that click;
+ * browsers won't play audio before one.
+ */
+export function loaderReady(onBegin: () => void) {
+  const l = document.getElementById('loader');
+  if (!l) return onBegin();
+  const inner = l.querySelector('.loader-inner')!;
+  inner.innerHTML = `
+    <button class="begin" type="button">Begin the dive</button>
+    <div class="loader-sub">sound on · 30 ft · Puget Sound</div>`;
+  const b = inner.querySelector<HTMLButtonElement>('.begin')!;
+  b.focus({ preventScroll: true });
+  b.addEventListener('click', () => onBegin(), { once: true });
 }
 
 export function loaderDone() {

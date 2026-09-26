@@ -43,7 +43,7 @@ SCANS = {
     'ca_sea_lion': dict(rot=(0, 0, 0), length=1.9, faces=12000, tex=2048, ntex=1024),
     'orca': dict(rot=(0, 0, 90), length=7.0, faces=9000, tex=1024),
     'humpback': dict(rot=(0, 0, 180), length=14.0, faces=10000, tex=1024),
-    'harbor_porpoise': dict(rot=(0, 0, -90), length=1.6, faces=6000, tex=1024),
+    'harbor_porpoise': dict(rot=(0, 0, 90), length=1.6, faces=6000, tex=1024),  # nose was pointing backwards at -90
     'bat_star': dict(rot=(0, 0, 0), length=0.18, faces=2500, tex=512, base='bottom'),
     'scallop': dict(rot=(90, 0, 0), length=0.09, faces=1500, tex=512, base='bottom'),
     # set pieces around the viewpoint

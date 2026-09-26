@@ -195,7 +195,7 @@ export function buildSurface(): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(160, 160, 1, 1);
   geo.rotateX(Math.PI / 2); // facing down
   const mat = new THREE.ShaderMaterial({
-    uniforms: { ...waterUniforms(), uTime: shared.time, uSunDir: shared.sunDir },
+    uniforms: { ...waterUniforms(), uTime: shared.time, uSunDir: shared.sunDir, uDay: shared.daylight },
     side: THREE.DoubleSide,
     depthWrite: false,
     vertexShader: /* glsl */ `
@@ -211,6 +211,7 @@ export function buildSurface(): THREE.Mesh {
       uniform float uTime;
       varying vec3 vWorld;
       uniform vec3 uSunDir;
+      uniform float uDay;
       // A rough sea seen from below. The surface height is three long swells plus three octaves of
       // drifting noise chop (each octave rotated and moving its own way, so nothing lines up into a
       // pattern). Its slope bends the view ray: where the surface tilts past the critical angle it becomes
@@ -266,7 +267,7 @@ export function buildSurface(): THREE.Mesh {
         sky += vec3(1.0, 0.95, 0.8) * pow(max(dot(r, uSunDir), 0.0), 40.0) * 4.0;
         sky *= clamp(1.0 + curv * 0.12, 0.6, 1.8);
         vec3 mirror = mix(uDeepColor, uWaterColor, 0.35) * (0.8 + 0.2 * clamp(-curv * 0.3, -1.0, 1.0));
-        vec3 c = mix(mirror, sky, through);
+        vec3 c = mix(mirror, sky * uDay, through);
         gl_FragColor = vec4(applyWater(c, fromCam), 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

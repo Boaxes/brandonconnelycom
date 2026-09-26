@@ -21,6 +21,8 @@ export const shared = {
   // extinction per metre for r, g, b. Red is absorbed fastest; the plankton makes blue drop too.
   absorb: { value: new THREE.Vector3(0.42, 0.24, 0.3) },
   causticStrength: { value: 0.22 },
+  // 0..1: daylight reaching the bottom (the opening starts in darkness with only the torch)
+  daylight: { value: 1 },
   sunDir: { value: new THREE.Vector3(0.3, 1, 0.2).normalize() },
   // contact occluders on the floor: (x, z, radius, strength)
   occ: { value: Array.from({ length: OCC_MAX }, () => new THREE.Vector4()) },
