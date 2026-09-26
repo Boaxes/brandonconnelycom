@@ -26,8 +26,8 @@ export interface BookOptions {
 }
 
 const LEAF_SEG = 28;
-const FLIP_TIME = 0.72;
-const QUICK_FLIP = 0.3;
+const FLIP_TIME = 0.42;
+const QUICK_FLIP = 0.22;
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
 const _p = new THREE.Vector3();
@@ -80,7 +80,8 @@ export class Book3D {
       map: o.leather.map, normalMap: o.leather.normal, color: o.cover, roughness: 0.62, metalness: 0,
     });
     this.endTex = this.flatTexture(o.endpaper);
-    const endMat = new THREE.MeshBasicMaterial({ map: this.endTex, color: 0xd8d0bc });
+    // lit, like the leather: unlit, the strip of endpaper round the closed book glowed in the dark
+    const endMat = new THREE.MeshStandardMaterial({ map: this.endTex, color: 0xd8d0bc, roughness: 0.9 });
     const edge = new THREE.MeshStandardMaterial({ map: this.edgeTexture(), roughness: 0.9, color: 0xf1e8d2 });
     const paperTop = new THREE.MeshBasicMaterial({ color: 0xe6dcc4 });
 
@@ -519,13 +520,13 @@ export class Book3D {
     // pose
     const tgt = { p: _p, q: _q };
     if (this.state === 'lifting') {
-      this.anim = Math.min(1, this.anim + dt / 1.15);
+      this.anim = Math.min(1, this.anim + dt / 0.7);
       const k = ease(this.anim);
       this.heldPose(camera, 0, tgt);
       this.root.position.lerpVectors(this.from.p, tgt.p, k);
       this.root.position.y += Math.sin(Math.PI * k) * 0.12;
       this.root.quaternion.slerpQuaternions(this.from.q, tgt.q, k);
-      if (this.anim > 0.55 && this.openTarget === 0) {
+      if (this.anim > 0.4 && this.openTarget === 0) {
         this.openTarget = Math.PI;
         this.onSound?.('open');
       }
@@ -535,7 +536,7 @@ export class Book3D {
       this.root.position.copy(tgt.p);
       this.root.quaternion.copy(tgt.q);
     } else if (this.state === 'lowering' || this.state === 'raising') {
-      this.anim = Math.min(1, this.anim + dt / 0.55);
+      this.anim = Math.min(1, this.anim + dt / 0.3);
       const k = ease(this.anim);
       this.heldPose(camera, this.state === 'lowering' ? k : 1 - k, tgt);
       this.root.position.copy(tgt.p);
@@ -547,7 +548,7 @@ export class Book3D {
     }
     // cover
     if (this.open !== this.openTarget) {
-      const sp = dt * 3.6;
+      const sp = dt * 7.5;
       this.open = this.open < this.openTarget ? Math.min(this.openTarget, this.open + sp) : Math.max(this.openTarget, this.open - sp);
       this.layoutBlocks();
     }

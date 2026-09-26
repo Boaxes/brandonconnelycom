@@ -98,7 +98,7 @@ export class CameraRig {
     this.introOut = -1;
   }
 
-  /** One slow, scripted pull-back from the opening shot to the diver's spot (as the book is picked up). */
+  /** One quick, scripted pull-back from the opening shot to the diver's spot (as the book is picked up). */
   releaseIntro() {
     if (this.intro && this.introOut < 0) this.introOut = 0;
   }
@@ -158,7 +158,7 @@ export class CameraRig {
     if (this.intro) {
       let k = 1;
       if (this.introOut >= 0) {
-        this.introOut = Math.min(1, this.introOut + dt / 3.0);
+        this.introOut = Math.min(1, this.introOut + dt / 2.0);
         const e = this.introOut;
         k = 1 - (e < 0.5 ? 4 * e * e * e : 1 - (-2 * e + 2) ** 3 / 2);
       }

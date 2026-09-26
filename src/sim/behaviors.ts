@@ -584,8 +584,10 @@ export class Scripted extends Agent implements Behavior {
     this.holdT = 0;
     this.doing = doing || legs[0]?.doing || '';
     if (legs.length) {
-      _a.subVectors(legs[0].to, from).normalize();
-      this.vel.copy(_a).multiplyScalar(legs[0].speed);
+      // placed straight onto a settle mark: start still, already facing what it's looking at
+      const posed = !!legs[0].settle && legs[0].to.distanceTo(from) < 1e-3;
+      _a.subVectors(posed && legs[0].face ? legs[0].face : legs[0].to, from).normalize();
+      this.vel.copy(_a).multiplyScalar(posed ? 0 : legs[0].speed);
       this.forward.copy(_a);
       this.heading = Math.atan2(_a.z, _a.x);
     }

@@ -12,15 +12,16 @@ import { Book3D } from './book/Book3D';
 import { portfolioPages } from './book/portfolio';
 import { FieldLog } from './ui/fieldlog';
 import { content } from './content';
-import { Hud, loaderDone, loaderProgress, loaderReady, showFallback } from './ui/hud';
+import { Hud, loaderDone, loaderProgress, showFallback } from './ui/hud';
 
 /**
- * The opening, in seconds from the "begin" click: out of silence a drone and the diver's breathing swell
- * up in the black; the torch clicks on and sweeps onto the book; then daylight seeps down from above.
+ * The opening, in seconds from the end of loading: a beat of black (with a drone and the diver's
+ * breathing, if the browser lets sound play yet), then the torch clicks on and sweeps onto the book, and a
+ * sea lion staring over the rock behind it. Nothing else moves until the book is picked up: then the
+ * camera pulls back and daylight seeps down from above, and the controls appear once the camera settles.
  */
-const TORCH_ON = 2.8;
-const DAY_FROM = 3.6;
-const DAY_TO = 12;
+const TORCH_ON = 1.4;
+const DAY_TIME = 5.5;
 
 async function fontsReady() {
   const wait = Promise.all([
@@ -226,8 +227,9 @@ async function boot() {
       case 'a': case 'A': rig.step(-1, 0); break;
       case 'd': case 'D': rig.step(1, 0); break;
       case 'b': case 'B': toggleBook(); break;
-      case 'l': case 'L': toggleLog(); break;
-      case 'h': case 'H': hud.setWatch(!hud.isWatching); break;
+      // (the log and the watch button are hidden until the opening is over)
+      case 'l': case 'L': if (!rig.inIntro) toggleLog(); break;
+      case 'h': case 'H': if (!rig.inIntro) hud.setWatch(!hud.isWatching); break;
       case 'z': case 'Z': setZoomOn(!zoomOn); hud.setZoom(zoomOn); break;
       case 'Escape':
         if (field.isOpen) field.close();
@@ -249,7 +251,7 @@ async function boot() {
     if (!zoomOn) {
       if (!book || Math.abs(e.deltaY) < 8) return;
       const now = performance.now();
-      if (now - wheelAt < 420) return;
+      if (now - wheelAt < 280) return;
       wheelAt = now;
       if (e.deltaY > 0) book.next(); else book.prev();
       return;
@@ -281,18 +283,16 @@ async function boot() {
   // ---------------------------------------------------------------- the loop
   loaderProgress(1, 'ready');
   ocean.render(0, 1 / 60); // warm up shaders before revealing
-  // the dive starts on "begin": that click also unlocks the sound, so the opening can start with it
-  let diveT = -1;
-  const begin = () => {
-    if (diveT >= 0) return;
-    sound.unlock();
-    void sound.ready.then(() => sound.opener());
-    diveT = 0;
-    loaderDone();
+  // the dive starts as soon as it's loaded; the sound with it if the browser allows, else on the first click
+  let diveT = 0;
+  world.director.opener(introEye);
+  void sound.autoplay().then((ok) => { if (ok) void sound.ready.then(() => sound.opener()); });
+  loaderDone();
+  // the controls stay hidden through the opening, until the camera has pulled back to the diver's spot
+  rig.onIntroDone = () => {
     document.body.classList.add('ready');
     hud.setHeading(`${rig.heading} · ${rig.pitchLabel}`);
   };
-  loaderReady(begin);
   // the big visitors aren't due for a while: fetch them behind the scenes
   loadLate().then(() => world.buildScriptedPools());
 
@@ -302,15 +302,9 @@ async function boot() {
   let simT = 0;
   let lastBookState = '';
   let torchLit = false;
-  let openerStarted = false;
+  let dayT = -1; // seconds since the book was picked up (the daylight comes up from there)
   /** one tick of everything; the dev helpers below call it directly to fast-forward */
   const step = (dt: number, render = true) => {
-    if (diveT < 0) {
-      // waiting for "begin": black
-      ocean.fade = 0;
-      if (render) ocean.render(simT, dt);
-      return;
-    }
     simT += dt;
     diveT += dt;
     const t = simT;
@@ -324,19 +318,17 @@ async function boot() {
     }
     const tt = diveT - TORCH_ON;
     ocean.torchOn = tt < 0 ? 0 : tt < 0.06 ? 1 : tt < 0.14 ? 0.15 : tt < 0.2 ? 0.9 : tt < 0.26 ? 0.35 : 1;
-    // daylight seeps down from above
-    const day = THREE.MathUtils.smoothstep(diveT, DAY_FROM, DAY_TO);
+    // daylight seeps down from above once the book has been picked up
+    if (dayT >= 0) dayT += dt;
+    const day = THREE.MathUtils.smoothstep(dayT, 0, DAY_TIME);
     ocean.daylight = day * day * (0.6 + 0.4 * day);
-    if (!openerStarted && diveT >= TORCH_ON + 0.4) {
-      openerStarted = true;
-      world.director.opener(introEye);
-    }
     rig.update(dt, t);
     world.update(dt, t);
     portfolio.update(dt, ocean.camera);
     // the opening shot ends when the book is picked up: the camera pulls back as it rises into the hands,
     // and the sea lion that was watching bolts
-    if (rig.inIntro && portfolio.state !== 'rest') {
+    if (rig.inIntro && portfolio.state !== 'rest' && dayT < 0) {
+      dayT = 0;
       rig.releaseIntro();
       world.director.openerBolt();
     }
@@ -379,7 +371,7 @@ async function boot() {
     ocean.sharpNear = up ? ocean.camera.position.distanceTo(portfolio.root.position) + 0.4 : 0;
     ocean.barrel += ((bookUp() ? 0 : 1) - ocean.barrel) * Math.min(1, dt * 6);
     // the quick-jump card sits just off the book's left edge while it's open
-    if (portfolio.reading) {
+    if (portfolio.reading && !rig.inIntro) {
       const edge = portfolio.screenLeft(ocean.camera);
       let active = 0;
       // the section the left-hand page belongs to (a section starting on the right page is still ahead)
@@ -406,7 +398,6 @@ async function boot() {
     // dev helpers: fast-forward the simulation (the rAF loop pauses in hidden tabs), and render one
     // frame and save it through the vite shot plugin
     const w = window as unknown as { advance: (s: number) => number; shot: (name: string) => Promise<string> };
-    (window as unknown as { begin: () => void }).begin = begin;
     w.advance = (seconds: number) => {
       for (let i = 0; i < Math.round(seconds * 30); i++) step(1 / 30, false);
       return simT;

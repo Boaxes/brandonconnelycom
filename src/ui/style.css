@@ -26,20 +26,13 @@ a { color: inherit; }
 /* ---------- loader: black, so the dive starts in darkness and the light comes up from there ---------- */
 #loader {
   position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: #000;
-  transition: opacity 1.2s ease;
+  transition: opacity 0.4s ease;
 }
 #loader.done { opacity: 0; pointer-events: none; }
 .loader-inner { width: min(320px, 80vw); text-align: center; }
 .loader-title { font-family: var(--type); font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(239, 232, 214, 0.75); margin-bottom: 16px; }
 .loader-bar { height: 1px; background: rgba(239, 232, 214, 0.15); }
 .loader-fill { height: 100%; width: 0%; background: rgba(239, 232, 214, 0.7); transition: width 0.25s ease; }
-.begin {
-  font-family: var(--type); font-size: 14px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(239, 232, 214, 0.9);
-  background: transparent; border: 1px solid rgba(239, 232, 214, 0.35); border-radius: 999px; padding: 14px 28px; cursor: pointer;
-  transition: background 0.3s ease, border-color 0.3s ease; animation: beginIn 1.2s ease both;
-}
-.begin:hover, .begin:focus-visible { background: rgba(239, 232, 214, 0.08); border-color: rgba(239, 232, 214, 0.7); outline: none; }
-@keyframes beginIn { from { opacity: 0; transform: translateY(6px); } }
 .loader-sub { margin-top: 12px; font-family: var(--type); font-size: 11px; color: rgba(239, 232, 214, 0.45); letter-spacing: 0.08em; }
 
 /* ---------- controls: a small paper card in the corner, and the book button in the middle ---------- */
@@ -126,27 +119,17 @@ body.watching #book-toggle { opacity: 0; pointer-events: none; transform: transl
   position: fixed; z-index: 40; pointer-events: none; display: flex; align-items: center; gap: 10px;
   padding: 10px 14px 10px 10px; background: var(--paper); color: var(--ink); border-radius: 3px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); transform: translate(-50%, -120%) scale(0.6) rotate(-3deg); opacity: 0;
-  transition: transform 0.45s cubic-bezier(.2, 1.4, .4, 1), opacity 0.3s ease;
+  transition: transform 0.26s cubic-bezier(.2, 1.4, .4, 1), opacity 0.16s ease;
 }
 .specimen.in { transform: translate(-50%, -120%) scale(1) rotate(-2deg); opacity: 1; }
 .specimen.fly {
-  transition: left 0.8s cubic-bezier(.6, 0, .4, 1), top 0.8s cubic-bezier(.6, 0, .4, 1), transform 0.8s ease, opacity 0.8s ease;
+  transition: left 0.4s cubic-bezier(.6, 0, .4, 1), top 0.4s cubic-bezier(.6, 0, .4, 1), transform 0.4s ease, opacity 0.4s ease;
   transform: translate(-50%, -50%) scale(0.18) rotate(8deg); opacity: 0.4;
 }
 .specimen svg { width: 54px; height: 40px; fill: none; stroke: var(--pencil); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .specimen b { display: block; font-family: var(--type); font-weight: 400; font-size: 15px; }
 .specimen i { display: block; font-size: 12px; color: var(--ink-2); }
 
-#banner {
-  position: fixed; top: 20px; left: 20px; z-index: 35; pointer-events: none; display: flex; align-items: baseline; gap: 10px;
-  padding: 10px 16px; background: var(--paper); color: var(--ink); border-radius: 3px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  transform: translateY(-140%); transition: transform 0.6s cubic-bezier(.2, .9, .3, 1.1);
-}
-#banner.on { transform: translateY(0); }
-#banner .stamp { font-family: var(--type); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stamp); border: 1.5px solid var(--stamp); padding: 1px 6px; transform: rotate(-2deg); }
-#banner b { font-family: var(--type); font-weight: 400; font-size: 15px; }
-#banner i { font-size: 13px; color: var(--ink-2); }
-#banner .n { font-family: var(--type); font-size: 11px; color: var(--ink-3); }
 
 .whisper {
   position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%, -160%); opacity: 0;
@@ -165,7 +148,6 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
   #controls { right: 10px; bottom: 10px; width: 138px; padding: 6px; }
   #book-toggle { bottom: 10px; left: 16px; transform: none; }
   body.ready.has-book #book-toggle { transform: none; }
-  #banner { left: 10px; right: 10px; top: 10px; flex-wrap: wrap; }
 }
 
 /* ---------- the field log: a sheet of ruled notebook paper down the middle of the screen ---------- */

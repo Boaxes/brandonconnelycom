@@ -43,7 +43,7 @@ export class Hud {
   private root: HTMLElement;
   private heading: HTMLElement;
   private badge: HTMLElement;
-  private banner: HTMLElement;
+  private live: HTMLElement;
   private hint: HTMLElement;
   private logBtn: HTMLElement;
   private bookBtn: HTMLButtonElement;
@@ -90,9 +90,9 @@ export class Hud {
     this.root.addEventListener('click', onClick);
     this.bookBtn.addEventListener('click', onClick);
 
-    this.banner = el('<div id="banner" aria-live="polite" hidden></div>');
+    this.live = el('<div class="sr-only" aria-live="polite"></div>');
     this.hint = el('<div id="hint" hidden></div>');
-    document.body.append(this.banner, this.hint);
+    document.body.append(this.live, this.hint);
     document.body.appendChild(this.accessibleCopy());
   }
 
@@ -198,21 +198,15 @@ export class Hud {
       card.classList.add('fly');
       card.style.left = target.left + target.width / 2 + 'px';
       card.style.top = target.top + target.height / 2 + 'px';
-    }, 1100);
+    }, 520);
     setTimeout(() => {
       card.remove();
       this.setCount(count);
       this.logBtn.classList.remove('pulse');
       void this.logBtn.offsetWidth;
       this.logBtn.classList.add('pulse');
-    }, 1900);
-    this.banner.innerHTML = `<span class="stamp">New entry</span><b>${esc(name)}</b><i>${esc(latin)}</i><span class="n">${count} of ${total} logged</span>`;
-    this.banner.hidden = false;
-    this.banner.classList.remove('on');
-    void this.banner.offsetWidth;
-    this.banner.classList.add('on');
-    clearTimeout((this.banner as unknown as { _t?: number })._t);
-    (this.banner as unknown as { _t?: number })._t = window.setTimeout(() => this.banner.classList.remove('on'), 3600);
+    }, 920);
+    this.live.textContent = `New entry in the field log: ${name} (${latin}), ${count} of ${total} logged.`;
   }
 
   /** Already logged: a quiet word where it was clicked. */
@@ -254,27 +248,11 @@ export function loaderProgress(p: number, sub?: string) {
   }
 }
 
-/**
- * Loaded: the bar gives way to a quiet "begin" button. The dive (and its sound) starts on that click;
- * browsers won't play audio before one.
- */
-export function loaderReady(onBegin: () => void) {
-  const l = document.getElementById('loader');
-  if (!l) return onBegin();
-  const inner = l.querySelector('.loader-inner')!;
-  inner.innerHTML = `
-    <button class="begin" type="button">Begin the dive</button>
-    <div class="loader-sub">sound on · 30 ft · Puget Sound</div>`;
-  const b = inner.querySelector<HTMLButtonElement>('.begin')!;
-  b.focus({ preventScroll: true });
-  b.addEventListener('click', () => onBegin(), { once: true });
-}
-
 export function loaderDone() {
   const l = document.getElementById('loader');
   if (!l) return;
   l.classList.add('done');
-  setTimeout(() => l.remove(), 1200);
+  setTimeout(() => l.remove(), 500);
 }
 
 export function showFallback(message: string) {
