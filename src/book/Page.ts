@@ -152,7 +152,7 @@ export class Page {
 
 export type Block =
   | { kind: 'title'; text: string; size?: number }
-  | { kind: 'heading'; text: string; id?: string }
+  | { kind: 'heading'; text: string }
   | { kind: 'sub'; text: string }
   | { kind: 'meta'; text: string }
   | { kind: 'para'; text: string; italic?: boolean; small?: boolean }
@@ -162,11 +162,8 @@ export type Block =
   | { kind: 'space'; h: number }
   | { kind: 'break' };
 
-/**
- * Lay blocks out across as many pages as needed. `make` creates a fresh page. Headings with an `id`
- * record the index (within the returned pages) of the page they landed on in `anchors`.
- */
-export function flow(blocks: Block[], make: () => Page, anchors: Record<string, number> = {}): Page[] {
+/** Lay blocks out across as many pages as needed. `make` creates a fresh page. */
+export function flow(blocks: Block[], make: () => Page): Page[] {
   const pages: Page[] = [make()];
   let p = pages[0];
   const next = () => { p = make(); pages.push(p); };
@@ -198,7 +195,6 @@ export function flow(blocks: Block[], make: () => Page, anchors: Record<string, 
       case 'heading': {
         // keep a heading with at least a few lines of what follows
         if (!p.space(64 + 150)) next();
-        if (b.id) anchors[b.id] = pages.length - 1;
         p.y += 10;
         p.g.font = `46px ${TYPE}`;
         for (const l of p.wrap(b.text)) p.text(l, `46px ${TYPE}`, s().ink, p.left, 62);

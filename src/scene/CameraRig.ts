@@ -98,7 +98,7 @@ export class CameraRig {
     this.introOut = -1;
   }
 
-  /** One slow, scripted pull-back from the opening shot to the diver's spot. */
+  /** One slow, scripted pull-back from the opening shot to the diver's spot (as the book is picked up). */
   releaseIntro() {
     if (this.intro && this.introOut < 0) this.introOut = 0;
   }
@@ -108,8 +108,8 @@ export class CameraRig {
   /** Turn by whole steps. */
   step(dYaw: number, dPitch: number) {
     if (!this.enabled) return;
-    // still in the opening shot: the first turn pulls back instead
-    if (this.intro) { this.releaseIntro(); return; }
+    // the opening shot is scripted: it only ends when the book is picked up
+    if (this.intro) return;
     this.setZoom(1);
     const p = THREE.MathUtils.clamp(this.pitchStep + dPitch, PITCH_MIN, PITCH_MAX);
     if (dYaw === 0 && p === this.pitchStep) return;
@@ -158,7 +158,7 @@ export class CameraRig {
     if (this.intro) {
       let k = 1;
       if (this.introOut >= 0) {
-        this.introOut = Math.min(1, this.introOut + dt / 3.6);
+        this.introOut = Math.min(1, this.introOut + dt / 3.0);
         const e = this.introOut;
         k = 1 - (e < 0.5 ? 4 * e * e * e : 1 - (-2 * e + 2) ** 3 / 2);
       }

@@ -64,16 +64,15 @@ async function boot() {
     return t;
   };
   const leather = { map: tex('leather_diff.jpg', true), normal: tex('leather_nor_gl.jpg', false) };
-  const book = portfolioPages();
   const portfolio = new Book3D({
     width: 0.2, height: 0.28, thickness: 0.03, cover: 0xc23a2c, foil: '#d9b76a', leather,
     title: [content.fullName, 'Portfolio', content.title], endpaper: '#6e2a22',
-    tabs: book.sections.map((s) => ({ label: s.tab, page: s.page })),
-  }, book.pages);
-  // picked up, the book is drawn in the overlay: square to the eye, sharp, over the water effects
-  portfolio.overlay = { scene: ocean.overlay, camera: ocean.overlayCam };
+  }, portfolioPages());
   ocean.scene.add(portfolio.root);
   portfolio.onSound = (s) => sound.play(s);
+  // held in the diver's hands, sized to the unzoomed view
+  portfolio.holder = rig.hands;
+  portfolio.fitFov = rig.baseFov;
   const field = new FieldLog();
   {
     const s = stage();
@@ -108,7 +107,6 @@ async function boot() {
       if (on) {
         portfolio.lower();
         field.close();
-        rig.releaseIntro();
       } else if (portfolio.inHand) portfolio.raise();
     },
   }, { ambience: sound.ambienceOn, sfx: sound.sfxOn, zoom: zoomOn });
@@ -122,16 +120,12 @@ async function boot() {
   const toggleBook = () => {
     sound.unlock();
     rig.setZoom(1);
-    if (portfolio.state === 'rest') portfolio.pickUp(ocean.camera);
+    if (portfolio.state === 'rest') portfolio.pickUp();
     else if (portfolio.state === 'lowered' || portfolio.state === 'lowering') {
       field.close();
       leaveWatch();
       portfolio.raise();
-    } else {
-      portfolio.lower();
-      // putting the book down the first time: the camera pulls back and the dive opens up
-      rig.releaseIntro();
-    }
+    } else portfolio.lower();
   };
   const toggleLog = () => {
     sound.unlock();
@@ -151,34 +145,24 @@ async function boot() {
   const ndc = new THREE.Vector2();
   const bookHit = (x: number, y: number) => {
     ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
-    // held, the book is in the overlay and seen through its camera; resting, through the diver's
-    ray.setFromCamera(ndc, portfolio.inOverlay ? ocean.overlayCam : ocean.camera);
-    // (held, the targets are the exact page and tab meshes: their shading overlays mustn't catch the ray)
+    ray.setFromCamera(ndc, ocean.camera);
+    // (held, the targets are the exact page meshes: their gutter shading mustn't catch the ray)
     const hit = ray.intersectObjects(portfolio.targets(), portfolio.state === 'rest')[0];
     return hit ? { book: portfolio, hit } : null;
   };
-  let down: { x: number; y: number; lx: number; ly: number; drag: boolean; pan: boolean } | null = null;
+  let down: { x: number; y: number; drag: boolean } | null = null;
   canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    // reading a zoomed page, a drag moves the page; otherwise it turns the view
-    down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, drag: false, pan: portfolio.reading && portfolio.zoomLevel > 1.01 };
+    down = { x: e.clientX, y: e.clientY, drag: false };
   });
   window.addEventListener('pointermove', (e) => {
-    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) {
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 14) {
       down.drag = true;
       canvas.classList.add('grab');
     }
-    if (down?.drag && down.pan) {
-      portfolio.pan(e.clientX - down.lx, e.clientY - down.ly);
-      down.lx = e.clientX;
-      down.ly = e.clientY;
-    }
     if (!down) {
       const h = bookHit(e.clientX, e.clientY);
-      const d = h ? h.book.describe(h.hit) : null;
-      canvas.classList.toggle('pointer', !!d);
-      // near the outer edge of a page, its corner lifts a little: it can be turned
-      portfolio.hover(d && d.kind === 'turn' && d.edge ? d.dir : 0);
+      canvas.classList.toggle('pointer', !!(h && h.book.describe(h.hit)));
     }
   });
   window.addEventListener('pointerup', (e) => {
@@ -186,7 +170,6 @@ async function boot() {
     const d = down;
     down = null;
     canvas.classList.remove('grab');
-    if (d.drag && d.pan) return;
     if (d.drag) {
       // like grabbing the world: drag left to look right; roughly one step per 200 px, at most two
       const sx = THREE.MathUtils.clamp(Math.round((d.x - e.clientX) / 200), -2, 2);
@@ -197,7 +180,7 @@ async function boot() {
     sound.unlock();
     const h = bookHit(e.clientX, e.clientY);
     if (h) {
-      h.book.click(h.hit, ocean.camera);
+      h.book.click(h.hit);
       return;
     }
     const a = world.pick(e.clientX, e.clientY);
@@ -226,9 +209,8 @@ async function boot() {
       case 'z': case 'Z': setZoomOn(!zoomOn); hud.setZoom(zoomOn); break;
       case 'Escape':
         if (field.isOpen) field.close();
-        else if (book && book.zoomLevel > 1.01) book.resetView();
         else if (rig.zoomTarget > 1) rig.setZoom(1);
-        else if (book) { book.lower(); rig.releaseIntro(); }
+        else book?.lower();
         break;
       default: return;
     }
@@ -254,20 +236,13 @@ async function boot() {
     const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
     const nx = (e.clientX / window.innerWidth) * 2 - 1;
     const ny = -(e.clientY / window.innerHeight) * 2 + 1;
-    if (book) {
-      // reading: magnify the page under the pointer, like a PDF viewer
-      const z0 = book.zoomLevel;
-      const z1 = book.zoomAt(z0 * Math.exp(-dy * 0.0022), nx, ny);
-      if (Math.abs(z1 - z0) > 1e-3) sound.zoom(z1, z1 > z0);
-      return;
-    }
     const from = rig.zoomTarget;
     const to = rig.setZoom(from * Math.exp(-dy * 0.0022), nx, ny);
     if (Math.abs(to - from) < 1e-3) return;
     sound.zoom(to, to > from);
     // focus on what's under the pointer: the book, an animal, or leave it to the torch
     if (to <= 1) zoomFocus = null;
-    else {
+    else if (!book) {
       const a = world.pick(e.clientX, e.clientY);
       if (a) zoomFocus = a.agent.pos.distanceTo(ocean.camera.position);
     }
@@ -296,10 +271,9 @@ async function boot() {
     ocean.fade = Math.min(1, t / INTRO);
     rig.update(dt, t);
     world.update(dt, t);
-    portfolio.update(dt);
-    // the water dims behind the book while it's up
-    const up = portfolio.inOverlay && portfolio.state !== 'lowered' && portfolio.state !== 'lowering' ? 1 : 0;
-    ocean.veilAmount += (up - ocean.veilAmount) * Math.min(1, dt * 4);
+    portfolio.update(dt, ocean.camera);
+    // the opening shot ends when the book is picked up: the camera pulls back as it rises into the hands
+    if (rig.inIntro && portfolio.state !== 'rest') rig.releaseIntro();
     const bookState = portfolio.state + portfolio.reading;
     if (bookState !== lastBookState) {
       lastBookState = bookState;
@@ -307,6 +281,7 @@ async function boot() {
     }
     if (rig.zoomTarget <= 1 && rig.zoom < 1.02) zoomFocus = null;
     // the torch and the focus follow what the diver is looking at
+    const book = reading();
     const hero = world.hero();
     ocean.camera.getWorldDirection(fwd);
     if (hero) aimAt.copy(hero.pos);
@@ -322,13 +297,16 @@ async function boot() {
     }
     aimTorch(ocean.torch, ocean.camera, hero ? hero.pos : null, aimAt, dt);
     // focus: the page when reading; what was zoomed on; far off when looking up at the surface; else the torch's target
-    // (the held book is drawn separately and always sharp; behind it the water stays softly focused)
-    const ft = rig.inIntro && portfolio.state === 'rest' ? ocean.camera.position.distanceTo(portfolio.restCentre)
+    const ft = book ? book.heldDistance(ocean.camera)
+      : rig.inIntro && portfolio.state === 'rest' ? ocean.camera.position.distanceTo(portfolio.restCentre)
       : zoomFocus ?? (!hero && rig.pitchStep >= 2 ? 9 : Math.max(0.8, ocean.camera.position.distanceTo(aimAt)));
     shared.focus.value += (ft - shared.focus.value) * Math.min(1, dt * (rig.inIntro ? 8 : 3));
     // close over the book the torch is turned down, then comes up as the camera pulls back
     const ts = rig.inIntro ? THREE.MathUtils.clamp(ocean.camera.position.distanceTo(portfolio.restCentre ?? aimAt) / 2.2, 0.28, 1) : 1;
     ocean.torchScale += (ts - ocean.torchScale) * Math.min(1, dt * 2);
+    // a book held up close would be all blur at the water's aperture: stop down while reading
+    const ap = book ? 0.02 : 0.22;
+    shared.aperture.value += (ap - shared.aperture.value) * Math.min(1, dt * 4);
     if (render) ocean.render(t, dt);
   };
   let last = performance.now();
