@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import type { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { shared, WATER_GLSL, waterUniforms } from './UnderwaterMaterial';
 import { buildTerrain, stage, WORLD } from './Terrain';
 import { buildBackdrop, buildLights, buildParticles, buildSurface, buildTorch, TORCH } from './Environment';
@@ -208,11 +208,54 @@ const LensShader = {
   `,
 };
 
-/** ShaderPass that hands the scene's depth texture (from whichever buffer holds the scene) to its shader. */
-class DepthAwarePass extends ShaderPass {
-  render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget, deltaTime: number, maskActive: boolean) {
-    this.uniforms.tDepth.value = readBuffer.depthTexture;
-    super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+const BLUR_X = new THREE.Vector2(1, 0);
+const BLUR_Y = new THREE.Vector2(0, 1);
+
+/**
+ * UnrealBloomPass without its last step: instead of blending the blur back over the whole frame in a
+ * full-resolution pass of its own, it's left in its (half-resolution) texture for the output pass to add.
+ * Steps 1–3 are UnrealBloomPass.render's, unchanged.
+ */
+class BloomPass extends UnrealBloomPass {
+  bloomOf(renderer: THREE.WebGLRenderer, input: THREE.Texture): THREE.Texture {
+    const quad = (this as unknown as { _fsQuad: FullScreenQuad })._fsQuad;
+    const oldClear = renderer.getClearColor(new THREE.Color());
+    const oldAlpha = renderer.getClearAlpha();
+    const oldAutoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setClearColor(this.clearColor, 0);
+    const pass = (m: THREE.Material, to: THREE.WebGLRenderTarget) => {
+      quad.material = m;
+      renderer.setRenderTarget(to);
+      renderer.clear();
+      quad.render(renderer);
+    };
+    // 1. bright areas
+    const hp = this.highPassUniforms as Record<string, THREE.IUniform>;
+    hp.tDiffuse.value = input;
+    hp.luminosityThreshold.value = this.threshold;
+    pass(this.materialHighPassFilter, this.renderTargetBright);
+    // 2. blur each mip
+    let from = this.renderTargetBright;
+    for (let i = 0; i < this.nMips; i++) {
+      const m = this.separableBlurMaterials[i];
+      m.uniforms.colorTexture.value = from.texture;
+      m.uniforms.direction.value = BLUR_X;
+      pass(m, this.renderTargetsHorizontal[i]);
+      m.uniforms.colorTexture.value = this.renderTargetsHorizontal[i].texture;
+      m.uniforms.direction.value = BLUR_Y;
+      pass(m, this.renderTargetsVertical[i]);
+      from = this.renderTargetsVertical[i];
+    }
+    // 3. composite the mips
+    const c = this.compositeMaterial.uniforms;
+    c.bloomStrength.value = this.strength;
+    c.bloomRadius.value = this.radius;
+    c.bloomTintColors.value = this.bloomTintColors;
+    pass(this.compositeMaterial, this.renderTargetsHorizontal[0]);
+    renderer.setClearColor(oldClear, oldAlpha);
+    renderer.autoClear = oldAutoClear;
+    return this.renderTargetsHorizontal[0].texture;
   }
 }
 
@@ -220,16 +263,21 @@ export class Ocean {
   renderer: THREE.WebGLRenderer;
   scene = new THREE.Scene();
   camera: THREE.PerspectiveCamera;
-  composer: EffectComposer;
-  bloom: UnrealBloomPass;
+  bloom: BloomPass;
   water: ShaderPass;
   lens: ShaderPass;
+  /** the scene: multisampled, with a depth texture the water pass reads */
   target: THREE.WebGLRenderTarget;
   terrain: THREE.Mesh;
   particles: THREE.Points;
   torch: THREE.SpotLight;
-  clock = new THREE.Clock();
   quality = 1;
+  private scenePass: RenderPass;
+  private output: OutputPass;
+  /** after the water pass (linear HDR) */
+  private post: THREE.WebGLRenderTarget;
+  /** after bloom, tonemapping and sRGB, before the lens */
+  private graded: THREE.WebGLRenderTarget;
   private frameTimes: number[] = [];
   private frame = 0;
 
@@ -241,7 +289,8 @@ export class Ocean {
     this.renderer.toneMappingExposure = 1.4;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // (PCFSoftShadowMap is gone from three: it fell back to this with a console warning)
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.05, 70);
     this.camera.position.set(0, 6, 30);
@@ -264,25 +313,37 @@ export class Ocean {
     this.camera.add(this.torch.target);
     this.scene.add(this.camera);
 
-    // multisampled HDR target with a depth texture the water pass can read
+    // The passes, wired by hand: scene → water (DOF, torch beam) → bloom + tonemapping → lens → screen.
+    // Only the scene is multisampled; each full-screen pass after it writes a plain target (an EffectComposer
+    // gives every pass a copy of its first target, so each of them was rendered 4× multisampled and then
+    // resolved, depth and all, for no difference in the picture), and the bloom is added in the tonemapping
+    // pass rather than blended over the frame in a pass of its own.
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
     this.target.depthTexture = new THREE.DepthTexture(size.x, size.y);
     this.target.depthTexture.type = THREE.UnsignedIntType;
-    this.composer = new EffectComposer(this.renderer, this.target);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.water = new DepthAwarePass(WaterPostShader);
+    const plain = { type: THREE.HalfFloatType, depthBuffer: false };
+    this.post = new THREE.WebGLRenderTarget(size.x, size.y, plain);
+    this.graded = new THREE.WebGLRenderTarget(size.x, size.y, plain);
+    this.scenePass = new RenderPass(this.scene, this.camera);
+    this.water = new ShaderPass(WaterPostShader);
     // ShaderPass clones its uniforms: point the live ones back at the shared objects, or focus and time
     // would stay frozen at their initial values
     this.water.uniforms.uFocus = shared.focus;
     this.water.uniforms.uAperture = shared.aperture;
     this.water.uniforms.uTime = shared.time;
-    this.composer.addPass(this.water);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.14, 0.6, 0.92);
-    this.composer.addPass(this.bloom);
-    this.composer.addPass(new OutputPass());
+    this.water.uniforms.tDepth.value = this.target.depthTexture;
+    this.bloom = new BloomPass(new THREE.Vector2(size.x, size.y), 0.14, 0.6, 0.92);
+    this.output = new OutputPass();
+    const fs = this.output.material.fragmentShader;
+    const read = 'gl_FragColor = texture2D( tDiffuse, vUv );';
+    if (!fs.includes(read)) throw new Error('OutputShader changed: the bloom has nowhere to go');
+    this.output.uniforms.tBloom = { value: null };
+    this.output.material.fragmentShader = fs
+      .replace('uniform sampler2D tDiffuse;', 'uniform sampler2D tDiffuse;\nuniform sampler2D tBloom;')
+      .replace(read, 'gl_FragColor = texture2D( tDiffuse, vUv ) + texture2D( tBloom, vUv );');
     this.lens = new ShaderPass(LensShader);
-    this.composer.addPass(this.lens);
+    this.lens.renderToScreen = true;
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -294,8 +355,9 @@ export class Ocean {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
-    this.composer.setPixelRatio(this.renderer.getPixelRatio());
-    this.composer.setSize(w, h);
+    const pr = this.renderer.getPixelRatio();
+    for (const t of [this.target, this.post, this.graded]) t.setSize(w * pr, h * pr);
+    this.bloom.setSize(w * pr, h * pr);
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.water.uniforms.uResolution.value.set(size.x, size.y);
     this.lens.uniforms.uResolution.value.set(size.x, size.y);
@@ -375,6 +437,11 @@ export class Ocean {
     this.lens.uniforms.uBarrel.value = this.barrel;
     u.uSharpNear.value = this.sharpNear;
     this.adapt(dt);
-    this.composer.render();
+    const r = this.renderer;
+    this.scenePass.render(r, this.target, this.target, dt, false);
+    this.water.render(r, this.post, this.target, dt, false);
+    this.output.uniforms.tBloom.value = this.bloom.bloomOf(r, this.post.texture);
+    this.output.render(r, this.graded, this.post, dt, false);
+    this.lens.render(r, null as unknown as THREE.WebGLRenderTarget, this.graded, dt, false);
   }
 }
