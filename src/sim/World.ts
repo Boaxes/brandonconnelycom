@@ -216,13 +216,35 @@ export class World implements Habitat {
     boulder(stageFloor(40 * D, 3.4), 0.8);
     // NE: the reef
     for (let i = 0; i < 9; i++) boulder(randomFloorInSector(rnd, 50 * D, 16 * D, 3, 7), 0.8 + rnd() * 1.5);
+    // S: the octopus's crevice, a narrow gap between two boulders at the foot of the pile. Its front is
+    // kept clear so the gap can be seen from the camera, if you know to look.
+    const crevA = 172 * D;
+    const crevB = 189 * D;
+    const crevDist = 4.4;
+    boulder(stageFloor(crevA, crevDist), 1.45, 'rock_boulder');
+    boulder(stageFloor(crevB, crevDist + 0.2), 1.35, 'rockset_1');
+    const crev = stageFloor(180.5 * D, crevDist + 0.95);
+    const clearOfCrevice = (p: THREE.Vector3) => {
+      const d = Math.hypot(p.x - s.cam.x, p.z - s.cam.z);
+      let off = Math.atan2(p.x - s.cam.x, -(p.z - s.cam.z)) - 180 * D;
+      off = Math.atan2(Math.sin(off), Math.cos(off));
+      return !(Math.abs(off) < 14 * D && d < crevDist + 1.4) && p.distanceTo(crev) > 1.3;
+    };
     // S: a pile of big boulders up the rising slope, rubble at its foot; SW: more of it; W: a few
     for (let i = 0; i < 7; i++) boulder(randomFloorInSector(rnd, 182 * D, 26 * D, 6.5, 9.5), 2.4 + rnd() * 1.4);
-    for (let i = 0; i < 10; i++) boulder(randomFloorInSector(rnd, 180 * D, 34 * D, 3.8, 6.5), 0.7 + rnd() * 1.3);
+    for (let i = 0; i < 10; i++) {
+      const p = randomFloorInSector(rnd, 180 * D, 34 * D, 3.8, 6.5);
+      const size = 0.7 + rnd() * 1.3;
+      if (clearOfCrevice(p)) boulder(p, size);
+    }
     for (let i = 0; i < 5; i++) boulder(randomFloorInSector(rnd, 228 * D, 16 * D, 4.5, 8), 1.2 + rnd() * 1.6);
     for (let i = 0; i < 3; i++) boulder(randomFloorInSector(rnd, 255 * D, 12 * D, 4, 7), 0.7 + rnd() * 1.0);
     // everywhere, far off: shapes in the murk so no direction is empty
     for (let i = 0; i < 14; i++) boulder(randomFloorAround(rnd, 11, 17), 1.4 + rnd() * 2);
+    // the octopus sits back in the gap, facing out, so the rocks either side hide most of it
+    this.den.copy(crev);
+    this.den.y = floorHeight(crev.x, crev.z);
+    this.denFacing.subVectors(s.cam, crev).setY(0).normalize();
     for (const [kind, pl] of rockPlaces) {
       this.surfaces.push(...this.scanInstances(kind, pl, 0.92, kind === 'rock_boulder' ? undefined : 0x9a9a92));
     }
@@ -277,9 +299,7 @@ export class World implements Habitat {
     // E: the wreck lying at an angle across the view, half sunk in the silt
     const wreckAt = stageFloor(98 * D, 5.6);
     this.landmarks.push(wreckAt.clone().add(new THREE.Vector3(0, 0.9, 0)));
-    const wreck: Place = { p: wreckAt, q: q(across(98 * D) + 0.5, 0.03, -0.12), s: new THREE.Vector3(1, 1, 1) };
-    piece('wreck', wreck, true, 0.9, 0xb0a890, 0.12);
-    this.wreckDen(wreck);
+    piece('wreck', { p: wreckAt, q: q(across(98 * D) + 0.5, 0.03, -0.12), s: new THREE.Vector3(1, 1, 1) }, true, 0.9, 0xb0a890, 0.12);
     piece('barrel', { p: stageFloor(78 * D, 3.9), q: q(1.1, 1.45, 0.2), s: new THREE.Vector3(1, 1, 1) }, true, 0.8, 0x8a7a6c);
     // W: the anchor, lying on its side where the floor falls away
     this.landmarks.push(stageFloor(268 * D, 3.2).add(new THREE.Vector3(0, 0.2, 0)));
@@ -310,28 +330,6 @@ export class World implements Habitat {
       }
       this.scanInstances('scallop', places, 0.6);
     }
-  }
-
-  /**
-   * The octopus's hiding place: under the overhang of the wreck's hull, at the end nearer the camera,
-   * where only its arms show from under the planking.
-   */
-  private wreckDen(pl: Place) {
-    const cam = stage().cam;
-    const bb = this.bounds('wreck');
-    const m = new THREE.Matrix4().compose(pl.p, pl.q, pl.s);
-    // the end of the hull nearer the camera, on the camera's side, just inside the rim
-    let best: THREE.Vector3 | null = null;
-    for (const ex of [bb.min.x * 0.62, bb.max.x * 0.62]) {
-      for (const ez of [bb.min.z * 0.9, bb.max.z * 0.9]) {
-        const w = new THREE.Vector3(ex, 0, ez).applyMatrix4(m);
-        if (!best || w.distanceTo(cam) < best.distanceTo(cam)) best = w;
-      }
-    }
-    this.denFacing.subVectors(cam, best!).setY(0).normalize();
-    // back in under the planking, so from the camera only the arms show
-    this.den.copy(best!).addScaledVector(this.denFacing, -0.55);
-    this.den.y = floorHeight(this.den.x, this.den.z);
   }
 
   /** Point on the top surface of a random rock or prop (with its normal), within reach, or false. */
@@ -387,8 +385,8 @@ export class World implements Habitat {
   }
 
   private buildFish() {
-    const herringCfg: SchoolConfig = { neighbor: 1.6, separation: 0.45, cohesion: 0.9, alignment: 1.3, sepWeight: 0.9, fleeRadius: 5, predators: ['seal', 'porpoise', 'dogfish', 'orca'], homeAbove: [4, 7] };
-    const salmonCfg: SchoolConfig = { neighbor: 4, separation: 1.1, cohesion: 0.6, alignment: 1.0, sepWeight: 0.8, fleeRadius: 8, predators: ['orca', 'seal'], homeAbove: [3, 6] };
+    const herringCfg: SchoolConfig = { neighbor: 1.6, separation: 0.45, cohesion: 0.9, alignment: 1.3, sepWeight: 0.9, fleeRadius: 5, predators: ['sealion', 'porpoise', 'dogfish', 'orca'], homeAbove: [4, 7] };
+    const salmonCfg: SchoolConfig = { neighbor: 4, separation: 1.1, cohesion: 0.6, alignment: 1.0, sepWeight: 0.8, fleeRadius: 8, predators: ['orca', 'sealion'], homeAbove: [3, 6] };
     const herringN = 160;
     if (this.pop('herring', herringN)) {
       const school = new School(herringCfg, 'herring');
@@ -447,7 +445,7 @@ export class World implements Habitat {
         this.addAgent(key, c);
       }
     };
-    const crab = { threats: ['octopus', 'seal'], threatRadius: 2.5, roam: 2.5 };
+    const crab = { threats: ['octopus', 'sealion'], threatRadius: 2.5, roam: 2.5 };
     crawl('dungeness', 5, 0.3, true, crab, 0.2, 200, 60);
     crawl('redrock', 3, 0.25, false, crab, 0.2, 170, 30);
     crawl('kelpcrab', 2, 0.18, false, { ...crab, facing: 'forward' }, 0.15, 320, 20);
@@ -457,11 +455,11 @@ export class World implements Habitat {
       roam: 1.8, walkChance: 0.5, verbs: { idle: 'picking at the bottom', walk: 'walking on its toes', flee: 'tail-flipping away', bury: '' },
     }, 0.2, 60, 40);
     crawl('flounder', 3, 0.45, true, {
-      facing: 'forward', threats: ['seal', 'octopus', 'dogfish'], threatRadius: 2, roam: 3, walkChance: 0.15, lift: 0.08,
+      facing: 'forward', threats: ['sealion', 'octopus', 'dogfish'], threatRadius: 2, roam: 3, walkChance: 0.15, lift: 0.08,
       verbs: { idle: 'lying flat, watching', walk: 'gliding over the sand', flee: 'bolting in a cloud of silt', bury: 'half-buried in the sand' },
     }, 0.45, 140, 22, 2.5, 7);
     crawl('sculpin', 4, 0.3, false, {
-      facing: 'forward', threats: ['seal', 'octopus', 'dogfish'], threatRadius: 1.5, roam: 1.2, walkChance: 0.12, lift: 0.04,
+      facing: 'forward', threats: ['sealion', 'octopus', 'dogfish'], threatRadius: 1.5, roam: 1.2, walkChance: 0.12, lift: 0.04,
       verbs: { idle: 'sitting motionless, camouflaged', walk: 'hopping to a new spot', flee: 'darting off', bury: '' },
     }, 0.3, 320, 40);
     crawl('cucumber', 4, 0.02, false, {
@@ -474,7 +472,7 @@ export class World implements Habitat {
    *  Called again once the late-loading visitors arrive; species already pooled are left alone. */
   buildScriptedPools() {
     const pools: [string, number, ConstructorParameters<typeof Scripted>[1]][] = [
-      ['seal', 2, { maxSpeed: 4, maxForce: 3.2, cruise: 1.5, turnRate: 2.4, clearance: 0.8, bankAmount: 0.8, size: 1.6 }],
+      ['sealion', 2, { maxSpeed: 4, maxForce: 3.2, cruise: 1.5, turnRate: 2.4, clearance: 0.8, bankAmount: 0.8, size: 1.9 }],
       ['orca', 5, { maxSpeed: 4.5, maxForce: 2.2, cruise: 2.6, turnRate: 0.8, clearance: 3, bankAmount: 0.6, size: 7 }],
       ['porpoise', 3, { maxSpeed: 5, maxForce: 5, cruise: 3.2, turnRate: 2, clearance: 1.5, bankAmount: 1, size: 1.6 }],
       ['humpback', 1, { maxSpeed: 2.5, maxForce: 0.8, cruise: 1.6, turnRate: 0.3, clearance: 4, bankAmount: 0.3, size: 14 }],
@@ -716,7 +714,7 @@ export class World implements Habitat {
       urchin: [0.13, 0.5], batstar: [0.18, 0.35], sunflowerstar: [0.45, 0.4], scallop: [0.1, 0.4], moonsnail: [0.1, 0.45],
       flounder: [0.3, 0.45], sculpin: [0.2, 0.5], prawn: [0.1, 0.4], cucumber: [0.16, 0.5],
     };
-    const hoverRules: Record<string, [number, number]> = { rockfish: [0.3, 0.45], blackrockfish: [0.3, 0.45], seal: [0.8, 0.5], dogfish: [0.5, 0.45] };
+    const hoverRules: Record<string, [number, number]> = { rockfish: [0.3, 0.45], blackrockfish: [0.3, 0.45], sealion: [0.8, 0.5], dogfish: [0.5, 0.45] };
     for (const [key, [r, s]] of Object.entries(floorRules)) {
       const p = this.pops.get(key);
       if (!p) continue;

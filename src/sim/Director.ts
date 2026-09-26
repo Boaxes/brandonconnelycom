@@ -9,9 +9,10 @@ import { sound } from '../audio/Sound';
  * Stages the visits. The first minute is scripted, because that's what a visitor actually sees:
  *   ~4 s   a rockfish drifts over to look at the camera
  *   ~10 s  a school of herring sweeps across
- *   ~20 s  a harbor seal comes out of the murk, hangs beside the book for a good look, circles, leaves
+ *   ~20 s  a California sea lion comes out of the murk, hangs beside the book for a good look, circles, leaves
  *   ~38 s  orca calls, then the pod passes high overhead, dark shapes just under the surface
- * The octopus is an easter egg: it hides under the wreck from the start and now and then reaches out.
+ * The octopus is an easter egg: it hides in a crevice between two boulders to the south from the start,
+ * and now and then edges out a little and back.
  * After that, visits are drawn at random (with cooldowns). Routes are laid out relative to wherever the
  * visitor is looking at the time, so the moment isn't missed; the orcas and the whale stay high.
  */
@@ -29,7 +30,7 @@ export class Director {
     this.at(4, () => this.rockfishHello());
     this.at(0, () => this.octopusHide());
     this.at(10, () => this.schoolPass('herring', 1.8, 2.5));
-    this.at(20, () => this.sealVisit());
+    this.at(20, () => this.sealionVisit());
     this.at(38, () => this.orcaPass(false));
   }
 
@@ -52,7 +53,7 @@ export class Director {
   private randomVisit() {
     const menu: [string, number, number, () => boolean][] = [
       // name, weight, cooldown (s), run
-      ['seal', 3, 70, () => this.sealVisit()],
+      ['sealion', 3, 70, () => this.sealionVisit()],
       ['herring', 2, 45, () => this.schoolPass('herring', 1.8, 2.5)],
       ['rockfish', 2, 30, () => this.rockfishHello()],
       ['porpoise', 1.4, 100, () => this.porpoisePass()],
@@ -104,11 +105,11 @@ export class Director {
     return true;
   }
 
-  /** A harbor seal comes in from the murk, hangs beside the book for a good look, circles, loses interest. */
-  private sealVisit(): boolean {
-    const s = this.w.scripted('seal');
+  /** A sea lion comes in from the murk, hangs beside the book for a good look, circles, loses interest. */
+  private sealionVisit(): boolean {
+    const s = this.w.scripted('sealion');
     if (!s) return false;
-    // a rockfish hanging where the seal is about to stop would crowd the shot: it backs off
+    // a rockfish hanging where the sea lion is about to stop would crowd the shot: it backs off
     BenthicFish.inspecting?.leave();
     const cam = stage().cam;
     const y = this.view().yaw;
@@ -123,7 +124,7 @@ export class Director {
     ];
     s.start(this.pt(y + side * 0.55, 15, 1.2), legs);
     this.hero = s;
-    sound.call('seal', 8);
+    sound.call('sealion', 8);
     return true;
   }
 
@@ -148,12 +149,12 @@ export class Director {
     if (!bodies.length) return false;
     sound.call('orca', 20);
     this.onLookUp?.();
-    // high up, just under the surface and nearly overhead, so they cross the bright window of the surface
-    // as dark shapes when you look up (the murk swallows anything much further off)
+    // at the surface, dorsal fins just breaking it, nearly overhead: dark shapes crossing the bright
+    // window of the surface when you look up (the murk swallows anything much further off)
     const dist = overhead ? 2 : 5;
-    const top = WORLD.surfaceY - stage().cam.y - 1.6;
+    const top = WORLD.surfaceY - stage().cam.y - 1.2;
     bodies.forEach((o, i) => {
-      const dy = top - i * 0.35 + (Math.random() - 0.5) * 0.3;
+      const dy = top;
       const lane = dist + i * 0.9;
       this.at(this.t + 2.5 + i * 2.1, () => {
         o.start(this.pt(y - dir * 1.5, 20, dy), [
@@ -161,6 +162,7 @@ export class Director {
           { to: this.pt(y + dir * 0.55, lane, dy), speed: 2.6, doing: 'travelling with the pod' },
           { to: this.pt(y + dir * 1.5, 20, dy), speed: 3, doing: 'travelling with the pod' },
         ]);
+        o.surfaceRide = 1.05;
         if (i === 0) this.hero = o;
         if (i === 1) sound.call('orca', 10);
       });
@@ -223,29 +225,29 @@ export class Director {
     return true;
   }
 
-  /** The octopus is already in its hiding place under the wreck when the dive starts. */
+  /** The octopus is already in its crevice when the dive starts. */
   private octopusHide(): boolean {
     const o = this.w.scripted('octopus');
     if (!o) return false;
     const den = this.w.den;
     o.start(den.clone(), [
-      { to: den.clone(), speed: 0.1, hold: 1e9, face: stage().cam, doing: 'hiding under the wreck, one eye out', radius: 0.2 },
+      { to: den.clone(), speed: 0.1, hold: 1e9, face: stage().cam, doing: 'wedged in its crevice, one eye out', radius: 0.2 },
     ]);
     o.heading = Math.atan2(this.w.denFacing.z, this.w.denFacing.x);
     return true;
   }
 
-  /** Now and then it reaches out a little way from under the hull, has a feel around, and pulls back. */
+  /** Now and then it edges out of the gap a little, has a feel around, and pulls back in. */
   private octopusPeek(): boolean {
     const o = this.w.pops.get('octopus')?.agents[0] as Scripted | undefined;
     if (!o || !o.alive) return this.octopusHide();
     const den = this.w.den;
-    const out = den.clone().addScaledVector(this.w.denFacing, 0.75 + Math.random() * 0.35);
+    const out = den.clone().addScaledVector(this.w.denFacing, 0.3 + Math.random() * 0.2);
     out.y = floorHeight(out.x, out.z);
     o.setLegs([
-      { to: out, speed: 0.08, doing: 'reaching out from under the wreck', radius: 0.1 },
-      { to: out.clone(), speed: 0.08, hold: 5 + Math.random() * 6, face: stage().cam, doing: 'feeling around the planking', radius: 0.2 },
-      { to: den.clone(), speed: 0.1, hold: 1e9, face: stage().cam, doing: 'hiding under the wreck, one eye out', radius: 0.2 },
+      { to: out, speed: 0.08, doing: 'edging out of its crevice', radius: 0.1 },
+      { to: out.clone(), speed: 0.08, hold: 5 + Math.random() * 6, face: stage().cam, doing: 'feeling around the rocks with one arm', radius: 0.2 },
+      { to: den.clone(), speed: 0.1, hold: 1e9, face: stage().cam, doing: 'wedged in its crevice, one eye out', radius: 0.2 },
     ]);
     return true;
   }

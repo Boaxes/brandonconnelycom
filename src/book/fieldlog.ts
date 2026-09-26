@@ -12,7 +12,6 @@ const STYLE: PageStyle = {
   margin: 124,
 };
 
-const STORE = 'ps-fieldlog';
 const PER_INDEX_PAGE = 12;
 
 /**
@@ -29,10 +28,6 @@ export class FieldLog {
 
   constructor() {
     this.keys = Object.keys(SPECIES);
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE) ?? '{}') as Record<string, number>;
-      for (const [k, t] of Object.entries(saved)) if (SPECIES[k]) this.found.set(k, t);
-    } catch { /* ignore */ }
     this.indexCount = Math.ceil(this.keys.length / PER_INDEX_PAGE);
     const total = 1 + this.indexCount + this.keys.length;
     for (let i = 0; i < total; i++) this.pages.push(new Page({ ...STYLE, header: i === 0 ? undefined : 'Field log · Puget Sound, 30 ft' }, i === 0 ? undefined : i));
@@ -48,7 +43,6 @@ export class FieldLog {
   log(key: string, t: number): boolean {
     if (this.found.has(key) || !SPECIES[key]) return false;
     this.found.set(key, t);
-    try { localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(this.found))); } catch { /* ignore */ }
     this.render();
     return true;
   }

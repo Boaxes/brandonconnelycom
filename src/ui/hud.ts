@@ -60,9 +60,9 @@ export class Hud {
           <button class="ctl" data-a="left" title="Look left (A / ←)" aria-label="Look left">${icon(I.left)}</button>
           <button class="ctl" data-a="zoom" aria-pressed="${prefs.zoom}" title="Zoom: scroll to look closer (Z)" aria-label="Zoom with the scroll wheel">${icon(I.zoom)}</button>
           <button class="ctl" data-a="right" title="Look right (D / →)" aria-label="Look right">${icon(I.right)}</button>
-          <button class="ctl" data-a="ambience" aria-pressed="${prefs.ambience}" title="Sound: the water and the animals" aria-label="Sound">${icon(I.waves)}</button>
+          <button class="ctl" data-a="ambience" aria-pressed="${prefs.ambience}" title="Background: the sound of the water" aria-label="Background sound">${icon(I.waves)}</button>
           <button class="ctl" data-a="down" title="Look down (S / ↓)" aria-label="Look down">${icon(I.down)}</button>
-          <button class="ctl" data-a="sfx" aria-pressed="${prefs.sfx}" title="Effects: the book, the log, the zoom" aria-label="Sound effects">${icon(I.sfx)}</button>
+          <button class="ctl" data-a="sfx" aria-pressed="${prefs.sfx}" title="Effects: the book, the zoom, the log, the animals" aria-label="Sound effects">${icon(I.sfx)}</button>
         </div>
       </div>`);
     this.bookBtn = el<HTMLButtonElement>(`

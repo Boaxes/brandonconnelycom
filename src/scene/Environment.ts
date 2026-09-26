@@ -195,7 +195,7 @@ export function buildSurface(): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(160, 160, 1, 1);
   geo.rotateX(Math.PI / 2); // facing down
   const mat = new THREE.ShaderMaterial({
-    uniforms: { ...waterUniforms(), uTime: shared.time },
+    uniforms: { ...waterUniforms(), uTime: shared.time, uSunDir: shared.sunDir },
     side: THREE.DoubleSide,
     depthWrite: false,
     vertexShader: /* glsl */ `
@@ -210,36 +210,63 @@ export function buildSurface(): THREE.Mesh {
       ${WATER_GLSL}
       uniform float uTime;
       varying vec3 vWorld;
-      // fine ripples: several short wave trains in different directions, drifting. From 30 ft down only
-      // the light they focus shows, as a thin shifting net, so the contrast is kept low.
-      float ripples(vec2 p, float t) {
-        float r = 0.0;
-        r += sin(dot(p, vec2(0.83, 0.55)) * 7.0 + t * 1.3);
-        r += sin(dot(p, vec2(-0.41, 0.91)) * 9.5 - t * 1.7);
-        r += sin(dot(p, vec2(0.97, -0.26)) * 12.0 + t * 2.1);
-        r += sin(dot(p, vec2(-0.7, -0.7)) * 5.0 - t * 0.9);
-        return r * 0.25;
+      uniform vec3 uSunDir;
+      // A rough sea seen from below. The surface height is three long swells plus three octaves of
+      // drifting noise chop (each octave rotated and moving its own way, so nothing lines up into a
+      // pattern). Its slope bends the view ray: where the surface tilts past the critical angle it becomes
+      // a mirror of the dark water below, so Snell's window breaks into moving bright and dark facets
+      // instead of a calm disc; troughs focus the light and crests spread it.
+      float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      float vnoise(vec2 p) {
+        vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y) * 2.0 - 1.0;
+      }
+      float height(vec2 p, float t, float fw) {
+        float h = 0.0;
+        h += 0.34 * sin(dot(p, vec2(0.80, 0.60)) * 0.57 - t * 0.74);
+        h += 0.22 * sin(dot(p, vec2(0.34, 0.94)) * 0.9 - t * 0.94 + 1.3);
+        h += 0.14 * sin(dot(p, vec2(0.97, -0.24)) * 1.37 - t * 1.16 + 4.1);
+        float amp = 0.13;
+        float f = 0.7;
+        mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
+        vec2 q = p;
+        for (int i = 0; i < 3; i++) {
+          float fi = float(i);
+          float keep = 1.0 - smoothstep(0.25, 0.9, f * fw);
+          vec2 drift = vec2(cos(fi * 2.1 + 0.4), sin(fi * 2.1 + 0.4)) * sqrt(9.81 / (6.2831853 * f)) * 0.35;
+          h += amp * keep * vnoise(q * f + drift * t * f);
+          q = rot * q;
+          f *= 2.03;
+          amp *= 0.42;
+        }
+        return h;
       }
       void main() {
         vec3 fromCam = vWorld - cameraPosition;
         vec3 v = normalize(fromCam);
-        // warp the ripple field so the net never lines up into a regular pattern
         vec2 p = vWorld.xz;
-        p += vec2(sin(p.y * 0.37 + uTime * 0.11) + sin(p.y * 0.91 - uTime * 0.07), sin(p.x * 0.43 - uTime * 0.09) + sin(p.x * 0.83 + uTime * 0.13)) * 0.9;
-        // ripples finer than a pixel would shimmer: fade them out with distance
-        float fine = 1.0 - smoothstep(0.04, 0.2, length(fwidth(p)));
-        float r = ripples(p, uTime) * fine;
-        float r2 = ripples(p * 1.9 + 3.1, uTime * 1.3) * fine;
-        // caustic-like net: bright where two ripple fields cross their zero lines
-        float net = (pow(1.0 - abs(r), 6.0) * 0.6 + pow(1.0 - abs(r2), 8.0) * 0.4) * fine;
-        // Snell's window: a soft bright disc overhead, brightest straight up, its rim wobbling with the waves
-        float cosT = clamp(v.y + r * 0.02, 0.0, 1.0);
-        float window = smoothstep(0.6, 0.78, cosT);
-        // broad patches of brighter and duller light as the swell passes, the fine net on top
-        float swell = sin(p.x * 0.21 + uTime * 0.23) * sin(p.y * 0.17 - uTime * 0.19);
-        vec3 sky = vec3(0.66, 0.88, 0.8) * (1.5 + 1.6 * pow(cosT, 6.0)) * (0.92 + swell * 0.12 + net * 0.22);
-        vec3 mirror = uDeepColor * (0.85 + r * 0.06);
-        vec3 c = mix(mirror, sky, window);
+        float fw = length(fwidth(p));
+        float e = max(0.06, fw);
+        float h0 = height(p, uTime, fw);
+        float hx = height(p + vec2(e, 0.0), uTime, fw);
+        float hz = height(p + vec2(0.0, e), uTime, fw);
+        float hx2 = height(p - vec2(e, 0.0), uTime, fw);
+        float hz2 = height(p - vec2(0.0, e), uTime, fw);
+        vec2 g = vec2(hx - hx2, hz - hz2) / (2.0 * e);
+        float curv = (hx + hx2 + hz + hz2 - 4.0 * h0) / (e * e);
+        vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
+        // water to air: the normal facing the viewer points down
+        vec3 r = refract(v, -n, 1.333);
+        float cosi = clamp(dot(v, n), 0.0, 1.0);
+        float fres = 0.02 + 0.98 * pow(1.0 - cosi, 5.0);
+        float through = dot(r, r) > 1e-4 ? (1.0 - fres) : 0.0;
+        // near the critical angle the light thins out rather than cutting off
+        through *= smoothstep(0.6, 0.8, cosi);
+        vec3 sky = vec3(0.6, 0.84, 0.8) * (1.2 + 1.3 * pow(max(r.y, 0.0), 2.0));
+        sky += vec3(1.0, 0.95, 0.8) * pow(max(dot(r, uSunDir), 0.0), 40.0) * 4.0;
+        sky *= clamp(1.0 + curv * 0.12, 0.6, 1.8);
+        vec3 mirror = mix(uDeepColor, uWaterColor, 0.35) * (0.8 + 0.2 * clamp(-curv * 0.3, -1.0, 1.0));
+        vec3 c = mix(mirror, sky, through);
         gl_FragColor = vec4(applyWater(c, fromCam), 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

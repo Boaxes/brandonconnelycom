@@ -26,7 +26,7 @@ export const SCANS: Record<string, { swim: SwimRule; core?: number }> = {
   sculpin: { swim: 'body' },
   prawn: { swim: 'body' },
   dogfish: { swim: 'body' },
-  harbor_seal: { swim: 'body' },
+  ca_sea_lion: { swim: 'body' },
   orca: { swim: 'body' },
   humpback: { swim: 'body' },
   rock_boulder: { swim: 'static' },

@@ -29,7 +29,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
   orca: { key: 'orca', scan: 'orca', roughness: 0.5, name: 'Orca', latin: 'Orcinus orca', scale: [0.95, 1.1], swim: { amp: 0.28, freq: 0.55, speed: 3.2, axis: 1, bodyStart: 0.45 }, large: true },
   humpback: { key: 'humpback', scan: 'humpback', roughness: 0.5, name: 'Humpback whale', latin: 'Megaptera novaeangliae', scale: [1, 1], swim: { amp: 0.6, freq: 0.5, speed: 1.6, axis: 1, bodyStart: 0.5 }, large: true },
   porpoise: { key: 'porpoise', scan: 'harbor_porpoise', roughness: 0.45, name: 'Harbor porpoise', latin: 'Phocoena phocoena', scale: [0.9, 1.1], swim: { amp: 0.12, freq: 0.6, speed: 6, axis: 1, bodyStart: 0.45 }, large: true },
-  seal: { key: 'seal', scan: 'harbor_seal', roughness: 0.5, name: 'Harbor seal', latin: 'Phoca vitulina', scale: [0.95, 1.05], swim: { amp: 0.09, freq: 0.6, speed: 4.5, axis: 0, bodyStart: 0.5 }, large: true },
+  sealion: { key: 'sealion', scan: 'ca_sea_lion', roughness: 0.45, name: 'California sea lion', latin: 'Zalophus californianus', scale: [0.95, 1.08], swim: { amp: 0.07, freq: 0.55, speed: 4, axis: 1, bodyStart: 0.45 }, large: true },
   // fish
   chinook: { key: 'chinook', scan: 'salmon', roughness: 0.6, name: 'Chinook salmon', latin: 'Oncorhynchus tshawytscha', scale: [0.8, 1.2], swim: { amp: 0.07, freq: 0.75, speed: 6, axis: 0, bodyStart: 0.35 } },
   herring: { key: 'herring', scan: 'herring', roughness: 0.6, name: 'Pacific herring', latin: 'Clupea pallasii', scale: [0.8, 1.15], swim: { amp: 0.025, freq: 0.8, speed: 9, axis: 0, bodyStart: 0.3 } },
@@ -45,7 +45,8 @@ export const SPECIES: Record<string, SpeciesDef> = {
   decorator: { key: 'decorator', scan: 'crab_decorator', gait: 1, name: 'Decorator crab', latin: 'Oregonia gracilis', scale: [0.9, 1.3], swim: { amp: 0 } },
   prawn: { key: 'prawn', scan: 'prawn', gait: 0.6, roughness: 0.5, name: 'Spot prawn', latin: 'Pandalus platyceros', scale: [0.85, 1.2], swim: { amp: 0 } },
   cucumber: { key: 'cucumber', scan: 'sea_cucumber', roughness: 0.6, name: 'California sea cucumber', latin: 'Apostichopus californicus', scale: [0.9, 1.3], swim: { amp: 0.02, freq: 0.3, speed: 0.4, axis: 0, bodyStart: 0 } },
-  octopus: { key: 'octopus', scan: 'giant_pacific_octopus', tint: 0xffb8a0, roughness: 0.5, name: 'Giant Pacific octopus', latin: 'Enteroctopus dofleini', scale: [1.1, 1.3], swim: { amp: 0 }, appendageAmp: 0.035, large: true },
+  // camouflaged to the rock it hides in, and on the small side so it fits its crevice
+  octopus: { key: 'octopus', scan: 'giant_pacific_octopus', tint: 0xb4a292, roughness: 0.6, name: 'Giant Pacific octopus', latin: 'Enteroctopus dofleini', scale: [0.72, 0.76], swim: { amp: 0 }, appendageAmp: 0.035, large: true },
   // fixed life
   batstar: { key: 'batstar', scan: 'bat_star', roughness: 0.6, name: 'Bat star', latin: 'Patiria miniata', scale: [0.8, 1.3], swim: { amp: 0 } },
   sunflowerstar: { key: 'sunflowerstar', scan: 'sunflower_star', appendageAmp: 0.008, name: 'Sunflower sea star', latin: 'Pycnopodia helianthoides', scale: [0.8, 1.3], swim: { amp: 0 } },

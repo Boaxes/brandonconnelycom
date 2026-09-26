@@ -16,7 +16,6 @@ sea cucumber, starry flounder, sculpin, prawn, dogfish, bat star, scallop.
 | scan_crab_kelp.glb | [Northern Kelp Crab (Pugettia producta)](https://sketchfab.com/3d-models/be6a8ff47c0447b49d36473db0f5a782) | RosarioBeachMarineLab |
 | scan_sunflower_star.glb | [Sunflower Sea Star](https://sketchfab.com/3d-models/cc973ed5fcd748c8aab5f37ae6b7b6f1) | RISDNaturelab |
 | scan_rock_boulder.glb | [Unknown Rock (127.5A)](https://sketchfab.com/3d-models/781e3bb90e0f4c1ca81ab9aafab2bf76) | RISDNaturelab |
-| scan_harbor_seal.glb | [Spotted Harbor Seal](https://sketchfab.com/3d-models/eff1b6181eca4a8aaca2cb0a19a1df38) | c4rn4g3 |
 | scan_orca.glb | [Orca Killer Whale](https://sketchfab.com/3d-models/7c01c438ff03401d8e77127154c041c7) | LostPlaces |
 | scan_humpback.glb | [High-Poly Humpback Whale](https://sketchfab.com/3d-models/5a6a09f1c27e4d0f890f2a30c10d7a81) | K9239 |
 | scan_rockset.glb | [Rocks Set Stone Collection Scan](https://sketchfab.com/3d-models/b45a40fd145c4b9ba7bc5351d344db17) | perz_scans |
@@ -34,5 +33,6 @@ License: https://creativecommons.org/licenses/by/4.0/
 | File | Model | Author |
 | --- | --- | --- |
 | scan_harbor_porpoise.glb | [Model 75A - Harbor Porpoise](https://sketchfab.com/3d-models/eb02e57f17d741329a66844a3a8d2094) | DigitalLife3D |
+| scan_ca_sea_lion.glb | [Model 86 - California Sea Lion](https://sketchfab.com/3d-models/3a0cef26f2ec4e17907bb43e53b5b471) | DigitalLife3D |
 
 License: https://creativecommons.org/licenses/by-nc/4.0/ (non-commercial use; this is a personal portfolio)

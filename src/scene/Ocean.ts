@@ -31,7 +31,7 @@ const WaterPostShader = {
     uTorchCos: { value: new THREE.Vector2(Math.cos(TORCH.angle), Math.cos(TORCH.angle * (1 - TORCH.penumbra))) },
     uTorchColor: { value: TORCH.color },
     uBeam: { value: 0.09 },
-    uShafts: { value: 0.55 },
+    uShafts: { value: 0.26 },
     uFrame: { value: 0 },
     ...waterUniforms(),
   },

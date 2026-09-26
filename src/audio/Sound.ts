@@ -1,15 +1,14 @@
 /**
- * All audio. Two buses the visitor controls separately:
- *   - sound: the underwater ambience and animal calls
- *   - effects: interaction sounds (the book, pages, logging a species)
- * Every effect first looks for a recording at /sounds/<name>.mp3 (listed in /sounds/manifest.json) and
- * falls back to a small synthesised version, so real recordings can be dropped in without code changes.
- * Nothing plays until the first click (browsers require a gesture).
+ * All audio, on two buses the visitor controls separately, both on at the start of every visit:
+ *   - background: the water, a seamless loop that runs the whole time
+ *   - effects: everything that happens — the book, pages, the zoom, logging a species, animal calls
+ * Each sound is a recording from /sounds/<name>.mp3 (listed in /sounds/manifest.json; CC0 from
+ * Freesound, and one CC BY-NC orca recording, see the credits), with a small synthesised stand-in used
+ * only if a file fails to load. Browsers keep audio locked until the first click or key press anywhere;
+ * `unlock()` is wired to that.
  */
 export type Sfx = 'pickup' | 'open' | 'close' | 'page' | 'discover' | 'lower' | 'raise' | 'click' | 'zoom';
-export type Call = 'orca' | 'humpback' | 'seal';
-
-const PREFS_KEY = 'ps-audio';
+export type Call = 'orca' | 'humpback' | 'sealion';
 
 export class Sound {
   ambienceOn = true;
@@ -18,58 +17,57 @@ export class Sound {
   private master!: GainNode;
   private amb!: GainNode;
   private sfx!: GainNode;
+  /** calls pass through this: muffled a little, as heard through water */
+  private water!: BiquadFilterNode;
   private buffers = new Map<string, AudioBuffer>();
   private ambStarted = false;
   private noiseBuf: AudioBuffer | null = null;
 
-  constructor() {
-    try {
-      const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
-      if (typeof p.ambience === 'boolean') this.ambienceOn = p.ambience;
-      if (typeof p.sfx === 'boolean') this.sfxOn = p.sfx;
-    } catch { /* private mode etc. */ }
-  }
-
-  private save() {
-    try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ ambience: this.ambienceOn, sfx: this.sfxOn }));
-    } catch { /* ignore */ }
-  }
-
-  /** Call from a user gesture. Creates the context, loads any recordings, starts the ambience. */
+  /** Call from a user gesture (any click or key). Creates the context, loads the recordings, starts the water. */
   unlock() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (this.ctx.state === 'suspended') void this.ctx.resume();
       return;
     }
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AC) return;
     const ctx = (this.ctx = new AC());
     this.master = ctx.createGain();
+    this.master.gain.value = 0.9;
     this.master.connect(ctx.destination);
     this.amb = ctx.createGain();
     this.amb.gain.value = 0;
     this.amb.connect(this.master);
     this.sfx = ctx.createGain();
-    this.sfx.gain.value = this.sfxOn ? 0.8 : 0;
+    this.sfx.gain.value = this.sfxOn ? 1 : 0;
     this.sfx.connect(this.master);
+    this.water = ctx.createBiquadFilter();
+    this.water.type = 'lowpass';
+    this.water.frequency.value = 2400;
+    this.water.Q.value = 0.5;
+    this.water.connect(this.sfx);
     this.noiseBuf = this.makeNoise(2);
-    this.loadRecordings();
-    this.startAmbience();
+    // the water starts once the recordings are in (or have failed), so it's the real loop from the start
+    void this.loadRecordings().finally(() => this.startAmbience());
+    if (ctx.state === 'suspended') void ctx.resume();
   }
 
   setAmbience(on: boolean) {
     this.ambienceOn = on;
-    this.save();
-    if (!this.ctx) return;
-    this.amb.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.amb.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, on ? 0.8 : 0.25);
+    if (!this.ctx || !this.ambStarted) return;
+    const t = this.ctx.currentTime;
+    this.amb.gain.cancelScheduledValues(t);
+    this.amb.gain.setValueAtTime(this.amb.gain.value, t);
+    this.amb.gain.setTargetAtTime(on ? 0.55 : 0, t, on ? 0.6 : 0.15);
   }
 
   setSfx(on: boolean) {
     this.sfxOn = on;
-    this.save();
     if (!this.ctx) return;
-    this.sfx.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.05);
+    const t = this.ctx.currentTime;
+    this.sfx.gain.cancelScheduledValues(t);
+    this.sfx.gain.setValueAtTime(this.sfx.gain.value, t);
+    this.sfx.gain.setTargetAtTime(on ? 1 : 0, t, 0.05);
   }
 
   private async loadRecordings() {
@@ -84,22 +82,22 @@ export class Sound {
           const r = await fetch(base + n + '.mp3');
           if (!r.ok) return;
           this.buffers.set(n, await ctx.decodeAudioData(await r.arrayBuffer()));
-        } catch { /* keep the synth fallback */ }
+        } catch { /* keep the synth stand-in */ }
       }));
     } catch { /* no recordings: synth only */ }
   }
 
-  /** Recording if there is one (with a little pitch variation), else false. */
-  private sample(name: string, bus: GainNode, gain = 1, rate = 1): boolean {
+  /** Play a recording if there is one (with a little pitch variation); false if there isn't. */
+  private sample(name: string, bus: AudioNode, gain = 1, rate = 1, when = 0): boolean {
     const b = this.buffers.get(name);
     if (!b || !this.ctx) return false;
     const src = this.ctx.createBufferSource();
     src.buffer = b;
-    src.playbackRate.value = rate * (0.96 + Math.random() * 0.08);
+    src.playbackRate.value = rate * (0.97 + Math.random() * 0.06);
     const g = this.ctx.createGain();
     g.gain.value = gain;
     src.connect(g).connect(bus);
-    src.start();
+    src.start(this.ctx.currentTime + when);
     return true;
   }
 
@@ -107,6 +105,12 @@ export class Sound {
 
   play(name: Sfx) {
     if (!this.ctx || !this.sfxOn) return;
+    if (name === 'page' && Math.random() < 0.5 && this.sample('page2', this.sfx)) return;
+    if (name === 'discover' && this.sample('discover', this.sfx, 0.9)) {
+      // the pencil note, then a soft two-note ping
+      this.sample('ping', this.sfx, 0.5, 1, 0.55);
+      return;
+    }
     if (this.sample(name, this.sfx)) return;
     const t = this.ctx.currentTime;
     switch (name) {
@@ -253,8 +257,17 @@ export class Sound {
     if (this.ambStarted || !this.ctx) return;
     this.ambStarted = true;
     const ctx = this.ctx;
-    this.amb.gain.setTargetAtTime(this.ambienceOn ? 0.5 : 0, ctx.currentTime, 1.5);
-    if (this.sample('ambience-loop', this.amb)) return;
+    this.amb.gain.setValueAtTime(0, ctx.currentTime);
+    this.amb.gain.setTargetAtTime(this.ambienceOn ? 0.55 : 0, ctx.currentTime, 1.5);
+    const loop = this.buffers.get('ambience-loop');
+    if (loop) {
+      const src = ctx.createBufferSource();
+      src.buffer = loop;
+      src.loop = true;
+      src.connect(this.amb);
+      src.start();
+      return;
+    }
     // water: brown-ish noise through a wobbling low-pass, and a low drone
     const len = ctx.sampleRate * 4;
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -292,14 +305,19 @@ export class Sound {
     }
   }
 
-  /** An animal call on the sound bus; `dist` in metres softens it. */
+  /** An animal call (on the effects bus, through the water); `dist` in metres softens it. */
   call(kind: Call, dist = 10) {
-    if (!this.ctx) return;
-    const amp = Math.max(0.2, 1 - dist / 40);
-    if (this.sample(kind, this.amb, amp)) return;
+    if (!this.ctx || !this.sfxOn) return;
+    const amp = Math.max(0.25, 1 - dist / 40);
+    if (kind === 'sealion') {
+      // a bark, sometimes followed by a growl
+      if (this.sample('sealion', this.water, 0.8 * amp, 0.92)) {
+        if (Math.random() < 0.5) this.sample('sealion-growl', this.water, 0.6 * amp, 0.95, 0.9);
+        return;
+      }
+    } else if (this.sample(kind, this.water, amp)) return;
     const t = this.ctx.currentTime;
     if (kind === 'orca') {
-      // a few rising whistles and a pulsed call
       for (let i = 0; i < 3; i++) this.whistle(t + i * (0.7 + Math.random() * 0.5), 900 + Math.random() * 700, 0.14 * amp);
     } else if (kind === 'humpback') {
       this.moan(t, 0.3 * amp);
@@ -319,7 +337,7 @@ export class Sound {
     f.Q.value = 4;
     const g = ctx.createGain();
     g.gain.value = 0;
-    o.connect(f).connect(g).connect(this.amb);
+    o.connect(f).connect(g).connect(this.water);
     o.frequency.setValueAtTime(start, t);
     o.frequency.exponentialRampToValueAtTime(start * 2.2, t + 0.35);
     o.frequency.exponentialRampToValueAtTime(start * 1.3, t + 0.9);
@@ -335,7 +353,7 @@ export class Sound {
     o.type = 'sine';
     const g = ctx.createGain();
     g.gain.value = 0;
-    o.connect(g).connect(this.amb);
+    o.connect(g).connect(this.water);
     o.frequency.setValueAtTime(110 * k, t);
     o.frequency.exponentialRampToValueAtTime(240 * k, t + 1.6);
     o.frequency.exponentialRampToValueAtTime(150 * k, t + 3.4);
@@ -354,7 +372,7 @@ export class Sound {
     f.frequency.value = 500;
     const g = ctx.createGain();
     g.gain.value = 0;
-    o.connect(f).connect(g).connect(this.amb);
+    o.connect(f).connect(g).connect(this.water);
     o.frequency.setValueAtTime(140, t);
     o.frequency.linearRampToValueAtTime(90, t + 0.4);
     g.gain.linearRampToValueAtTime(amp, t + 0.05);

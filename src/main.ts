@@ -88,14 +88,14 @@ async function boot() {
   const reading = () => (portfolio.reading ? portfolio : logBook.reading ? logBook : null);
 
   // ---------------------------------------------------------------- controls
-  // scroll-to-zoom is on unless the visitor switched it off
+  // scroll-to-zoom starts on; nothing (zoom, sound, the field log) is remembered between visits
   let zoomOn = true;
-  try { zoomOn = localStorage.getItem('ps-zoom') !== 'off'; } catch { /* private mode */ }
   const setZoomOn = (on: boolean) => {
     zoomOn = on;
     if (!on) rig.setZoom(1);
-    try { localStorage.setItem('ps-zoom', on ? 'on' : 'off'); } catch { /* ignore */ }
   };
+  // browsers keep audio locked until a click or key press: the first one anywhere starts the water
+  for (const ev of ['pointerdown', 'keydown', 'touchstart'] as const) window.addEventListener(ev, () => sound.unlock(), { capture: true, passive: true });
   let quietWatch = false; // set while syncing the watch button without side effects
   const hud = new Hud({
     book: () => toggleBook(),

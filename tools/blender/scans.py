@@ -39,6 +39,8 @@ SCANS = {
     'prawn': dict(rot=(0, 0, 180), length=0.2, faces=3500, tex=512),
     'dogfish': dict(rot=(0, 0, 180), length=1.0, faces=5000, tex=2048, ntex=1024),
     'harbor_seal': dict(rot=(90, 0, 0), length=1.6, faces=9000, tex=2048, ntex=1024),
+    # swimming pose (the harbor seal scan is hauled out, lying on its side with its head turned)
+    'ca_sea_lion': dict(rot=(0, 0, 0), length=1.9, faces=12000, tex=2048, ntex=1024),
     'orca': dict(rot=(0, 0, 90), length=7.0, faces=9000, tex=1024),
     'humpback': dict(rot=(0, 0, 180), length=14.0, faces=10000, tex=1024),
     'harbor_porpoise': dict(rot=(0, 0, -90), length=1.6, faces=6000, tex=1024),

@@ -379,7 +379,7 @@ export interface CrawlerConfig {
 }
 
 const CRAB: CrawlerConfig = {
-  facing: 'sideways', canBury: false, threats: ['octopus', 'seal', 'sealion', 'lingcod'], threatRadius: 4.5,
+  facing: 'sideways', canBury: false, threats: ['octopus', 'sealion', 'lingcod'], threatRadius: 4.5,
   roam: 8, walkChance: 0.35, lift: 0,
   verbs: { idle: 'picking through the silt', walk: 'scuttling', flee: 'scuttling away', bury: 'buried in the sand' },
 };
@@ -536,6 +536,9 @@ export interface Leg {
 export class Scripted extends Agent implements Behavior {
   legs: Leg[] = [];
   crawl = false;   // stays on the floor (octopus)
+  /** travels at the surface: body this far under it (m), rising and dipping gently as it breathes */
+  surfaceRide: number | null = null;
+  private ridePhase = Math.random() * Math.PI * 2;
   done = true;
   private holdT = 0;
   heading = 0;
@@ -548,6 +551,7 @@ export class Scripted extends Agent implements Behavior {
   }
   start(from: THREE.Vector3, legs: Leg[], doing = '') {
     this.pos.copy(from);
+    this.surfaceRide = null;
     this.legs = legs;
     this.done = false;
     this.alive = true;
@@ -619,7 +623,17 @@ export class Scripted extends Agent implements Behavior {
     // keep off the bottom
     const floor = bottomAt(this.pos.x, this.pos.z) + (this.opts.clearance ?? 0.5);
     if (this.pos.y < floor) this.acc.y += (floor - this.pos.y) * this.opts.maxForce;
+    if (this.surfaceRide !== null) {
+      // a slow roll up to the surface and down again, each animal on its own rhythm
+      this.acc.y = 0;
+      this.vel.y *= 0.9;
+    }
     this.integrate(dt);
+    if (this.surfaceRide !== null) {
+      this.ridePhase += dt * 0.55;
+      const want = WORLD.surfaceY - this.surfaceRide - Math.max(0, Math.sin(this.ridePhase)) * 0.45;
+      this.pos.y += (want - this.pos.y) * Math.min(1, dt * 1.5);
+    }
     if (this.holdT > 0) {
       // lingering: slow sculling, and turn to look at whatever it came to see
       this.speedMul = 0.55;
