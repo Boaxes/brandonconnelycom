@@ -135,7 +135,7 @@ body.watching #book-toggle { opacity: 0; pointer-events: none; transform: transl
   transition: left 0.4s cubic-bezier(.6, 0, .4, 1), top 0.4s cubic-bezier(.6, 0, .4, 1), transform 0.4s ease, opacity 0.4s ease;
   transform: translate(-50%, -50%) scale(0.18) rotate(8deg); opacity: 0.4;
 }
-.specimen svg { width: 54px; height: 40px; fill: none; stroke: var(--pencil); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.specimen img { width: 64px; height: 48px; object-fit: cover; flex: none; border: 3px solid #fbf8f0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transform: rotate(-2deg); }
 .specimen b { display: block; font-family: var(--type); font-weight: 400; font-size: 15px; }
 .specimen i { display: block; font-size: 12px; color: var(--ink-2); }
 
@@ -169,7 +169,7 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
   --rule: rgba(60, 50, 30, 0.14);
   --margin: rgba(178, 60, 50, 0.42);
   /* a full-height column of notebook paper, the water showing either side */
-  position: relative; width: min(760px, 100vw); height: 100%; overflow-y: auto;
+  position: relative; width: min(760px, 100vw); height: 100%; overflow-y: auto; overflow-x: hidden;
   padding: 56px 56px 64px 96px; color: var(--ink); font-family: var(--serif);
   background:
     linear-gradient(90deg, transparent 0, transparent 70px, var(--margin) 70px, var(--margin) 71px, transparent 71px),
@@ -202,15 +202,36 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
   font-family: var(--type); font-size: 13px; color: var(--ink-3); line-height: 1.3; cursor: pointer; border-radius: 3px;
 }
 #fieldlog .sp:hover { background: rgba(42, 38, 34, 0.05); color: var(--ink-2); }
-#fieldlog .sp svg { width: 52px; height: 38px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: 0.45; }
+/* photo prints taped in: a white border, a slight tilt, a strip of tape; unseen species an empty frame */
+#fieldlog .print {
+  position: relative; display: block; flex: none; width: 64px; height: 48px; background: #fbf8f0; padding: 3px;
+  box-shadow: 0 1px 3px rgba(42, 38, 34, 0.35); transform: rotate(-1.5deg);
+}
+#fieldlog .print img { display: block; width: 100%; height: 100%; object-fit: cover; }
+#fieldlog .sp:nth-child(even) .print { transform: rotate(1.2deg); }
+#fieldlog .print.empty {
+  background: transparent; box-shadow: none; border: 1.5px dashed rgba(90, 84, 75, 0.35); transform: none;
+  display: grid; place-items: center; font-family: var(--type); font-size: 15px; color: rgba(90, 84, 75, 0.45);
+}
+#fieldlog .print.big { width: min(420px, 100%); height: auto; aspect-ratio: 4 / 3; padding: 8px 8px 8px; transform: rotate(-1deg); margin: 6px 0 4px; }
+#fieldlog .print.big::before {
+  content: ''; position: absolute; top: -10px; left: 50%; width: 92px; height: 22px; transform: translateX(-50%) rotate(2deg);
+  background: rgba(235, 226, 196, 0.72); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+#fieldlog .print.empty.big::before { display: none; }
+#fieldlog .print.empty.big { font-size: 40px; }
+#fieldlog figure { margin: 0 0 14px; }
+#fieldlog figcaption { font-family: var(--type); font-size: 11px; color: var(--ink-3); line-height: 28px; }
+#fieldlog figcaption a, #fieldlog .sources a { color: inherit; }
+#fieldlog .facts { display: grid; grid-template-columns: max-content 1fr; gap: 0 14px; margin: 0 0 14px; font-size: 15px; line-height: 28px; }
+#fieldlog .facts dt { font-family: var(--type); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; }
+#fieldlog .facts dd { margin: 0; }
+#fieldlog .sources { font-family: var(--type); font-size: 11px !important; color: var(--ink-3); line-height: 22px !important; }
 #fieldlog .sp small { display: block; font-size: 11px; color: var(--ink-3); }
 #fieldlog .sp.seen { color: var(--ink); }
-#fieldlog .sp.seen svg { opacity: 1; stroke: var(--pencil); }
 #fieldlog .sp .tick { margin-left: auto; color: var(--stamp); opacity: 0; }
 #fieldlog .sp.seen .tick { opacity: 1; }
 #fieldlog .back { border: 0; background: none; padding: 0; font-family: var(--type); font-size: 13px; color: var(--pencil); cursor: pointer; line-height: 28px; margin-bottom: 14px; }
-#fieldlog .specimen-page svg { display: block; width: 320px; height: 235px; margin: 0 0 14px -8px; fill: none; stroke: rgba(90, 84, 75, 0.35); stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
-#fieldlog .specimen-page.seen svg { stroke: var(--pencil); }
 @media (max-width: 640px) {
   #fieldlog .sheet { padding: 40px 18px 30px 44px; background-position: -40px 0, 0 0, 0 0; }
   #fieldlog .log { grid-template-columns: 1fr 1fr; }

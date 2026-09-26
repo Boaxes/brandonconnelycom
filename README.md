@@ -18,7 +18,6 @@ npm run preview    # serve dist/ locally
 All text lives in [`src/content.ts`](src/content.ts): name, tagline, about paragraphs, projects, experience, skills, links. The book lays it out across as many pages as it needs ([`src/book/portfolio.ts`](src/book/portfolio.ts)).
 
 - The résumé link points at `/resume.pdf` — drop your PDF into `public/resume.pdf`.
-- Species notes in the field log are `TO DO` for now ([`src/ui/fieldlog.ts`](src/ui/fieldlog.ts)).
 
 ## Controls
 
@@ -29,7 +28,7 @@ All text lives in [`src/content.ts`](src/content.ts): name, tagline, about parag
 | Click an animal | Logs it in the field log the first time (sound, a specimen card flies into the log) |
 | Look pad, `A`/`D`/`W`/`S`, arrow keys, drag | Turn the view in steps: 45° left/right all the way round, 30° up/down from straight down to straight up |
 | Portfolio button (bottom middle) / `B` | Raise or lower the portfolio; appears once the book has been picked up |
-| Log button / `L` | Open the field log, a full-height column of ruled notebook paper: an index of species (click one to read its page). The book goes down while it's open; raising the book closes it |
+| Log button / `L` | Open the field log, a full-height column of ruled notebook paper: an index of species with a photo taped in for each one logged (click one to read its page: photo, notes, size, depth, diet and sources). The book goes down while it's open; raising the book closes it |
 | Waves / speaker buttons | Background (the water) and effects (book, pages, zoom, logging, animal calls), separately; both start on |
 | Eye / `H` | Watch the water: the book drops out of view and the controls fold away |
 | `Esc` | Close the field log, zoom back out, or lower the book you're reading |
@@ -99,7 +98,7 @@ Pages are canvases typeset at load (fonts are waited for) and shown as textures.
 
 ### Scans
 
-`tools/blender/scans.py` turns a downloaded Sketchfab GLB into a game-ready one: strip colour-checker cards, orient, weld and decimate (voxel remesh fallback for fuzzy scans), smart-UV the result and bake the original's colour and normals onto it with Cycles. The source files live in `assets-src/` (git-ignored; `manifest.json` lists each model's URL, author and license). Orientation, target length, face budget and texture size per scan are in the `SCANS` table at the top of the file.
+`tools/blender/scans.py` turns a downloaded Sketchfab GLB into a game-ready one: strip colour-checker cards, orient, weld and decimate (voxel remesh fallback for fuzzy scans), smart-UV the result and bake the original's colour and normals onto it with Cycles. The source files live in `assets-src/` (git-ignored; `manifest.json` lists each model's URL, author and license). Orientation, target length, face budget and texture size per scan are in the `SCANS` table at the top of the file. Where the bake misses (the decimated surface too far from the scan, e.g. under the sea lion's chin) it leaves black in the colour map and inward-pointing junk in the normal map; `refill(key)` paints those over from the surrounding pixels without re-baking, keeping genuinely black features (an eye) listed in `KEEP_DARK`.
 
 ### Procedural models (no longer used by the scene)
 
@@ -136,3 +135,7 @@ Nothing is remembered between visits: sound, zoom and the field log all start fr
 ## Performance notes
 
 Target is 60 fps on integrated graphics; about 11 ms a frame at 1440×900 on an M-series laptop. Every species is one `InstancedMesh`, the sim is ~350 agents (under 1 ms), the sand/gravel mask is baked to a texture, and the orca, humpback and porpoise load after the reveal. Pixel ratio starts at 1.5 and steps down (never back up) if a machine can't hold ~48 fps. `prefers-reduced-motion` slows the scene; without WebGL 2 the portfolio shows as plain text.
+
+## Species photos and notes
+
+Each species' photo (`public/species/<key>.jpg`, 480×360) is from Wikimedia Commons, public domain or CC0 / CC BY / CC BY-SA, credited under the photo in the field log and listed in `public/species/CREDITS.md` ([`src/ui/speciesPhotos.ts`](src/ui/speciesPhotos.ts)). The notes ([`src/sim/speciesNotes.ts`](src/sim/speciesNotes.ts)) were written for this site from facts in NOAA Fisheries species pages (public domain), Wikipedia and a few others (WDFW, Encyclopedia of Puget Sound, Seattle-area aquariums), with each entry's sources cited on its page; no source text is copied.

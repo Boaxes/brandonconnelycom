@@ -20,4 +20,4 @@ export const CREDITS: { title: string; author: string; license: string; url: str
 ];
 
 /** CC0 sources, credited as a courtesy. */
-export const CC0_NOTE = 'Most animals are CC0 photogrammetry by ffishAsia & floraZia on Sketchfab. Sand, gravel, rock and leather textures, and the rock the book rests on (Boulder 01), are CC0 from Poly Haven. Sounds are CC0 recordings from Freesound (listed in public/sounds/CREDITS.md).';
+export const CC0_NOTE = 'Most animals are CC0 photogrammetry by ffishAsia & floraZia on Sketchfab. Sand, gravel, rock and leather textures, and the rock the book rests on (Boulder 01), are CC0 from Poly Haven. Sounds are CC0 recordings from Freesound (listed in public/sounds/CREDITS.md). The species photos in the field log are from Wikimedia Commons contributors (public domain, CC0, CC BY and CC BY-SA), each credited under its photo and listed in public/species/CREDITS.md; the species notes were written for this site from NOAA Fisheries, Wikipedia, WDFW and others, cited on each page.';

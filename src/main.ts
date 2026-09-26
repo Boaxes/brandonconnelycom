@@ -21,6 +21,8 @@ import { Hud, loaderDone, loaderProgress, loaderReady, showFallback } from './ui
  * camera pulls back and daylight seeps down from above, and the controls appear once the camera settles.
  */
 const TORCH_ON = 1.4;
+/** the book can't be taken until the torch has flickered on and swept onto it */
+const BOOK_READY = 2.5;
 const DAY_TIME = 5.5;
 
 async function fontsReady() {
@@ -95,6 +97,9 @@ async function boot() {
     rig.startIntro(introEye, c.clone().add(new THREE.Vector3(0, 0.07, 0)));
   }
   const reading = () => (portfolio.reading ? portfolio : null);
+  // (declared with the loop below; the opening's clock, < 0 until "View portfolio")
+  let diveT = -1;
+  const bookLocked = () => portfolio.state === 'rest' && diveT < BOOK_READY;
   /** the book is up in front of the eye (rising, held, or being raised) */
   const bookUp = () => portfolio.state === 'lifting' || portfolio.state === 'held' || portfolio.state === 'raising';
 
@@ -131,6 +136,7 @@ async function boot() {
     quietWatch = false;
   };
   const toggleBook = () => {
+    if (bookLocked()) return;
     sound.unlock();
     rig.setZoom(1);
     if (portfolio.state === 'rest') { field.close(); portfolio.pickUp(); }
@@ -165,6 +171,7 @@ async function boot() {
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const bookHit = (x: number, y: number) => {
+    if (bookLocked()) return null;
     ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
     ray.setFromCamera(ndc, ocean.camera);
     // (held, the targets are the exact page meshes: their gutter shading mustn't catch the ray)
@@ -284,7 +291,6 @@ async function boot() {
   loaderProgress(1, 'ready');
   ocean.render(0, 1 / 60); // warm up shaders before revealing
   // the visit starts on "View portfolio": that click also unlocks the sound, so the opening can start with it
-  let diveT = -1;
   const begin = () => {
     if (diveT >= 0) return;
     sound.unlock();

@@ -1,6 +1,6 @@
 import { content } from '../content';
 import { CREDITS } from '../credits';
-import { ICONS } from './icons';
+import { photoUrl } from './speciesPhotos';
 
 const el = <T extends HTMLElement = HTMLElement>(html: string): T => {
   const t = document.createElement('template');
@@ -188,7 +188,7 @@ export class Hud {
 
   /** A new species: a specimen card pops up where it was clicked and flies into the field log. */
   discover(key: string, name: string, latin: string, x: number, y: number, count: number, total: number) {
-    const card = el(`<div class="specimen">${ICONS[key] ?? ''}<div><b>${esc(name)}</b><i>${esc(latin)}</i></div></div>`);
+    const card = el(`<div class="specimen"><img src="${photoUrl(key)}" alt=""><div><b>${esc(name)}</b><i>${esc(latin)}</i></div></div>`);
     card.style.left = x + 'px';
     card.style.top = y + 'px';
     document.body.appendChild(card);

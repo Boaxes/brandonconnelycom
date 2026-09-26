@@ -1,14 +1,20 @@
 import { SPECIES } from '../sim/Species';
-import { ICONS } from './icons';
+import { NOTES } from '../sim/speciesNotes';
+import { PHOTOS, photoUrl } from './speciesPhotos';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 const time = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
+/** A photo print taped into the notebook (or an empty frame for a species not yet seen). */
+const print = (k: string, got: boolean, big = false) => got
+  ? `<span class="print${big ? ' big' : ''}"><img src="${photoUrl(k)}" alt="${esc(SPECIES[k].name)}" loading="lazy" decoding="async"></span>`
+  : `<span class="print empty${big ? ' big' : ''}" aria-hidden="true">?</span>`;
+
 /**
  * The field notebook: what the visitor has logged by clicking animals in the water this visit.
  * A sheet of ruled paper down the middle of the screen: an index of every species (the ones not yet
- * seen are faint question marks), and a page for each one. Species notes are "TO DO" for now; they'll
- * be filled from a real source later, not written by hand here.
+ * seen are empty frames and question marks), and a page for each one with a photo, notes written for
+ * this site from NOAA Fisheries, Wikipedia and others (src/sim/speciesNotes.ts), and their sources.
  */
 export class FieldLog {
   keys = Object.keys(SPECIES);
@@ -83,7 +89,7 @@ export class FieldLog {
     const rows = this.keys.map((k) => {
       const got = this.found.has(k);
       const def = SPECIES[k];
-      return `<button class="sp${got ? ' seen' : ''}" data-sp="${k}">${ICONS[k] ?? ''}<span>${got ? esc(def.name) : '? ? ?'}${got ? `<small>logged ${time(this.found.get(k)!)}</small>` : ''}</span><span class="tick">✓</span></button>`;
+      return `<button class="sp${got ? ' seen' : ''}" data-sp="${k}">${print(k, got)}<span>${got ? esc(def.name) : '? ? ?'}${got ? `<small>logged ${time(this.found.get(k)!)}</small>` : ''}</span><span class="tick">✓</span></button>`;
     }).join('');
     return `
       <p class="date">FIELD LOG · PUGET SOUND · ROCKY BOTTOM, 30 FT · VISIBILITY 5 M</p>
@@ -95,13 +101,37 @@ export class FieldLog {
   private speciesPage(k: string) {
     const def = SPECIES[k];
     const got = this.found.has(k);
+    if (!got) {
+      return `
+      <button class="back" data-back>← index</button>
+      <div class="specimen-page">
+        ${print(k, false, true)}
+        <h1>Not yet logged</h1>
+        <p class="dim">Find one in the water and click it.</p>
+      </div>`;
+    }
+    const n = NOTES[k];
+    const ph = PHOTOS[k];
+    const facts = n ? `
+        <dl class="facts">
+          <dt>Size</dt><dd>${esc(n.size)}</dd>
+          <dt>Depth</dt><dd>${esc(n.depth)}</dd>
+          <dt>Eats</dt><dd>${esc(n.diet)}</dd>
+        </dl>` : '';
+    const sources = n ? `
+        <p class="sources">Sources: ${n.sources.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`).join(' · ')}</p>` : '';
     return `
       <button class="back" data-back>← index</button>
-      <div class="specimen-page${got ? ' seen' : ''}">
-        ${ICONS[k] ?? ''}
-        <h1>${got ? esc(def.name) : 'Not yet logged'}</h1>
-        ${got ? `<p class="latin">${esc(def.latin)}</p><p class="date">Logged ${time(this.found.get(k)!)} into the dive.</p>
-        <h2>Notes</h2><p>TO DO</p>` : '<p class="dim">Find one in the water and click it.</p>'}
+      <div class="specimen-page seen">
+        <figure>
+          ${print(k, true, true)}
+          ${ph ? `<figcaption>Photo: <a href="${esc(ph.url)}" target="_blank" rel="noopener">${esc(ph.author)}</a> · ${esc(ph.license)}</figcaption>` : ''}
+        </figure>
+        <h1>${esc(def.name)}</h1>
+        <p class="latin">${esc(def.latin)}</p>
+        <p class="date">Logged ${time(this.found.get(k)!)} into the dive.</p>
+        <h2>Notes</h2>
+        <p>${n ? esc(n.notes) : ''}</p>${facts}${sources}
       </div>`;
   }
 }

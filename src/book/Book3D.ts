@@ -42,6 +42,10 @@ export class Book3D {
   state: BookState = 'lowered';
   /** index of the current spread: left page = 2s - 1, right page = 2s */
   spread = 0;
+  /** how much of the page block lies on the left (0 at the title page, 1 at the back), eased through a turn */
+  private share = 0;
+  private topR = 0;
+  private topL = 0;
   onSound: ((s: BookSound) => void) | null = null;
   pages: Page[];
 
@@ -79,18 +83,18 @@ export class Book3D {
     const leather = new THREE.MeshStandardMaterial({
       map: o.leather.map, normalMap: o.leather.normal, color: o.cover, roughness: 0.62, metalness: 0,
     });
+    // the endpapers are the page planes at either end (texFor gives them this); the boards' inner faces
+    // are the leather turned in round them, as on a real hardback
     this.endTex = this.flatTexture(o.endpaper);
-    // lit, like the leather: unlit, the strip of endpaper round the closed book glowed in the dark
-    const endMat = new THREE.MeshStandardMaterial({ map: this.endTex, color: 0xd8d0bc, roughness: 0.9 });
     const edge = new THREE.MeshStandardMaterial({ map: this.edgeTexture(), roughness: 0.9, color: 0xcfc5ae });
     const paperTop = new THREE.MeshBasicMaterial({ color: 0xe6dcc4 });
 
     // back cover (under the right block) and the front cover on a hinge at the spine
     const board = new THREE.BoxGeometry(W + 0.008, H + 0.012, this.ct);
-    const back = new THREE.Mesh(board, [leather, leather, leather, leather, endMat, leather]);
+    const back = new THREE.Mesh(board, leather);
     back.position.set(W / 2 + 0.002, 0, -this.ct / 2);
     this.root.add(back);
-    const front = new THREE.Mesh(board, [leather, leather, leather, leather, leather, endMat]);
+    const front = new THREE.Mesh(board, leather);
     front.position.set(W / 2 + 0.002, 0, this.th / 2 + this.ct / 2);
     this.frontPivot.position.set(0, 0, this.th / 2);
     this.frontPivot.add(front);
@@ -111,7 +115,10 @@ export class Book3D {
     const block = new THREE.BoxGeometry(W, H, 1);
     this.rightBlock = new THREE.Mesh(block, [edge, edge, edge, edge, paperTop, paperTop]);
     this.leftBlock = new THREE.Mesh(block, [edge, edge, edge, edge, paperTop, paperTop]);
-    this.root.add(this.rightBlock, this.leftBlock);
+    // the left-hand pages lie on the open cover, so they ride on its hinge: laid out in the book's frame they
+    // appeared flat on the left while the cover was still swinging over, poking out past its edge
+    this.root.add(this.rightBlock);
+    this.frontPivot.add(this.leftBlock);
 
     // the two visible pages
     const pg = new THREE.PlaneGeometry(W, H);
@@ -119,7 +126,9 @@ export class Book3D {
     this.rightPage = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ color: 0xebe4d2 }));
     this.leftPage.name = 'left';
     this.rightPage.name = 'right';
-    this.root.add(this.leftPage, this.rightPage);
+    this.root.add(this.rightPage);
+    this.frontPivot.add(this.leftPage);
+    this.leftPage.rotation.y = Math.PI; // faces the reader once the cover is flat (turned by -PI)
     // the gutter: pages curve down into the spine, so they darken toward it
     const gutterTex = this.gutterTexture();
     const gw = W * 0.2;
@@ -272,6 +281,8 @@ export class Book3D {
   }
 
   private showSpread() {
+    this.share = this.spread / Math.max(1, this.maxSpread());
+    this.layoutBlocks();
     this.setMap(this.leftPage, 2 * this.spread - 1);
     this.setMap(this.rightPage, 2 * this.spread);
   }
@@ -281,18 +292,22 @@ export class Book3D {
   // ---------------------------------------------------------------- geometry
 
   private layoutBlocks() {
-    // closed: all pages on the right under the cover; open: split between the two sides
+    // closed: all pages on the right under the cover; open: split by how far in the book is open (at the
+    // title page nothing but the cover is on the left, at the back everything is)
     const f = THREE.MathUtils.smoothstep(this.open, Math.PI * 0.55, Math.PI);
-    const r = this.th * (1 - f / 2);
-    const l = this.th * (f / 2);
+    const l = this.th * f * this.share;
+    const r = this.th - l;
+    this.topR = r;
+    this.topL = l;
     this.rightBlock.scale.z = Math.max(r, 1e-4);
     this.rightBlock.position.set(this.W / 2, 0, r / 2);
+    // (in the cover's frame: flat open, local (x, z) sits at (-x, th/2 - z) in the book's)
     this.leftBlock.scale.z = Math.max(l, 1e-4);
-    this.leftBlock.position.set(-this.W / 2, 0, l / 2);
+    this.leftBlock.position.set(this.W / 2, 0, this.th / 2 - l / 2);
     this.leftBlock.visible = l > 0.0005;
     this.rightPage.position.set(this.W / 2, 0, r + 0.0006);
-    this.leftPage.position.set(-this.W / 2, 0, l + 0.0006);
-    this.leftPage.visible = this.open > Math.PI * 0.9;
+    this.leftPage.position.set(this.W / 2, 0, this.th / 2 - l - 0.0006);
+    this.leftPage.visible = this.open > 0.3; // (it rides on the cover)
     this.rightPage.visible = this.open > 0.3;
     this.frontPivot.rotation.y = -this.open;
     // open, the spine is folded away under the pages (it only reads from the side)
@@ -526,7 +541,7 @@ export class Book3D {
       this.root.position.lerpVectors(this.from.p, tgt.p, k);
       this.root.position.y += Math.sin(Math.PI * k) * 0.12;
       this.root.quaternion.slerpQuaternions(this.from.q, tgt.q, k);
-      if (this.anim > 0.4 && this.openTarget === 0) {
+      if (this.anim > 0.6 && this.openTarget === 0) {
         this.openTarget = Math.PI;
         this.onSound?.('open');
       }
@@ -561,6 +576,10 @@ export class Book3D {
       // the free edge trails the spine as the sheet lifts, then catches up and lays flat
       const s = Math.sin(Math.PI * f.t);
       this.curl(theta, -f.dir * 1.05 * s * s * (1.15 - 0.3 * f.t));
+      // the stacks shift across as the sheet goes over, and the sheet lifts off one stack and lands on the other
+      this.share = THREE.MathUtils.lerp(this.spread, f.to, k) / Math.max(1, this.maxSpread());
+      this.layoutBlocks();
+      this.leafPivot.position.z = THREE.MathUtils.lerp(this.topR, this.topL, theta / Math.PI) + 0.0012;
       if (f.t >= 1) {
         this.spread = f.to;
         this.flip = null;

@@ -1,0 +1,28 @@
+# Species photos
+
+Photos shown in the field log, from Wikimedia Commons, used under the licences below (resized and cropped to 4:3).
+
+- `orca.jpg`: [Killerwhales_jumping.jpg](https://commons.wikimedia.org/wiki/File:Killerwhales_jumping.jpg) by Robert Pittman, NOAA (Public domain)
+- `humpback.jpg`: [Humpback_whale_breaching_off_Cabo_San_Lucas.jpg](https://commons.wikimedia.org/wiki/File:Humpback_whale_breaching_off_Cabo_San_Lucas.jpg) by Juan Cruzado Cortés (CC BY 4.0)
+- `porpoise.jpg`: [Ecomare_-_bruinvis_Michael_in_2015_(bruinvis-michael2015-9313-sw).jpg](https://commons.wikimedia.org/wiki/File:Ecomare_-_bruinvis_Michael_in_2015_(bruinvis-michael2015-9313-sw).jpg) by Ecomare/Salko de Wolf (CC BY-SA 4.0)
+- `sealion.jpg`: [California_Sea_Lion,_Monterey,_California,_United_States_imported_from_iNaturalist_photo_203598492.jpg](https://commons.wikimedia.org/wiki/File:California_Sea_Lion,_Monterey,_California,_United_States_imported_from_iNaturalist_photo_203598492.jpg) by Jonathan Eisen (CC BY 4.0)
+- `chinook.jpg`: [Chinook Salmon.jpg](https://commons.wikimedia.org/wiki/File:Chinook_Salmon.jpg) by USFWS Fish and Aquatic Conservation (Public domain)
+- `herring.jpg`: [Clupea pallasii by OpenCage.jpg](https://commons.wikimedia.org/wiki/File:Clupea_pallasii_by_OpenCage.jpg) by OpenCage (CC BY-SA 2.5)
+- `rockfish.jpg`: [Sebastes_caurinus_1.jpg](https://commons.wikimedia.org/wiki/File:Sebastes_caurinus_1.jpg) by Chad King, SIMoN / MBNMS (Public domain)
+- `blackrockfish.jpg`: [Sebastes_melanops_VA_02.jpg](https://commons.wikimedia.org/wiki/File:Sebastes_melanops_VA_02.jpg) by Bloopityboop (CC BY-SA 4.0)
+- `flounder.jpg`: [Starry_Flounder.JPG](https://commons.wikimedia.org/wiki/File:Starry_Flounder.JPG) by Dark jedi requiem (Public domain)
+- `sculpin.jpg`: [Enophrysbison.jpg](https://commons.wikimedia.org/wiki/File:Enophrysbison.jpg) by Stickpen (Public domain)
+- `dogfish.jpg`: [Spiny_dogfish.jpg](https://commons.wikimedia.org/wiki/File:Spiny_dogfish.jpg) by NOAA (Public domain)
+- `dungeness.jpg`: [Dungeness crab (Metacarcinus magister) 2.jpg](https://commons.wikimedia.org/wiki/File:Dungeness_crab_(Metacarcinus_magister)_2.jpg) by Bildflut (CC0)
+- `redrock.jpg`: [Helmet Crab, Корсаков, Сахалинская обл., Россия imported from iNaturalist photo 228741241.jpg](https://commons.wikimedia.org/wiki/File:Helmet_Crab,_%D0%9A%D0%BE%D1%80%D1%81%D0%B0%D0%BA%D0%BE%D0%B2,_%D0%A1%D0%B0%D1%85%D0%B0%D0%BB%D0%B8%D0%BD%D1%81%D0%BA%D0%B0%D1%8F_%D0%BE%D0%B1%D0%BB.,_%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F_imported_from_iNaturalist_photo_228741241.jpg) by Mikhail Nevsky (CC BY 4.0)
+- `kelpcrab.jpg`: [Northern_Kelp_Crab.jpg](https://commons.wikimedia.org/wiki/File:Northern_Kelp_Crab.jpg) by D. Gordon E. Robertson (CC BY-SA 3.0)
+- `decorator.jpg`: [Graceful decorator crab (Oregonia gracilis) with sponge.jpg](https://commons.wikimedia.org/wiki/File:Graceful_decorator_crab_(Oregonia_gracilis)_with_sponge.jpg) by Ed Bierman (CC BY 2.0)
+- `prawn.jpg`: [Olympic Coast National Marine Sanctuary 2010 Pandalus platyceros.jpg](https://commons.wikimedia.org/wiki/File:Olympic_Coast_National_Marine_Sanctuary_2010_Pandalus_platyceros.jpg) by Ed Bowlby, NOAA / Olympic Coast NMS (Public domain)
+- `cucumber.jpg`: [Parastichopus_californicus.jpg](https://commons.wikimedia.org/wiki/File:Parastichopus_californicus.jpg) by Eugene van der Pijll (Public domain)
+- `octopus.jpg`: [Enteroctopus_dolfeini.jpg](https://commons.wikimedia.org/wiki/File:Enteroctopus_dolfeini.jpg) by R. N. Lea, NOAA (Public domain)
+- `batstar.jpg`: [Patiria miniata (14494899579).jpg](https://commons.wikimedia.org/wiki/File:Patiria_miniata_(14494899579).jpg) by Jerry Kirkhart (CC BY 2.0)
+- `sunflowerstar.jpg`: [Pycnopodia_helianthoides_SLO_CA.jpg](https://commons.wikimedia.org/wiki/File:Pycnopodia_helianthoides_SLO_CA.jpg) by Jerry Kirkhart (CC BY 2.0)
+- `urchin.jpg`: [Urchin_(9398869414).jpg](https://commons.wikimedia.org/wiki/File:Urchin_(9398869414).jpg) by Ed Bierman (CC BY 2.0)
+- `sanddollar.jpg`: [Dendraster_excentricus_677671797_(square).jpg](https://commons.wikimedia.org/wiki/File:Dendraster_excentricus_677671797_(square).jpg) by louisiv826 (CC BY 4.0)
+- `moonsnail.jpg`: [Euspira_lewisii_3.jpg](https://commons.wikimedia.org/wiki/File:Euspira_lewisii_3.jpg) by Ed Bierman (CC BY 2.0)
+- `scallop.jpg`: [Crassedoma_giganteum_1.jpg](https://commons.wikimedia.org/wiki/File:Crassedoma_giganteum_1.jpg) by Steve Lonhart, SIMoN / MBNMS (Public domain)
