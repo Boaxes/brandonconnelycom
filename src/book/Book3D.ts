@@ -42,8 +42,6 @@ export class Book3D {
   state: BookState = 'lowered';
   /** index of the current spread: left page = 2s - 1, right page = 2s */
   spread = 0;
-  /** how much of the page block lies on the left (0 at the title page, 1 at the back), eased through a turn */
-  private share = 0;
   private topR = 0;
   private topL = 0;
   onSound: ((s: BookSound) => void) | null = null;
@@ -90,12 +88,13 @@ export class Book3D {
     const paperTop = new THREE.MeshBasicMaterial({ color: 0xe6dcc4 });
 
     // back cover (under the right block) and the front cover on a hinge at the spine
-    const board = new THREE.BoxGeometry(W + 0.008, H + 0.012, this.ct);
-    const back = new THREE.Mesh(board, leather);
-    back.position.set(W / 2 + 0.002, 0, -this.ct / 2);
+    const turnIn = new THREE.MeshStandardMaterial({ map: o.leather.map, color: o.cover, roughness: 0.7, metalness: 0 });
+    const board = new THREE.BoxGeometry(W + 0.005, H + 0.007, this.ct);
+    const back = new THREE.Mesh(board, [leather, leather, leather, leather, turnIn, leather]);
+    back.position.set(W / 2 + 0.0015, 0, -this.ct / 2);
     this.root.add(back);
-    const front = new THREE.Mesh(board, leather);
-    front.position.set(W / 2 + 0.002, 0, this.th / 2 + this.ct / 2);
+    const front = new THREE.Mesh(board, [leather, leather, leather, leather, leather, turnIn]);
+    front.position.set(W / 2 + 0.0015, 0, this.th / 2 + this.ct / 2);
     this.frontPivot.position.set(0, 0, this.th / 2);
     this.frontPivot.add(front);
     this.root.add(this.frontPivot);
@@ -107,7 +106,7 @@ export class Book3D {
     title.position.set(W / 2 + 0.002, H * 0.08, this.th / 2 + this.ct + 0.0006);
     this.frontPivot.add(title);
     // spine
-    this.spine = new THREE.Mesh(new THREE.BoxGeometry(this.ct, H + 0.012, this.th + this.ct * 2), leather);
+    this.spine = new THREE.Mesh(new THREE.BoxGeometry(this.ct, H + 0.007, this.th + this.ct * 2), leather);
     this.spine.position.set(-this.ct / 2, 0, this.th / 2);
     this.root.add(this.spine);
 
@@ -281,7 +280,6 @@ export class Book3D {
   }
 
   private showSpread() {
-    this.share = this.spread / Math.max(1, this.maxSpread());
     this.layoutBlocks();
     this.setMap(this.leftPage, 2 * this.spread - 1);
     this.setMap(this.rightPage, 2 * this.spread);
@@ -292,10 +290,10 @@ export class Book3D {
   // ---------------------------------------------------------------- geometry
 
   private layoutBlocks() {
-    // closed: all pages on the right under the cover; open: split by how far in the book is open (at the
-    // title page nothing but the cover is on the left, at the back everything is)
+    // closed: all pages on the right under the cover; open: split evenly, so both pages lie level (held this
+    // close, a page 3 cm nearer the eye than the other reads as a different size)
     const f = THREE.MathUtils.smoothstep(this.open, Math.PI * 0.55, Math.PI);
-    const l = this.th * f * this.share;
+    const l = this.th * (f / 2);
     const r = this.th - l;
     this.topR = r;
     this.topL = l;
@@ -576,9 +574,7 @@ export class Book3D {
       // the free edge trails the spine as the sheet lifts, then catches up and lays flat
       const s = Math.sin(Math.PI * f.t);
       this.curl(theta, -f.dir * 1.05 * s * s * (1.15 - 0.3 * f.t));
-      // the stacks shift across as the sheet goes over, and the sheet lifts off one stack and lands on the other
-      this.share = THREE.MathUtils.lerp(this.spread, f.to, k) / Math.max(1, this.maxSpread());
-      this.layoutBlocks();
+      // the sheet lifts off one stack and lands on the other
       this.leafPivot.position.z = THREE.MathUtils.lerp(this.topR, this.topL, theta / Math.PI) + 0.0012;
       if (f.t >= 1) {
         this.spread = f.to;
