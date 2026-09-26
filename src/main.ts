@@ -211,8 +211,9 @@ async function boot() {
       h.book.click(h.hit);
       return;
     }
-    // animals can't be logged while the book or the field log is in the way
-    if (bookUp() || field.isOpen) return;
+    // animals can't be logged during the opening (until the camera has pulled back and the controls are up),
+    // or while the book or the field log is in the way
+    if (rig.inIntro || bookUp() || field.isOpen) return;
     const a = world.pick(e.clientX, e.clientY);
     if (!a) return;
     const def = SPECIES[a.key];

@@ -28,6 +28,7 @@ export interface BookOptions {
 const LEAF_SEG = 28;
 const FLIP_TIME = 0.42;
 const QUICK_FLIP = 0.22;
+const OPEN_TIME = 0.5;
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
 const _p = new THREE.Vector3();
@@ -42,8 +43,6 @@ export class Book3D {
   state: BookState = 'lowered';
   /** index of the current spread: left page = 2s - 1, right page = 2s */
   spread = 0;
-  private topR = 0;
-  private topL = 0;
   onSound: ((s: BookSound) => void) | null = null;
   pages: Page[];
 
@@ -52,7 +51,6 @@ export class Book3D {
   private th: number;
   private ct = 0.004; // cover board thickness
   private frontPivot = new THREE.Group();
-  private spine: THREE.Mesh;
   private leftBlock: THREE.Mesh;
   private rightBlock: THREE.Mesh;
   private leftPage: THREE.Mesh;
@@ -64,6 +62,7 @@ export class Book3D {
   private leafPivot = new THREE.Group();
   private open = 0;           // cover angle 0..π
   private openTarget = 0;
+  private openT = 0; // 0..1 through the opening swing
   private flip: { t: number; dir: 1 | -1; to: number; time: number } | null = null;
   private anim = 1;           // pose transition 0..1
   private from = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
@@ -87,7 +86,11 @@ export class Book3D {
     const edge = new THREE.MeshStandardMaterial({ map: this.edgeTexture(), roughness: 0.9, color: 0xcfc5ae });
     const paperTop = new THREE.MeshBasicMaterial({ color: 0xe6dcc4 });
 
-    // back cover (under the right block) and the front cover on a hinge at the spine
+    // Built like a real book opened in the middle: two rigid halves hinged on the spine at mid-thickness.
+    // The back half (back board, half the pages, the lower half of the spine) stays put; the front half
+    // (front board, the other half of the pages, the upper half of the spine) is `frontPivot` and swings
+    // over in one piece. Nothing is shown, hidden or resized as it opens, so no gap or pop can appear; open
+    // flat, both halves' pages lie level at th/2.
     const turnIn = new THREE.MeshStandardMaterial({ map: o.leather.map, color: o.cover, roughness: 0.7, metalness: 0 });
     const board = new THREE.BoxGeometry(W + 0.005, H + 0.007, this.ct);
     const back = new THREE.Mesh(board, [leather, leather, leather, leather, turnIn, leather]);
@@ -105,17 +108,23 @@ export class Book3D {
     );
     title.position.set(W / 2 + 0.002, H * 0.08, this.th / 2 + this.ct + 0.0006);
     this.frontPivot.add(title);
-    // spine
-    this.spine = new THREE.Mesh(new THREE.BoxGeometry(this.ct, H + 0.007, this.th + this.ct * 2), leather);
-    this.spine.position.set(-this.ct / 2, 0, this.th / 2);
-    this.root.add(this.spine);
+    // the spine, one half on each side of the hinge: closed they make one piece; open flat each folds away
+    // inside the other half's pages, and in between they stay joined at the hinge (no hole where the spine was)
+    const half = this.th / 2 + this.ct;
+    const spineGeo = new THREE.BoxGeometry(this.ct, H + 0.007, half);
+    const spineBack = new THREE.Mesh(spineGeo, leather);
+    spineBack.position.set(-this.ct / 2, 0, this.th / 2 - half / 2);
+    this.root.add(spineBack);
+    const spineFront = new THREE.Mesh(spineGeo, leather);
+    spineFront.position.set(-this.ct / 2, 0, half / 2); // (in the front half's frame, whose origin is the hinge)
+    this.frontPivot.add(spineFront);
 
-    // page blocks
-    const block = new THREE.BoxGeometry(W, H, 1);
+    // half the pages in each half
+    const block = new THREE.BoxGeometry(W, H, this.th / 2);
     this.rightBlock = new THREE.Mesh(block, [edge, edge, edge, edge, paperTop, paperTop]);
     this.leftBlock = new THREE.Mesh(block, [edge, edge, edge, edge, paperTop, paperTop]);
-    // the left-hand pages lie on the open cover, so they ride on its hinge: laid out in the book's frame they
-    // appeared flat on the left while the cover was still swinging over, poking out past its edge
+    this.rightBlock.position.set(W / 2, 0, this.th / 4);
+    this.leftBlock.position.set(W / 2, 0, this.th / 4);
     this.root.add(this.rightBlock);
     this.frontPivot.add(this.leftBlock);
 
@@ -125,9 +134,12 @@ export class Book3D {
     this.rightPage = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ color: 0xebe4d2 }));
     this.leftPage.name = 'left';
     this.rightPage.name = 'right';
+    // each on its half's inner face: the left one faces down while closed, and the reader once turned over
+    this.rightPage.position.set(W / 2, 0, this.th / 2 + 0.0006);
+    this.leftPage.position.set(W / 2, 0, -0.0006);
+    this.leftPage.rotation.y = Math.PI;
     this.root.add(this.rightPage);
     this.frontPivot.add(this.leftPage);
-    this.leftPage.rotation.y = Math.PI; // faces the reader once the cover is flat (turned by -PI)
     // the gutter: pages curve down into the spine, so they darken toward it
     const gutterTex = this.gutterTexture();
     const gw = W * 0.2;
@@ -290,26 +302,7 @@ export class Book3D {
   // ---------------------------------------------------------------- geometry
 
   private layoutBlocks() {
-    // closed: all pages on the right under the cover; open: split evenly, so both pages lie level (held this
-    // close, a page 3 cm nearer the eye than the other reads as a different size)
-    const f = THREE.MathUtils.smoothstep(this.open, Math.PI * 0.55, Math.PI);
-    const l = this.th * (f / 2);
-    const r = this.th - l;
-    this.topR = r;
-    this.topL = l;
-    this.rightBlock.scale.z = Math.max(r, 1e-4);
-    this.rightBlock.position.set(this.W / 2, 0, r / 2);
-    // (in the cover's frame: flat open, local (x, z) sits at (-x, th/2 - z) in the book's)
-    this.leftBlock.scale.z = Math.max(l, 1e-4);
-    this.leftBlock.position.set(this.W / 2, 0, this.th / 2 - l / 2);
-    this.leftBlock.visible = l > 0.0005;
-    this.rightPage.position.set(this.W / 2, 0, r + 0.0006);
-    this.leftPage.position.set(this.W / 2, 0, this.th / 2 - l - 0.0006);
-    this.leftPage.visible = this.open > 0.3; // (it rides on the cover)
-    this.rightPage.visible = this.open > 0.3;
     this.frontPivot.rotation.y = -this.open;
-    // open, the spine is folded away under the pages (it only reads from the side)
-    this.spine.visible = this.open < 1.4;
     this.leafPivot.position.set(0, 0, this.th / 2 + 0.0012);
   }
 
@@ -372,7 +365,7 @@ export class Book3D {
   /** Turn to a spread. However far it is, one leaf turns over and lands on it; `quick` for jumps. */
   flipTo(target: number, quick = false) {
     target = THREE.MathUtils.clamp(target, 0, this.maxSpread());
-    if (target === this.spread || this.flip || this.state !== 'held') return;
+    if (target === this.spread || this.flip || !this.reading) return;
     const dir: 1 | -1 = target > this.spread ? 1 : -1;
     if (dir === 1) {
       // the sheet leaving the right: front = current right page, back = the new left page
@@ -402,7 +395,7 @@ export class Book3D {
     // centre the closed book (which sits on x ∈ [0, W]) on the point
     this.rest.p.copy(pos).addScaledVector(x, -this.W / 2).addScaledVector(z, 0.004);
     this.state = 'rest';
-    this.open = this.openTarget = 0;
+    this.open = this.openTarget = this.openT = 0;
     this.layoutBlocks();
     this.root.position.copy(this.rest.p);
     this.root.quaternion.copy(this.rest.q);
@@ -490,7 +483,10 @@ export class Book3D {
     const d = this.heldDistance(camera) / this.mag;
     const sq = THREE.MathUtils.clamp((this.mag - 1) * 2, 0, 1);
     _m2.makeRotationX(-0.08 * (1 - sq) + lowered * 0.9);
-    _m2.setPosition(this.off.x, d * 0.02 * (1 - sq) + this.off.y - lowered * d * 0.95, -d + lowered * 0.08);
+    // (the root is the spine: shut, the book is slid left so it sits in the middle of the view, and it
+    // slides back as it opens, keeping the open spread centred)
+    const shut = (1 - this.open / Math.PI) * this.W / 2;
+    _m2.setPosition(this.off.x - shut, d * 0.02 * (1 - sq) + this.off.y - lowered * d * 0.95, -d + lowered * 0.08);
     _m.multiplyMatrices((this.holder ?? camera).matrixWorld, _m2);
     _m.decompose(out.p, out.q, _s);
     return out;
@@ -523,7 +519,8 @@ export class Book3D {
     this.onSound?.('raise');
   }
 
-  get reading() { return this.state === 'held'; }
+  /** held and fully open (not while it's still swinging open) */
+  get reading() { return this.state === 'held' && this.open === Math.PI; }
   get inHand() { return this.state !== 'rest'; }
 
   update(dt: number, camera: THREE.Camera) {
@@ -539,11 +536,14 @@ export class Book3D {
       this.root.position.lerpVectors(this.from.p, tgt.p, k);
       this.root.position.y += Math.sin(Math.PI * k) * 0.12;
       this.root.quaternion.slerpQuaternions(this.from.q, tgt.q, k);
-      if (this.anim > 0.6 && this.openTarget === 0) {
-        this.openTarget = Math.PI;
-        this.onSound?.('open');
+      // it rises shut and turns to face you, then opens in your hands
+      if (this.anim >= 1) {
+        this.state = 'held';
+        if (this.openTarget === 0) {
+          this.openTarget = Math.PI;
+          this.onSound?.('open');
+        }
       }
-      if (this.anim >= 1) this.state = 'held';
     } else if (this.state === 'held') {
       this.heldPose(camera, 0, tgt);
       this.root.position.copy(tgt.p);
@@ -559,10 +559,12 @@ export class Book3D {
         if (this.state === 'lowered') this.root.visible = false;
       }
     }
-    // cover
+    // opening: the front half swings over, easing out of the hinge and settling flat
     if (this.open !== this.openTarget) {
-      const sp = dt * 7.5;
-      this.open = this.open < this.openTarget ? Math.min(this.openTarget, this.open + sp) : Math.max(this.openTarget, this.open - sp);
+      const dir = this.openTarget > this.open ? 1 : -1;
+      this.openT = THREE.MathUtils.clamp(this.openT + dir * dt / OPEN_TIME, 0, 1);
+      this.open = Math.PI * ease(this.openT);
+      if (Math.abs(this.open - this.openTarget) < 1e-4) this.open = this.openTarget;
       this.layoutBlocks();
     }
     // page turn
@@ -574,8 +576,6 @@ export class Book3D {
       // the free edge trails the spine as the sheet lifts, then catches up and lays flat
       const s = Math.sin(Math.PI * f.t);
       this.curl(theta, -f.dir * 1.05 * s * s * (1.15 - 0.3 * f.t));
-      // the sheet lifts off one stack and lands on the other
-      this.leafPivot.position.z = THREE.MathUtils.lerp(this.topR, this.topL, theta / Math.PI) + 0.0012;
       if (f.t >= 1) {
         this.spread = f.to;
         this.flip = null;
