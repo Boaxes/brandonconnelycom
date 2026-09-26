@@ -53,6 +53,14 @@ export class Page {
   readonly bottom = PAGE_H - 120;
   /** set when the page content changes, so the texture re-uploads */
   version = 0;
+  /** Hand-composed pages: draws the whole page (again whenever one of its pictures arrives). */
+  compose: ((p: Page) => void) | null = null;
+  /** Moving parts, drawn over the composed page every frame while it's in view. */
+  live: ((g: CanvasRenderingContext2D, t: number) => void) | null = null;
+  /** told when the page comes into or goes out of view (to start and stop its videos) */
+  onShow: ((shown: boolean) => void) | null = null;
+  shown = false;
+  private base: HTMLCanvasElement | null = null;
 
   constructor(public style: PageStyle, public number?: number) {
     this.canvas.width = PAGE_W;
@@ -109,6 +117,34 @@ export class Page {
       g.textAlign = 'left';
     }
     this.version++;
+  }
+
+  /** Redraw a composed page from scratch (its moving parts go back on top at the next tick). */
+  rebuild() {
+    this.clear();
+    this.compose?.(this);
+    this.base = null;
+    this.version++;
+  }
+
+  /** Draw the moving parts for time `t`: the still page is kept aside and put back under them each time. */
+  tick(t: number) {
+    if (!this.live) return;
+    if (!this.base) {
+      this.base = document.createElement('canvas');
+      this.base.width = PAGE_W;
+      this.base.height = PAGE_H;
+      this.base.getContext('2d')!.drawImage(this.canvas, 0, 0);
+    }
+    this.g.drawImage(this.base, 0, 0);
+    this.live(this.g, t);
+    this.version++;
+  }
+
+  setShown(shown: boolean) {
+    if (shown === this.shown) return;
+    this.shown = shown;
+    this.onShow?.(shown);
   }
 
   /** Wrap text into lines that fit `width` in the current font. */

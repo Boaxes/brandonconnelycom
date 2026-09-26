@@ -1,0 +1,4006 @@
+{
+"scipy": "1.10.1",
+"seed": 335,
+"runs": [
+{
+"m": 69,
+"n": 51,
+"status": 0,
+"nit": 734,
+"status_T": 3,
+"nit_T": 280
+},
+{
+"m": 53,
+"n": 3,
+"status": 0,
+"nit": 60,
+"status_T": 3,
+"nit_T": 5
+},
+{
+"m": 32,
+"n": 31,
+"status": 0,
+"nit": 154,
+"status_T": 0,
+"nit_T": 152
+},
+{
+"m": 53,
+"n": 49,
+"status": 0,
+"nit": 310,
+"status_T": 0,
+"nit_T": 345
+},
+{
+"m": 5,
+"n": 50,
+"status": 3,
+"nit": 7,
+"status_T": 0,
+"nit_T": 65
+},
+{
+"m": 35,
+"n": 61,
+"status": 3,
+"nit": 68,
+"status_T": 0,
+"nit_T": 391
+},
+{
+"m": 36,
+"n": 59,
+"status": 3,
+"nit": 112,
+"status_T": 0,
+"nit_T": 385
+},
+{
+"m": 66,
+"n": 73,
+"status": 3,
+"nit": 531,
+"status_T": 3,
+"nit_T": 505
+},
+{
+"m": 35,
+"n": 11,
+"status": 0,
+"nit": 58,
+"status_T": 3,
+"nit_T": 20
+},
+{
+"m": 59,
+"n": 42,
+"status": 0,
+"nit": 372,
+"status_T": 3,
+"nit_T": 225
+},
+{
+"m": 52,
+"n": 54,
+"status": 3,
+"nit": 291,
+"status_T": 3,
+"nit_T": 300
+},
+{
+"m": 34,
+"n": 35,
+"status": 3,
+"nit": 144,
+"status_T": 0,
+"nit_T": 178
+},
+{
+"m": 49,
+"n": 3,
+"status": 0,
+"nit": 56,
+"status_T": 3,
+"nit_T": 6
+},
+{
+"m": 18,
+"n": 14,
+"status": 0,
+"nit": 57,
+"status_T": 0,
+"nit_T": 41
+},
+{
+"m": 28,
+"n": 25,
+"status": 3,
+"nit": 117,
+"status_T": 3,
+"nit_T": 80
+},
+{
+"m": 36,
+"n": 4,
+"status": 0,
+"nit": 37,
+"status_T": 3,
+"nit_T": 5
+},
+{
+"m": 49,
+"n": 35,
+"status": 0,
+"nit": 276,
+"status_T": 3,
+"nit_T": 126
+},
+{
+"m": 46,
+"n": 50,
+"status": 0,
+"nit": 328,
+"status_T": 3,
+"nit_T": 278
+},
+{
+"m": 8,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 1
+},
+{
+"m": 1,
+"n": 69,
+"status": 3,
+"nit": 1,
+"status_T": 0,
+"nit_T": 0
+},
+{
+"m": 45,
+"n": 17,
+"status": 0,
+"nit": 154,
+"status_T": 3,
+"nit_T": 35
+},
+{
+"m": 62,
+"n": 71,
+"status": 3,
+"nit": 513,
+"status_T": 0,
+"nit_T": 591
+},
+{
+"m": 3,
+"n": 47,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 56
+},
+{
+"m": 19,
+"n": 43,
+"status": 3,
+"nit": 35,
+"status_T": 0,
+"nit_T": 158
+},
+{
+"m": 32,
+"n": 59,
+"status": 3,
+"nit": 68,
+"status_T": 0,
+"nit_T": 424
+},
+{
+"m": 46,
+"n": 52,
+"status": 3,
+"nit": 204,
+"status_T": 3,
+"nit_T": 336
+},
+{
+"m": 65,
+"n": 40,
+"status": 0,
+"nit": 497,
+"status_T": 3,
+"nit_T": 91
+},
+{
+"m": 72,
+"n": 29,
+"status": 0,
+"nit": 507,
+"status_T": 3,
+"nit_T": 62
+},
+{
+"m": 41,
+"n": 36,
+"status": 0,
+"nit": 229,
+"status_T": 3,
+"nit_T": 107
+},
+{
+"m": 41,
+"n": 30,
+"status": 0,
+"nit": 228,
+"status_T": 3,
+"nit_T": 82
+},
+{
+"m": 39,
+"n": 27,
+"status": 0,
+"nit": 149,
+"status_T": 3,
+"nit_T": 71
+},
+{
+"m": 71,
+"n": 20,
+"status": 0,
+"nit": 216,
+"status_T": 3,
+"nit_T": 36
+},
+{
+"m": 62,
+"n": 38,
+"status": 0,
+"nit": 466,
+"status_T": 3,
+"nit_T": 72
+},
+{
+"m": 18,
+"n": 11,
+"status": 0,
+"nit": 41,
+"status_T": 3,
+"nit_T": 29
+},
+{
+"m": 10,
+"n": 6,
+"status": 0,
+"nit": 21,
+"status_T": 3,
+"nit_T": 11
+},
+{
+"m": 26,
+"n": 52,
+"status": 3,
+"nit": 50,
+"status_T": 0,
+"nit_T": 251
+},
+{
+"m": 39,
+"n": 42,
+"status": 3,
+"nit": 233,
+"status_T": 0,
+"nit_T": 278
+},
+{
+"m": 54,
+"n": 2,
+"status": 0,
+"nit": 66,
+"status_T": 3,
+"nit_T": 3
+},
+{
+"m": 37,
+"n": 57,
+"status": 3,
+"nit": 73,
+"status_T": 0,
+"nit_T": 266
+},
+{
+"m": 6,
+"n": 14,
+"status": 3,
+"nit": 10,
+"status_T": 0,
+"nit_T": 21
+},
+{
+"m": 30,
+"n": 22,
+"status": 0,
+"nit": 120,
+"status_T": 3,
+"nit_T": 53
+},
+{
+"m": 65,
+"n": 16,
+"status": 0,
+"nit": 188,
+"status_T": 3,
+"nit_T": 33
+},
+{
+"m": 47,
+"n": 43,
+"status": 0,
+"nit": 277,
+"status_T": 0,
+"nit_T": 291
+},
+{
+"m": 70,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 2
+},
+{
+"m": 29,
+"n": 68,
+"status": 3,
+"nit": 59,
+"status_T": 0,
+"nit_T": 252
+},
+{
+"m": 38,
+"n": 45,
+"status": 3,
+"nit": 163,
+"status_T": 0,
+"nit_T": 340
+},
+{
+"m": 70,
+"n": 18,
+"status": 0,
+"nit": 213,
+"status_T": 3,
+"nit_T": 39
+},
+{
+"m": 11,
+"n": 74,
+"status": 3,
+"nit": 15,
+"status_T": 0,
+"nit_T": 130
+},
+{
+"m": 6,
+"n": 29,
+"status": 3,
+"nit": 8,
+"status_T": 0,
+"nit_T": 54
+},
+{
+"m": 16,
+"n": 42,
+"status": 3,
+"nit": 33,
+"status_T": 0,
+"nit_T": 103
+},
+{
+"m": 4,
+"n": 36,
+"status": 3,
+"nit": 6,
+"status_T": 0,
+"nit_T": 42
+},
+{
+"m": 59,
+"n": 5,
+"status": 0,
+"nit": 71,
+"status_T": 3,
+"nit_T": 9
+},
+{
+"m": 33,
+"n": 6,
+"status": 0,
+"nit": 44,
+"status_T": 3,
+"nit_T": 9
+},
+{
+"m": 40,
+"n": 51,
+"status": 3,
+"nit": 148,
+"status_T": 0,
+"nit_T": 336
+},
+{
+"m": 22,
+"n": 37,
+"status": 3,
+"nit": 51,
+"status_T": 0,
+"nit_T": 148
+},
+{
+"m": 55,
+"n": 20,
+"status": 0,
+"nit": 164,
+"status_T": 3,
+"nit_T": 41
+},
+{
+"m": 42,
+"n": 50,
+"status": 3,
+"nit": 232,
+"status_T": 3,
+"nit_T": 371
+},
+{
+"m": 41,
+"n": 55,
+"status": 3,
+"nit": 181,
+"status_T": 0,
+"nit_T": 340
+},
+{
+"m": 66,
+"n": 11,
+"status": 0,
+"nit": 131,
+"status_T": 3,
+"nit_T": 14
+},
+{
+"m": 42,
+"n": 39,
+"status": 0,
+"nit": 276,
+"status_T": 0,
+"nit_T": 196
+},
+{
+"m": 13,
+"n": 37,
+"status": 3,
+"nit": 21,
+"status_T": 0,
+"nit_T": 108
+},
+{
+"m": 34,
+"n": 52,
+"status": 3,
+"nit": 105,
+"status_T": 0,
+"nit_T": 333
+},
+{
+"m": 8,
+"n": 27,
+"status": 3,
+"nit": 10,
+"status_T": 0,
+"nit_T": 48
+},
+{
+"m": 9,
+"n": 18,
+"status": 3,
+"nit": 15,
+"status_T": 0,
+"nit_T": 36
+},
+{
+"m": 11,
+"n": 35,
+"status": 3,
+"nit": 18,
+"status_T": 0,
+"nit_T": 60
+},
+{
+"m": 10,
+"n": 28,
+"status": 3,
+"nit": 14,
+"status_T": 0,
+"nit_T": 55
+},
+{
+"m": 14,
+"n": 36,
+"status": 3,
+"nit": 28,
+"status_T": 0,
+"nit_T": 122
+},
+{
+"m": 31,
+"n": 63,
+"status": 3,
+"nit": 65,
+"status_T": 0,
+"nit_T": 320
+},
+{
+"m": 55,
+"n": 51,
+"status": 0,
+"nit": 460,
+"status_T": 3,
+"nit_T": 336
+},
+{
+"m": 1,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 0,
+"nit_T": 0
+},
+{
+"m": 58,
+"n": 6,
+"status": 0,
+"nit": 72,
+"status_T": 3,
+"nit_T": 11
+},
+{
+"m": 71,
+"n": 42,
+"status": 0,
+"nit": 598,
+"status_T": 3,
+"nit_T": 112
+},
+{
+"m": 28,
+"n": 48,
+"status": 3,
+"nit": 59,
+"status_T": 0,
+"nit_T": 222
+},
+{
+"m": 10,
+"n": 56,
+"status": 3,
+"nit": 17,
+"status_T": 0,
+"nit_T": 93
+},
+{
+"m": 49,
+"n": 48,
+"status": 3,
+"nit": 329,
+"status_T": 3,
+"nit_T": 278
+},
+{
+"m": 49,
+"n": 49,
+"status": 0,
+"nit": 374,
+"status_T": 0,
+"nit_T": 303
+},
+{
+"m": 3,
+"n": 12,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 18
+},
+{
+"m": 8,
+"n": 21,
+"status": 3,
+"nit": 14,
+"status_T": 0,
+"nit_T": 45
+},
+{
+"m": 32,
+"n": 69,
+"status": 3,
+"nit": 113,
+"status_T": 0,
+"nit_T": 401
+},
+{
+"m": 64,
+"n": 4,
+"status": 0,
+"nit": 84,
+"status_T": 3,
+"nit_T": 7
+},
+{
+"m": 66,
+"n": 67,
+"status": 3,
+"nit": 522,
+"status_T": 3,
+"nit_T": 493
+},
+{
+"m": 19,
+"n": 54,
+"status": 3,
+"nit": 35,
+"status_T": 0,
+"nit_T": 256
+},
+{
+"m": 51,
+"n": 45,
+"status": 0,
+"nit": 347,
+"status_T": 3,
+"nit_T": 191
+},
+{
+"m": 55,
+"n": 54,
+"status": 3,
+"nit": 227,
+"status_T": 3,
+"nit_T": 406
+},
+{
+"m": 11,
+"n": 62,
+"status": 3,
+"nit": 17,
+"status_T": 0,
+"nit_T": 82
+},
+{
+"m": 61,
+"n": 65,
+"status": 0,
+"nit": 552,
+"status_T": 0,
+"nit_T": 489
+},
+{
+"m": 37,
+"n": 20,
+"status": 0,
+"nit": 132,
+"status_T": 3,
+"nit_T": 41
+},
+{
+"m": 3,
+"n": 50,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 62
+},
+{
+"m": 54,
+"n": 34,
+"status": 0,
+"nit": 355,
+"status_T": 3,
+"nit_T": 101
+},
+{
+"m": 28,
+"n": 25,
+"status": 0,
+"nit": 115,
+"status_T": 0,
+"nit_T": 130
+},
+{
+"m": 14,
+"n": 64,
+"status": 3,
+"nit": 17,
+"status_T": 0,
+"nit_T": 139
+},
+{
+"m": 61,
+"n": 15,
+"status": 0,
+"nit": 183,
+"status_T": 3,
+"nit_T": 30
+},
+{
+"m": 41,
+"n": 38,
+"status": 0,
+"nit": 251,
+"status_T": 0,
+"nit_T": 173
+},
+{
+"m": 4,
+"n": 29,
+"status": 3,
+"nit": 7,
+"status_T": 0,
+"nit_T": 45
+},
+{
+"m": 67,
+"n": 6,
+"status": 0,
+"nit": 89,
+"status_T": 3,
+"nit_T": 11
+},
+{
+"m": 8,
+"n": 71,
+"status": 3,
+"nit": 12,
+"status_T": 0,
+"nit_T": 101
+},
+{
+"m": 54,
+"n": 72,
+"status": 3,
+"nit": 361,
+"status_T": 0,
+"nit_T": 637
+},
+{
+"m": 39,
+"n": 67,
+"status": 3,
+"nit": 74,
+"status_T": 0,
+"nit_T": 562
+},
+{
+"m": 69,
+"n": 69,
+"status": 3,
+"nit": 550,
+"status_T": 3,
+"nit_T": 618
+},
+{
+"m": 7,
+"n": 25,
+"status": 3,
+"nit": 12,
+"status_T": 0,
+"nit_T": 49
+},
+{
+"m": 33,
+"n": 14,
+"status": 0,
+"nit": 106,
+"status_T": 3,
+"nit_T": 31
+},
+{
+"m": 44,
+"n": 29,
+"status": 0,
+"nit": 213,
+"status_T": 3,
+"nit_T": 110
+},
+{
+"m": 7,
+"n": 41,
+"status": 3,
+"nit": 16,
+"status_T": 0,
+"nit_T": 69
+},
+{
+"m": 17,
+"n": 61,
+"status": 3,
+"nit": 27,
+"status_T": 0,
+"nit_T": 202
+},
+{
+"m": 27,
+"n": 50,
+"status": 3,
+"nit": 78,
+"status_T": 0,
+"nit_T": 257
+},
+{
+"m": 65,
+"n": 34,
+"status": 0,
+"nit": 313,
+"status_T": 3,
+"nit_T": 73
+},
+{
+"m": 50,
+"n": 44,
+"status": 0,
+"nit": 341,
+"status_T": 3,
+"nit_T": 292
+},
+{
+"m": 25,
+"n": 3,
+"status": 0,
+"nit": 34,
+"status_T": 3,
+"nit_T": 5
+},
+{
+"m": 7,
+"n": 63,
+"status": 3,
+"nit": 11,
+"status_T": 0,
+"nit_T": 93
+},
+{
+"m": 8,
+"n": 71,
+"status": 3,
+"nit": 11,
+"status_T": 0,
+"nit_T": 107
+},
+{
+"m": 53,
+"n": 12,
+"status": 0,
+"nit": 133,
+"status_T": 3,
+"nit_T": 25
+},
+{
+"m": 24,
+"n": 13,
+"status": 0,
+"nit": 71,
+"status_T": 3,
+"nit_T": 17
+},
+{
+"m": 3,
+"n": 39,
+"status": 3,
+"nit": 6,
+"status_T": 0,
+"nit_T": 44
+},
+{
+"m": 25,
+"n": 59,
+"status": 3,
+"nit": 59,
+"status_T": 0,
+"nit_T": 327
+},
+{
+"m": 28,
+"n": 52,
+"status": 3,
+"nit": 56,
+"status_T": 0,
+"nit_T": 331
+},
+{
+"m": 5,
+"n": 30,
+"status": 3,
+"nit": 7,
+"status_T": 0,
+"nit_T": 34
+},
+{
+"m": 13,
+"n": 63,
+"status": 3,
+"nit": 23,
+"status_T": 0,
+"nit_T": 150
+},
+{
+"m": 24,
+"n": 2,
+"status": 0,
+"nit": 27,
+"status_T": 3,
+"nit_T": 3
+},
+{
+"m": 55,
+"n": 21,
+"status": 0,
+"nit": 252,
+"status_T": 3,
+"nit_T": 34
+},
+{
+"m": 4,
+"n": 4,
+"status": 3,
+"nit": 5,
+"status_T": 3,
+"nit_T": 4
+},
+{
+"m": 19,
+"n": 44,
+"status": 3,
+"nit": 46,
+"status_T": 0,
+"nit_T": 156
+},
+{
+"m": 68,
+"n": 61,
+"status": 0,
+"nit": 528,
+"status_T": 0,
+"nit_T": 402
+},
+{
+"m": 13,
+"n": 54,
+"status": 3,
+"nit": 19,
+"status_T": 0,
+"nit_T": 113
+},
+{
+"m": 35,
+"n": 39,
+"status": 0,
+"nit": 215,
+"status_T": 0,
+"nit_T": 216
+},
+{
+"m": 32,
+"n": 67,
+"status": 3,
+"nit": 61,
+"status_T": 0,
+"nit_T": 386
+},
+{
+"m": 16,
+"n": 8,
+"status": 0,
+"nit": 23,
+"status_T": 3,
+"nit_T": 13
+},
+{
+"m": 45,
+"n": 42,
+"status": 3,
+"nit": 269,
+"status_T": 3,
+"nit_T": 222
+},
+{
+"m": 28,
+"n": 21,
+"status": 0,
+"nit": 121,
+"status_T": 3,
+"nit_T": 65
+},
+{
+"m": 3,
+"n": 31,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 38
+},
+{
+"m": 61,
+"n": 12,
+"status": 0,
+"nit": 145,
+"status_T": 3,
+"nit_T": 21
+},
+{
+"m": 27,
+"n": 22,
+"status": 0,
+"nit": 87,
+"status_T": 3,
+"nit_T": 65
+},
+{
+"m": 50,
+"n": 11,
+"status": 0,
+"nit": 98,
+"status_T": 3,
+"nit_T": 19
+},
+{
+"m": 63,
+"n": 25,
+"status": 0,
+"nit": 216,
+"status_T": 3,
+"nit_T": 41
+},
+{
+"m": 53,
+"n": 13,
+"status": 0,
+"nit": 163,
+"status_T": 3,
+"nit_T": 18
+},
+{
+"m": 9,
+"n": 68,
+"status": 3,
+"nit": 16,
+"status_T": 0,
+"nit_T": 111
+},
+{
+"m": 56,
+"n": 39,
+"status": 0,
+"nit": 387,
+"status_T": 3,
+"nit_T": 191
+},
+{
+"m": 34,
+"n": 49,
+"status": 3,
+"nit": 74,
+"status_T": 0,
+"nit_T": 294
+},
+{
+"m": 46,
+"n": 3,
+"status": 0,
+"nit": 50,
+"status_T": 3,
+"nit_T": 4
+},
+{
+"m": 5,
+"n": 11,
+"status": 3,
+"nit": 6,
+"status_T": 0,
+"nit_T": 22
+},
+{
+"m": 29,
+"n": 19,
+"status": 0,
+"nit": 76,
+"status_T": 3,
+"nit_T": 64
+},
+{
+"m": 49,
+"n": 6,
+"status": 0,
+"nit": 67,
+"status_T": 3,
+"nit_T": 11
+},
+{
+"m": 21,
+"n": 54,
+"status": 3,
+"nit": 48,
+"status_T": 0,
+"nit_T": 177
+},
+{
+"m": 55,
+"n": 61,
+"status": 0,
+"nit": 346,
+"status_T": 0,
+"nit_T": 464
+},
+{
+"m": 10,
+"n": 9,
+"status": 0,
+"nit": 17,
+"status_T": 0,
+"nit_T": 22
+},
+{
+"m": 63,
+"n": 46,
+"status": 3,
+"nit": 560,
+"status_T": 3,
+"nit_T": 185
+},
+{
+"m": 6,
+"n": 33,
+"status": 3,
+"nit": 9,
+"status_T": 0,
+"nit_T": 47
+},
+{
+"m": 6,
+"n": 20,
+"status": 3,
+"nit": 13,
+"status_T": 0,
+"nit_T": 37
+},
+{
+"m": 63,
+"n": 46,
+"status": 0,
+"nit": 418,
+"status_T": 3,
+"nit_T": 263
+},
+{
+"m": 44,
+"n": 18,
+"status": 0,
+"nit": 119,
+"status_T": 3,
+"nit_T": 24
+},
+{
+"m": 66,
+"n": 27,
+"status": 0,
+"nit": 333,
+"status_T": 3,
+"nit_T": 76
+},
+{
+"m": 19,
+"n": 60,
+"status": 3,
+"nit": 34,
+"status_T": 0,
+"nit_T": 142
+},
+{
+"m": 21,
+"n": 46,
+"status": 3,
+"nit": 32,
+"status_T": 0,
+"nit_T": 163
+},
+{
+"m": 50,
+"n": 35,
+"status": 0,
+"nit": 298,
+"status_T": 3,
+"nit_T": 124
+},
+{
+"m": 17,
+"n": 25,
+"status": 3,
+"nit": 29,
+"status_T": 0,
+"nit_T": 111
+},
+{
+"m": 54,
+"n": 13,
+"status": 0,
+"nit": 111,
+"status_T": 3,
+"nit_T": 22
+},
+{
+"m": 62,
+"n": 12,
+"status": 0,
+"nit": 139,
+"status_T": 3,
+"nit_T": 16
+},
+{
+"m": 61,
+"n": 7,
+"status": 0,
+"nit": 85,
+"status_T": 3,
+"nit_T": 14
+},
+{
+"m": 65,
+"n": 35,
+"status": 0,
+"nit": 487,
+"status_T": 3,
+"nit_T": 76
+},
+{
+"m": 52,
+"n": 31,
+"status": 0,
+"nit": 231,
+"status_T": 3,
+"nit_T": 65
+},
+{
+"m": 52,
+"n": 31,
+"status": 0,
+"nit": 255,
+"status_T": 3,
+"nit_T": 111
+},
+{
+"m": 57,
+"n": 12,
+"status": 0,
+"nit": 114,
+"status_T": 3,
+"nit_T": 18
+},
+{
+"m": 67,
+"n": 27,
+"status": 0,
+"nit": 336,
+"status_T": 3,
+"nit_T": 53
+},
+{
+"m": 60,
+"n": 48,
+"status": 0,
+"nit": 536,
+"status_T": 3,
+"nit_T": 202
+},
+{
+"m": 2,
+"n": 48,
+"status": 3,
+"nit": 3,
+"status_T": 0,
+"nit_T": 51
+},
+{
+"m": 6,
+"n": 26,
+"status": 3,
+"nit": 10,
+"status_T": 0,
+"nit_T": 33
+},
+{
+"m": 71,
+"n": 7,
+"status": 0,
+"nit": 90,
+"status_T": 3,
+"nit_T": 12
+},
+{
+"m": 26,
+"n": 53,
+"status": 3,
+"nit": 45,
+"status_T": 0,
+"nit_T": 185
+},
+{
+"m": 58,
+"n": 55,
+"status": 3,
+"nit": 371,
+"status_T": 3,
+"nit_T": 326
+},
+{
+"m": 63,
+"n": 58,
+"status": 0,
+"nit": 545,
+"status_T": 0,
+"nit_T": 540
+},
+{
+"m": 9,
+"n": 71,
+"status": 3,
+"nit": 16,
+"status_T": 0,
+"nit_T": 86
+},
+{
+"m": 4,
+"n": 19,
+"status": 3,
+"nit": 6,
+"status_T": 0,
+"nit_T": 23
+},
+{
+"m": 69,
+"n": 48,
+"status": 0,
+"nit": 616,
+"status_T": 3,
+"nit_T": 185
+},
+{
+"m": 32,
+"n": 54,
+"status": 3,
+"nit": 85,
+"status_T": 0,
+"nit_T": 325
+},
+{
+"m": 23,
+"n": 50,
+"status": 3,
+"nit": 39,
+"status_T": 0,
+"nit_T": 193
+},
+{
+"m": 4,
+"n": 71,
+"status": 3,
+"nit": 7,
+"status_T": 0,
+"nit_T": 89
+},
+{
+"m": 38,
+"n": 35,
+"status": 0,
+"nit": 234,
+"status_T": 0,
+"nit_T": 169
+},
+{
+"m": 69,
+"n": 60,
+"status": 0,
+"nit": 509,
+"status_T": 0,
+"nit_T": 412
+},
+{
+"m": 21,
+"n": 64,
+"status": 3,
+"nit": 36,
+"status_T": 0,
+"nit_T": 231
+},
+{
+"m": 37,
+"n": 24,
+"status": 0,
+"nit": 144,
+"status_T": 0,
+"nit_T": 92
+},
+{
+"m": 65,
+"n": 33,
+"status": 0,
+"nit": 409,
+"status_T": 3,
+"nit_T": 54
+},
+{
+"m": 13,
+"n": 19,
+"status": 3,
+"nit": 17,
+"status_T": 0,
+"nit_T": 42
+},
+{
+"m": 73,
+"n": 50,
+"status": 0,
+"nit": 693,
+"status_T": 3,
+"nit_T": 246
+},
+{
+"m": 13,
+"n": 67,
+"status": 3,
+"nit": 31,
+"status_T": 0,
+"nit_T": 124
+},
+{
+"m": 66,
+"n": 69,
+"status": 3,
+"nit": 435,
+"status_T": 0,
+"nit_T": 591
+},
+{
+"m": 35,
+"n": 73,
+"status": 3,
+"nit": 101,
+"status_T": 0,
+"nit_T": 594
+},
+{
+"m": 10,
+"n": 32,
+"status": 3,
+"nit": 20,
+"status_T": 0,
+"nit_T": 49
+},
+{
+"m": 54,
+"n": 44,
+"status": 0,
+"nit": 414,
+"status_T": 3,
+"nit_T": 238
+},
+{
+"m": 48,
+"n": 74,
+"status": 3,
+"nit": 191,
+"status_T": 0,
+"nit_T": 639
+},
+{
+"m": 44,
+"n": 50,
+"status": 3,
+"nit": 173,
+"status_T": 0,
+"nit_T": 308
+},
+{
+"m": 34,
+"n": 60,
+"status": 3,
+"nit": 113,
+"status_T": 0,
+"nit_T": 326
+},
+{
+"m": 38,
+"n": 28,
+"status": 0,
+"nit": 138,
+"status_T": 3,
+"nit_T": 162
+},
+{
+"m": 27,
+"n": 49,
+"status": 3,
+"nit": 60,
+"status_T": 0,
+"nit_T": 283
+},
+{
+"m": 1,
+"n": 26,
+"status": 3,
+"nit": 1,
+"status_T": 0,
+"nit_T": 0
+},
+{
+"m": 38,
+"n": 73,
+"status": 3,
+"nit": 78,
+"status_T": 0,
+"nit_T": 494
+},
+{
+"m": 34,
+"n": 22,
+"status": 0,
+"nit": 139,
+"status_T": 3,
+"nit_T": 47
+},
+{
+"m": 47,
+"n": 16,
+"status": 0,
+"nit": 104,
+"status_T": 3,
+"nit_T": 24
+},
+{
+"m": 40,
+"n": 62,
+"status": 3,
+"nit": 155,
+"status_T": 0,
+"nit_T": 302
+},
+{
+"m": 44,
+"n": 31,
+"status": 0,
+"nit": 250,
+"status_T": 3,
+"nit_T": 106
+},
+{
+"m": 72,
+"n": 48,
+"status": 0,
+"nit": 595,
+"status_T": 3,
+"nit_T": 145
+},
+{
+"m": 71,
+"n": 71,
+"status": 0,
+"nit": 692,
+"status_T": 0,
+"nit_T": 764
+},
+{
+"m": 48,
+"n": 51,
+"status": 0,
+"nit": 322,
+"status_T": 0,
+"nit_T": 342
+},
+{
+"m": 60,
+"n": 8,
+"status": 0,
+"nit": 81,
+"status_T": 3,
+"nit_T": 13
+},
+{
+"m": 61,
+"n": 8,
+"status": 0,
+"nit": 81,
+"status_T": 3,
+"nit_T": 10
+},
+{
+"m": 52,
+"n": 72,
+"status": 3,
+"nit": 281,
+"status_T": 0,
+"nit_T": 592
+},
+{
+"m": 7,
+"n": 36,
+"status": 3,
+"nit": 11,
+"status_T": 0,
+"nit_T": 51
+},
+{
+"m": 66,
+"n": 14,
+"status": 0,
+"nit": 140,
+"status_T": 3,
+"nit_T": 29
+},
+{
+"m": 62,
+"n": 20,
+"status": 0,
+"nit": 223,
+"status_T": 3,
+"nit_T": 35
+},
+{
+"m": 4,
+"n": 74,
+"status": 3,
+"nit": 7,
+"status_T": 0,
+"nit_T": 88
+},
+{
+"m": 28,
+"n": 18,
+"status": 0,
+"nit": 88,
+"status_T": 3,
+"nit_T": 42
+},
+{
+"m": 31,
+"n": 63,
+"status": 3,
+"nit": 75,
+"status_T": 0,
+"nit_T": 357
+},
+{
+"m": 68,
+"n": 21,
+"status": 0,
+"nit": 216,
+"status_T": 3,
+"nit_T": 40
+},
+{
+"m": 51,
+"n": 32,
+"status": 0,
+"nit": 335,
+"status_T": 3,
+"nit_T": 87
+},
+{
+"m": 65,
+"n": 53,
+"status": 0,
+"nit": 543,
+"status_T": 3,
+"nit_T": 341
+},
+{
+"m": 54,
+"n": 5,
+"status": 0,
+"nit": 66,
+"status_T": 3,
+"nit_T": 7
+},
+{
+"m": 13,
+"n": 43,
+"status": 3,
+"nit": 20,
+"status_T": 0,
+"nit_T": 85
+},
+{
+"m": 53,
+"n": 41,
+"status": 0,
+"nit": 339,
+"status_T": 3,
+"nit_T": 163
+},
+{
+"m": 34,
+"n": 58,
+"status": 3,
+"nit": 145,
+"status_T": 0,
+"nit_T": 255
+},
+{
+"m": 37,
+"n": 70,
+"status": 3,
+"nit": 80,
+"status_T": 0,
+"nit_T": 456
+},
+{
+"m": 18,
+"n": 42,
+"status": 3,
+"nit": 25,
+"status_T": 0,
+"nit_T": 179
+},
+{
+"m": 46,
+"n": 30,
+"status": 0,
+"nit": 234,
+"status_T": 3,
+"nit_T": 143
+},
+{
+"m": 62,
+"n": 74,
+"status": 3,
+"nit": 411,
+"status_T": 0,
+"nit_T": 634
+},
+{
+"m": 42,
+"n": 71,
+"status": 3,
+"nit": 126,
+"status_T": 0,
+"nit_T": 574
+},
+{
+"m": 21,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 2
+},
+{
+"m": 4,
+"n": 24,
+"status": 3,
+"nit": 5,
+"status_T": 0,
+"nit_T": 34
+},
+{
+"m": 36,
+"n": 21,
+"status": 0,
+"nit": 111,
+"status_T": 3,
+"nit_T": 36
+},
+{
+"m": 42,
+"n": 63,
+"status": 3,
+"nit": 181,
+"status_T": 0,
+"nit_T": 431
+},
+{
+"m": 23,
+"n": 34,
+"status": 3,
+"nit": 51,
+"status_T": 0,
+"nit_T": 124
+},
+{
+"m": 16,
+"n": 14,
+"status": 0,
+"nit": 30,
+"status_T": 3,
+"nit_T": 41
+},
+{
+"m": 24,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 1
+},
+{
+"m": 59,
+"n": 26,
+"status": 0,
+"nit": 202,
+"status_T": 3,
+"nit_T": 59
+},
+{
+"m": 60,
+"n": 40,
+"status": 0,
+"nit": 386,
+"status_T": 3,
+"nit_T": 134
+},
+{
+"m": 62,
+"n": 30,
+"status": 0,
+"nit": 370,
+"status_T": 3,
+"nit_T": 84
+},
+{
+"m": 67,
+"n": 22,
+"status": 0,
+"nit": 284,
+"status_T": 3,
+"nit_T": 37
+},
+{
+"m": 6,
+"n": 36,
+"status": 3,
+"nit": 7,
+"status_T": 0,
+"nit_T": 54
+},
+{
+"m": 71,
+"n": 28,
+"status": 0,
+"nit": 370,
+"status_T": 3,
+"nit_T": 76
+},
+{
+"m": 55,
+"n": 8,
+"status": 0,
+"nit": 99,
+"status_T": 3,
+"nit_T": 12
+},
+{
+"m": 27,
+"n": 21,
+"status": 0,
+"nit": 111,
+"status_T": 3,
+"nit_T": 56
+},
+{
+"m": 36,
+"n": 54,
+"status": 3,
+"nit": 178,
+"status_T": 0,
+"nit_T": 386
+},
+{
+"m": 13,
+"n": 37,
+"status": 3,
+"nit": 15,
+"status_T": 0,
+"nit_T": 124
+},
+{
+"m": 1,
+"n": 50,
+"status": 3,
+"nit": 2,
+"status_T": 0,
+"nit_T": 0
+},
+{
+"m": 48,
+"n": 19,
+"status": 0,
+"nit": 193,
+"status_T": 3,
+"nit_T": 32
+},
+{
+"m": 10,
+"n": 61,
+"status": 3,
+"nit": 20,
+"status_T": 0,
+"nit_T": 105
+},
+{
+"m": 53,
+"n": 18,
+"status": 0,
+"nit": 245,
+"status_T": 3,
+"nit_T": 31
+},
+{
+"m": 43,
+"n": 54,
+"status": 3,
+"nit": 339,
+"status_T": 0,
+"nit_T": 402
+},
+{
+"m": 66,
+"n": 23,
+"status": 0,
+"nit": 278,
+"status_T": 3,
+"nit_T": 57
+},
+{
+"m": 27,
+"n": 57,
+"status": 3,
+"nit": 54,
+"status_T": 0,
+"nit_T": 279
+},
+{
+"m": 15,
+"n": 54,
+"status": 3,
+"nit": 25,
+"status_T": 0,
+"nit_T": 137
+},
+{
+"m": 70,
+"n": 42,
+"status": 0,
+"nit": 476,
+"status_T": 3,
+"nit_T": 121
+},
+{
+"m": 35,
+"n": 56,
+"status": 3,
+"nit": 134,
+"status_T": 0,
+"nit_T": 397
+},
+{
+"m": 8,
+"n": 54,
+"status": 3,
+"nit": 15,
+"status_T": 0,
+"nit_T": 104
+},
+{
+"m": 44,
+"n": 69,
+"status": 3,
+"nit": 142,
+"status_T": 0,
+"nit_T": 551
+},
+{
+"m": 67,
+"n": 41,
+"status": 0,
+"nit": 506,
+"status_T": 3,
+"nit_T": 124
+},
+{
+"m": 74,
+"n": 23,
+"status": 0,
+"nit": 301,
+"status_T": 3,
+"nit_T": 40
+},
+{
+"m": 33,
+"n": 10,
+"status": 0,
+"nit": 88,
+"status_T": 3,
+"nit_T": 20
+},
+{
+"m": 20,
+"n": 32,
+"status": 3,
+"nit": 44,
+"status_T": 0,
+"nit_T": 104
+},
+{
+"m": 30,
+"n": 67,
+"status": 3,
+"nit": 61,
+"status_T": 0,
+"nit_T": 208
+},
+{
+"m": 63,
+"n": 57,
+"status": 0,
+"nit": 416,
+"status_T": 3,
+"nit_T": 199
+},
+{
+"m": 18,
+"n": 14,
+"status": 0,
+"nit": 38,
+"status_T": 3,
+"nit_T": 19
+},
+{
+"m": 60,
+"n": 8,
+"status": 0,
+"nit": 86,
+"status_T": 3,
+"nit_T": 11
+},
+{
+"m": 53,
+"n": 38,
+"status": 0,
+"nit": 457,
+"status_T": 3,
+"nit_T": 103
+},
+{
+"m": 8,
+"n": 69,
+"status": 3,
+"nit": 14,
+"status_T": 0,
+"nit_T": 76
+},
+{
+"m": 8,
+"n": 74,
+"status": 3,
+"nit": 13,
+"status_T": 0,
+"nit_T": 98
+},
+{
+"m": 62,
+"n": 31,
+"status": 0,
+"nit": 334,
+"status_T": 3,
+"nit_T": 53
+},
+{
+"m": 22,
+"n": 20,
+"status": 0,
+"nit": 74,
+"status_T": 3,
+"nit_T": 42
+},
+{
+"m": 19,
+"n": 19,
+"status": 0,
+"nit": 66,
+"status_T": 0,
+"nit_T": 53
+},
+{
+"m": 15,
+"n": 47,
+"status": 3,
+"nit": 26,
+"status_T": 0,
+"nit_T": 111
+},
+{
+"m": 67,
+"n": 56,
+"status": 0,
+"nit": 597,
+"status_T": 3,
+"nit_T": 401
+},
+{
+"m": 41,
+"n": 66,
+"status": 3,
+"nit": 208,
+"status_T": 0,
+"nit_T": 566
+},
+{
+"m": 51,
+"n": 68,
+"status": 0,
+"nit": 295,
+"status_T": 0,
+"nit_T": 585
+},
+{
+"m": 43,
+"n": 47,
+"status": 3,
+"nit": 206,
+"status_T": 3,
+"nit_T": 357
+},
+{
+"m": 65,
+"n": 22,
+"status": 0,
+"nit": 176,
+"status_T": 3,
+"nit_T": 36
+},
+{
+"m": 16,
+"n": 66,
+"status": 3,
+"nit": 35,
+"status_T": 0,
+"nit_T": 126
+},
+{
+"m": 21,
+"n": 59,
+"status": 3,
+"nit": 39,
+"status_T": 0,
+"nit_T": 237
+},
+{
+"m": 47,
+"n": 73,
+"status": 3,
+"nit": 128,
+"status_T": 0,
+"nit_T": 604
+},
+{
+"m": 29,
+"n": 65,
+"status": 3,
+"nit": 80,
+"status_T": 0,
+"nit_T": 302
+},
+{
+"m": 31,
+"n": 37,
+"status": 0,
+"nit": 128,
+"status_T": 0,
+"nit_T": 188
+},
+{
+"m": 22,
+"n": 36,
+"status": 3,
+"nit": 66,
+"status_T": 0,
+"nit_T": 141
+},
+{
+"m": 37,
+"n": 64,
+"status": 3,
+"nit": 67,
+"status_T": 0,
+"nit_T": 465
+},
+{
+"m": 44,
+"n": 20,
+"status": 0,
+"nit": 146,
+"status_T": 3,
+"nit_T": 45
+},
+{
+"m": 48,
+"n": 27,
+"status": 3,
+"nit": 276,
+"status_T": 3,
+"nit_T": 113
+},
+{
+"m": 49,
+"n": 65,
+"status": 3,
+"nit": 177,
+"status_T": 0,
+"nit_T": 493
+},
+{
+"m": 38,
+"n": 45,
+"status": 0,
+"nit": 222,
+"status_T": 0,
+"nit_T": 354
+},
+{
+"m": 63,
+"n": 3,
+"status": 0,
+"nit": 79,
+"status_T": 3,
+"nit_T": 5
+},
+{
+"m": 18,
+"n": 8,
+"status": 0,
+"nit": 38,
+"status_T": 3,
+"nit_T": 10
+},
+{
+"m": 35,
+"n": 16,
+"status": 0,
+"nit": 82,
+"status_T": 3,
+"nit_T": 38
+},
+{
+"m": 73,
+"n": 55,
+"status": 0,
+"nit": 647,
+"status_T": 3,
+"nit_T": 336
+},
+{
+"m": 66,
+"n": 73,
+"status": 0,
+"nit": 482,
+"status_T": 0,
+"nit_T": 616
+},
+{
+"m": 31,
+"n": 53,
+"status": 3,
+"nit": 56,
+"status_T": 0,
+"nit_T": 285
+},
+{
+"m": 38,
+"n": 72,
+"status": 3,
+"nit": 169,
+"status_T": 0,
+"nit_T": 562
+},
+{
+"m": 23,
+"n": 58,
+"status": 3,
+"nit": 45,
+"status_T": 0,
+"nit_T": 341
+},
+{
+"m": 52,
+"n": 24,
+"status": 0,
+"nit": 230,
+"status_T": 3,
+"nit_T": 46
+},
+{
+"m": 50,
+"n": 69,
+"status": 3,
+"nit": 269,
+"status_T": 0,
+"nit_T": 599
+},
+{
+"m": 12,
+"n": 17,
+"status": 3,
+"nit": 20,
+"status_T": 0,
+"nit_T": 45
+},
+{
+"m": 13,
+"n": 23,
+"status": 3,
+"nit": 23,
+"status_T": 0,
+"nit_T": 44
+},
+{
+"m": 26,
+"n": 50,
+"status": 3,
+"nit": 78,
+"status_T": 0,
+"nit_T": 184
+},
+{
+"m": 60,
+"n": 61,
+"status": 0,
+"nit": 394,
+"status_T": 0,
+"nit_T": 383
+},
+{
+"m": 3,
+"n": 47,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 53
+},
+{
+"m": 45,
+"n": 15,
+"status": 0,
+"nit": 104,
+"status_T": 3,
+"nit_T": 24
+},
+{
+"m": 11,
+"n": 9,
+"status": 0,
+"nit": 23,
+"status_T": 3,
+"nit_T": 13
+},
+{
+"m": 38,
+"n": 65,
+"status": 3,
+"nit": 106,
+"status_T": 0,
+"nit_T": 468
+},
+{
+"m": 68,
+"n": 26,
+"status": 0,
+"nit": 309,
+"status_T": 3,
+"nit_T": 53
+},
+{
+"m": 36,
+"n": 53,
+"status": 3,
+"nit": 130,
+"status_T": 0,
+"nit_T": 332
+},
+{
+"m": 34,
+"n": 9,
+"status": 0,
+"nit": 74,
+"status_T": 3,
+"nit_T": 15
+},
+{
+"m": 20,
+"n": 9,
+"status": 0,
+"nit": 27,
+"status_T": 3,
+"nit_T": 23
+},
+{
+"m": 71,
+"n": 37,
+"status": 0,
+"nit": 538,
+"status_T": 3,
+"nit_T": 85
+},
+{
+"m": 65,
+"n": 39,
+"status": 0,
+"nit": 490,
+"status_T": 3,
+"nit_T": 86
+},
+{
+"m": 26,
+"n": 62,
+"status": 3,
+"nit": 55,
+"status_T": 0,
+"nit_T": 261
+},
+{
+"m": 50,
+"n": 26,
+"status": 0,
+"nit": 183,
+"status_T": 3,
+"nit_T": 39
+},
+{
+"m": 23,
+"n": 44,
+"status": 3,
+"nit": 75,
+"status_T": 0,
+"nit_T": 158
+},
+{
+"m": 73,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 2
+},
+{
+"m": 13,
+"n": 25,
+"status": 3,
+"nit": 18,
+"status_T": 0,
+"nit_T": 61
+},
+{
+"m": 58,
+"n": 66,
+"status": 3,
+"nit": 297,
+"status_T": 0,
+"nit_T": 655
+},
+{
+"m": 59,
+"n": 36,
+"status": 0,
+"nit": 419,
+"status_T": 3,
+"nit_T": 98
+},
+{
+"m": 37,
+"n": 44,
+"status": 3,
+"nit": 100,
+"status_T": 0,
+"nit_T": 244
+},
+{
+"m": 27,
+"n": 49,
+"status": 3,
+"nit": 52,
+"status_T": 0,
+"nit_T": 248
+},
+{
+"m": 15,
+"n": 31,
+"status": 3,
+"nit": 30,
+"status_T": 0,
+"nit_T": 83
+},
+{
+"m": 36,
+"n": 46,
+"status": 3,
+"nit": 106,
+"status_T": 0,
+"nit_T": 248
+},
+{
+"m": 43,
+"n": 49,
+"status": 3,
+"nit": 224,
+"status_T": 0,
+"nit_T": 355
+},
+{
+"m": 27,
+"n": 69,
+"status": 3,
+"nit": 53,
+"status_T": 0,
+"nit_T": 317
+},
+{
+"m": 3,
+"n": 12,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 14
+},
+{
+"m": 26,
+"n": 71,
+"status": 3,
+"nit": 44,
+"status_T": 0,
+"nit_T": 352
+},
+{
+"m": 57,
+"n": 22,
+"status": 0,
+"nit": 247,
+"status_T": 3,
+"nit_T": 43
+},
+{
+"m": 42,
+"n": 9,
+"status": 0,
+"nit": 74,
+"status_T": 3,
+"nit_T": 17
+},
+{
+"m": 13,
+"n": 7,
+"status": 0,
+"nit": 24,
+"status_T": 0,
+"nit_T": 17
+},
+{
+"m": 64,
+"n": 8,
+"status": 0,
+"nit": 86,
+"status_T": 3,
+"nit_T": 11
+},
+{
+"m": 6,
+"n": 24,
+"status": 3,
+"nit": 14,
+"status_T": 0,
+"nit_T": 40
+},
+{
+"m": 56,
+"n": 67,
+"status": 3,
+"nit": 465,
+"status_T": 0,
+"nit_T": 657
+},
+{
+"m": 9,
+"n": 9,
+"status": 0,
+"nit": 16,
+"status_T": 0,
+"nit_T": 21
+},
+{
+"m": 5,
+"n": 28,
+"status": 3,
+"nit": 6,
+"status_T": 0,
+"nit_T": 38
+},
+{
+"m": 30,
+"n": 5,
+"status": 0,
+"nit": 56,
+"status_T": 3,
+"nit_T": 7
+},
+{
+"m": 55,
+"n": 59,
+"status": 3,
+"nit": 398,
+"status_T": 0,
+"nit_T": 508
+},
+{
+"m": 42,
+"n": 19,
+"status": 0,
+"nit": 120,
+"status_T": 3,
+"nit_T": 26
+},
+{
+"m": 66,
+"n": 42,
+"status": 0,
+"nit": 578,
+"status_T": 3,
+"nit_T": 138
+},
+{
+"m": 25,
+"n": 41,
+"status": 3,
+"nit": 88,
+"status_T": 0,
+"nit_T": 151
+},
+{
+"m": 20,
+"n": 69,
+"status": 3,
+"nit": 40,
+"status_T": 0,
+"nit_T": 301
+},
+{
+"m": 5,
+"n": 70,
+"status": 3,
+"nit": 11,
+"status_T": 0,
+"nit_T": 98
+},
+{
+"m": 26,
+"n": 33,
+"status": 3,
+"nit": 69,
+"status_T": 0,
+"nit_T": 134
+},
+{
+"m": 47,
+"n": 15,
+"status": 0,
+"nit": 104,
+"status_T": 3,
+"nit_T": 31
+},
+{
+"m": 70,
+"n": 3,
+"status": 0,
+"nit": 82,
+"status_T": 3,
+"nit_T": 5
+},
+{
+"m": 45,
+"n": 4,
+"status": 0,
+"nit": 51,
+"status_T": 3,
+"nit_T": 6
+},
+{
+"m": 43,
+"n": 43,
+"status": 0,
+"nit": 263,
+"status_T": 0,
+"nit_T": 222
+},
+{
+"m": 29,
+"n": 32,
+"status": 0,
+"nit": 150,
+"status_T": 3,
+"nit_T": 142
+},
+{
+"m": 14,
+"n": 22,
+"status": 0,
+"nit": 50,
+"status_T": 0,
+"nit_T": 65
+},
+{
+"m": 12,
+"n": 54,
+"status": 3,
+"nit": 20,
+"status_T": 0,
+"nit_T": 95
+},
+{
+"m": 28,
+"n": 70,
+"status": 3,
+"nit": 58,
+"status_T": 0,
+"nit_T": 310
+},
+{
+"m": 17,
+"n": 6,
+"status": 0,
+"nit": 30,
+"status_T": 3,
+"nit_T": 10
+},
+{
+"m": 13,
+"n": 16,
+"status": 3,
+"nit": 23,
+"status_T": 3,
+"nit_T": 34
+},
+{
+"m": 6,
+"n": 38,
+"status": 3,
+"nit": 8,
+"status_T": 0,
+"nit_T": 54
+},
+{
+"m": 5,
+"n": 74,
+"status": 3,
+"nit": 8,
+"status_T": 0,
+"nit_T": 90
+},
+{
+"m": 28,
+"n": 49,
+"status": 3,
+"nit": 58,
+"status_T": 0,
+"nit_T": 224
+},
+{
+"m": 58,
+"n": 50,
+"status": 0,
+"nit": 450,
+"status_T": 0,
+"nit_T": 314
+},
+{
+"m": 11,
+"n": 42,
+"status": 3,
+"nit": 25,
+"status_T": 0,
+"nit_T": 93
+},
+{
+"m": 35,
+"n": 27,
+"status": 0,
+"nit": 159,
+"status_T": 3,
+"nit_T": 80
+},
+{
+"m": 8,
+"n": 49,
+"status": 3,
+"nit": 15,
+"status_T": 0,
+"nit_T": 72
+},
+{
+"m": 33,
+"n": 53,
+"status": 3,
+"nit": 66,
+"status_T": 0,
+"nit_T": 337
+},
+{
+"m": 69,
+"n": 7,
+"status": 0,
+"nit": 94,
+"status_T": 3,
+"nit_T": 9
+},
+{
+"m": 11,
+"n": 65,
+"status": 3,
+"nit": 22,
+"status_T": 0,
+"nit_T": 128
+},
+{
+"m": 12,
+"n": 18,
+"status": 0,
+"nit": 24,
+"status_T": 0,
+"nit_T": 54
+},
+{
+"m": 62,
+"n": 44,
+"status": 0,
+"nit": 474,
+"status_T": 3,
+"nit_T": 202
+},
+{
+"m": 46,
+"n": 37,
+"status": 0,
+"nit": 246,
+"status_T": 3,
+"nit_T": 161
+},
+{
+"m": 67,
+"n": 40,
+"status": 0,
+"nit": 528,
+"status_T": 3,
+"nit_T": 79
+},
+{
+"m": 49,
+"n": 29,
+"status": 0,
+"nit": 256,
+"status_T": 3,
+"nit_T": 112
+},
+{
+"m": 28,
+"n": 29,
+"status": 3,
+"nit": 105,
+"status_T": 0,
+"nit_T": 121
+},
+{
+"m": 32,
+"n": 13,
+"status": 0,
+"nit": 72,
+"status_T": 3,
+"nit_T": 17
+},
+{
+"m": 57,
+"n": 42,
+"status": 0,
+"nit": 320,
+"status_T": 3,
+"nit_T": 173
+},
+{
+"m": 48,
+"n": 54,
+"status": 0,
+"nit": 321,
+"status_T": 3,
+"nit_T": 320
+},
+{
+"m": 6,
+"n": 19,
+"status": 3,
+"nit": 9,
+"status_T": 0,
+"nit_T": 27
+},
+{
+"m": 24,
+"n": 8,
+"status": 0,
+"nit": 35,
+"status_T": 3,
+"nit_T": 10
+},
+{
+"m": 64,
+"n": 54,
+"status": 0,
+"nit": 500,
+"status_T": 3,
+"nit_T": 370
+},
+{
+"m": 30,
+"n": 43,
+"status": 3,
+"nit": 107,
+"status_T": 0,
+"nit_T": 235
+},
+{
+"m": 6,
+"n": 13,
+"status": 0,
+"nit": 18,
+"status_T": 0,
+"nit_T": 27
+},
+{
+"m": 58,
+"n": 51,
+"status": 3,
+"nit": 469,
+"status_T": 3,
+"nit_T": 334
+},
+{
+"m": 42,
+"n": 2,
+"status": 0,
+"nit": 45,
+"status_T": 3,
+"nit_T": 3
+},
+{
+"m": 36,
+"n": 35,
+"status": 3,
+"nit": 171,
+"status_T": 3,
+"nit_T": 165
+},
+{
+"m": 60,
+"n": 71,
+"status": 3,
+"nit": 404,
+"status_T": 0,
+"nit_T": 734
+},
+{
+"m": 32,
+"n": 22,
+"status": 0,
+"nit": 114,
+"status_T": 3,
+"nit_T": 56
+},
+{
+"m": 29,
+"n": 43,
+"status": 3,
+"nit": 145,
+"status_T": 0,
+"nit_T": 186
+},
+{
+"m": 44,
+"n": 3,
+"status": 0,
+"nit": 50,
+"status_T": 3,
+"nit_T": 6
+},
+{
+"m": 74,
+"n": 54,
+"status": 0,
+"nit": 749,
+"status_T": 3,
+"nit_T": 259
+},
+{
+"m": 11,
+"n": 45,
+"status": 3,
+"nit": 17,
+"status_T": 0,
+"nit_T": 105
+},
+{
+"m": 53,
+"n": 51,
+"status": 3,
+"nit": 350,
+"status_T": 3,
+"nit_T": 353
+},
+{
+"m": 3,
+"n": 36,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 48
+},
+{
+"m": 18,
+"n": 31,
+"status": 3,
+"nit": 42,
+"status_T": 0,
+"nit_T": 130
+},
+{
+"m": 37,
+"n": 45,
+"status": 0,
+"nit": 154,
+"status_T": 0,
+"nit_T": 332
+},
+{
+"m": 21,
+"n": 17,
+"status": 3,
+"nit": 59,
+"status_T": 3,
+"nit_T": 40
+},
+{
+"m": 21,
+"n": 33,
+"status": 3,
+"nit": 80,
+"status_T": 0,
+"nit_T": 112
+},
+{
+"m": 42,
+"n": 6,
+"status": 0,
+"nit": 68,
+"status_T": 3,
+"nit_T": 9
+},
+{
+"m": 18,
+"n": 43,
+"status": 3,
+"nit": 26,
+"status_T": 0,
+"nit_T": 146
+},
+{
+"m": 65,
+"n": 52,
+"status": 0,
+"nit": 609,
+"status_T": 3,
+"nit_T": 241
+},
+{
+"m": 70,
+"n": 8,
+"status": 0,
+"nit": 127,
+"status_T": 3,
+"nit_T": 13
+},
+{
+"m": 68,
+"n": 20,
+"status": 0,
+"nit": 249,
+"status_T": 3,
+"nit_T": 38
+},
+{
+"m": 10,
+"n": 10,
+"status": 0,
+"nit": 25,
+"status_T": 0,
+"nit_T": 15
+},
+{
+"m": 20,
+"n": 20,
+"status": 0,
+"nit": 70,
+"status_T": 0,
+"nit_T": 57
+},
+{
+"m": 11,
+"n": 11,
+"status": 3,
+"nit": 17,
+"status_T": 3,
+"nit_T": 22
+},
+{
+"m": 19,
+"n": 66,
+"status": 3,
+"nit": 30,
+"status_T": 0,
+"nit_T": 240
+},
+{
+"m": 69,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 2
+},
+{
+"m": 65,
+"n": 3,
+"status": 0,
+"nit": 74,
+"status_T": 3,
+"nit_T": 4
+},
+{
+"m": 7,
+"n": 10,
+"status": 3,
+"nit": 11,
+"status_T": 0,
+"nit_T": 16
+},
+{
+"m": 68,
+"n": 69,
+"status": 0,
+"nit": 595,
+"status_T": 0,
+"nit_T": 619
+},
+{
+"m": 71,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 2
+},
+{
+"m": 69,
+"n": 59,
+"status": 0,
+"nit": 610,
+"status_T": 3,
+"nit_T": 415
+},
+{
+"m": 21,
+"n": 30,
+"status": 3,
+"nit": 68,
+"status_T": 0,
+"nit_T": 101
+},
+{
+"m": 61,
+"n": 2,
+"status": 0,
+"nit": 67,
+"status_T": 3,
+"nit_T": 2
+},
+{
+"m": 3,
+"n": 22,
+"status": 3,
+"nit": 5,
+"status_T": 0,
+"nit_T": 25
+},
+{
+"m": 3,
+"n": 72,
+"status": 3,
+"nit": 4,
+"status_T": 0,
+"nit_T": 78
+},
+{
+"m": 42,
+"n": 28,
+"status": 0,
+"nit": 199,
+"status_T": 3,
+"nit_T": 67
+},
+{
+"m": 13,
+"n": 27,
+"status": 3,
+"nit": 18,
+"status_T": 0,
+"nit_T": 95
+},
+{
+"m": 40,
+"n": 61,
+"status": 3,
+"nit": 233,
+"status_T": 0,
+"nit_T": 434
+},
+{
+"m": 24,
+"n": 65,
+"status": 3,
+"nit": 55,
+"status_T": 0,
+"nit_T": 280
+},
+{
+"m": 6,
+"n": 49,
+"status": 3,
+"nit": 9,
+"status_T": 0,
+"nit_T": 69
+},
+{
+"m": 56,
+"n": 38,
+"status": 0,
+"nit": 414,
+"status_T": 3,
+"nit_T": 129
+},
+{
+"m": 74,
+"n": 10,
+"status": 0,
+"nit": 126,
+"status_T": 3,
+"nit_T": 16
+},
+{
+"m": 52,
+"n": 50,
+"status": 0,
+"nit": 543,
+"status_T": 3,
+"nit_T": 348
+},
+{
+"m": 14,
+"n": 35,
+"status": 3,
+"nit": 26,
+"status_T": 0,
+"nit_T": 108
+},
+{
+"m": 2,
+"n": 48,
+"status": 3,
+"nit": 3,
+"status_T": 0,
+"nit_T": 61
+},
+{
+"m": 11,
+"n": 13,
+"status": 0,
+"nit": 26,
+"status_T": 0,
+"nit_T": 35
+},
+{
+"m": 59,
+"n": 43,
+"status": 0,
+"nit": 396,
+"status_T": 3,
+"nit_T": 176
+},
+{
+"m": 4,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 2
+},
+{
+"m": 34,
+"n": 22,
+"status": 0,
+"nit": 150,
+"status_T": 3,
+"nit_T": 73
+},
+{
+"m": 32,
+"n": 51,
+"status": 3,
+"nit": 94,
+"status_T": 0,
+"nit_T": 353
+},
+{
+"m": 20,
+"n": 67,
+"status": 3,
+"nit": 41,
+"status_T": 0,
+"nit_T": 179
+},
+{
+"m": 15,
+"n": 5,
+"status": 0,
+"nit": 19,
+"status_T": 3,
+"nit_T": 7
+},
+{
+"m": 3,
+"n": 21,
+"status": 3,
+"nit": 5,
+"status_T": 0,
+"nit_T": 30
+},
+{
+"m": 3,
+"n": 35,
+"status": 3,
+"nit": 5,
+"status_T": 0,
+"nit_T": 42
+},
+{
+"m": 46,
+"n": 14,
+"status": 0,
+"nit": 101,
+"status_T": 3,
+"nit_T": 24
+},
+{
+"m": 67,
+"n": 26,
+"status": 0,
+"nit": 399,
+"status_T": 3,
+"nit_T": 55
+},
+{
+"m": 36,
+"n": 15,
+"status": 0,
+"nit": 128,
+"status_T": 3,
+"nit_T": 25
+},
+{
+"m": 65,
+"n": 63,
+"status": 0,
+"nit": 394,
+"status_T": 3,
+"nit_T": 579
+},
+{
+"m": 53,
+"n": 37,
+"status": 0,
+"nit": 299,
+"status_T": 3,
+"nit_T": 143
+},
+{
+"m": 69,
+"n": 51,
+"status": 0,
+"nit": 506,
+"status_T": 3,
+"nit_T": 344
+},
+{
+"m": 7,
+"n": 61,
+"status": 3,
+"nit": 11,
+"status_T": 0,
+"nit_T": 115
+},
+{
+"m": 60,
+"n": 56,
+"status": 3,
+"nit": 359,
+"status_T": 3,
+"nit_T": 411
+},
+{
+"m": 2,
+"n": 13,
+"status": 3,
+"nit": 3,
+"status_T": 0,
+"nit_T": 14
+},
+{
+"m": 30,
+"n": 58,
+"status": 3,
+"nit": 52,
+"status_T": 0,
+"nit_T": 340
+},
+{
+"m": 74,
+"n": 71,
+"status": 0,
+"nit": 772,
+"status_T": 0,
+"nit_T": 550
+},
+{
+"m": 61,
+"n": 54,
+"status": 3,
+"nit": 383,
+"status_T": 3,
+"nit_T": 462
+},
+{
+"m": 70,
+"n": 4,
+"status": 0,
+"nit": 100,
+"status_T": 3,
+"nit_T": 7
+},
+{
+"m": 56,
+"n": 73,
+"status": 3,
+"nit": 508,
+"status_T": 0,
+"nit_T": 723
+},
+{
+"m": 11,
+"n": 3,
+"status": 0,
+"nit": 14,
+"status_T": 3,
+"nit_T": 5
+},
+{
+"m": 13,
+"n": 18,
+"status": 3,
+"nit": 21,
+"status_T": 0,
+"nit_T": 47
+},
+{
+"m": 44,
+"n": 67,
+"status": 3,
+"nit": 159,
+"status_T": 0,
+"nit_T": 423
+},
+{
+"m": 15,
+"n": 41,
+"status": 3,
+"nit": 25,
+"status_T": 0,
+"nit_T": 103
+},
+{
+"m": 30,
+"n": 68,
+"status": 3,
+"nit": 59,
+"status_T": 0,
+"nit_T": 410
+},
+{
+"m": 6,
+"n": 72,
+"status": 3,
+"nit": 10,
+"status_T": 0,
+"nit_T": 97
+},
+{
+"m": 54,
+"n": 44,
+"status": 0,
+"nit": 387,
+"status_T": 3,
+"nit_T": 195
+},
+{
+"m": 30,
+"n": 64,
+"status": 3,
+"nit": 69,
+"status_T": 0,
+"nit_T": 376
+},
+{
+"m": 7,
+"n": 45,
+"status": 3,
+"nit": 12,
+"status_T": 0,
+"nit_T": 75
+},
+{
+"m": 45,
+"n": 40,
+"status": 3,
+"nit": 263,
+"status_T": 3,
+"nit_T": 230
+},
+{
+"m": 55,
+"n": 74,
+"status": 3,
+"nit": 271,
+"status_T": 3,
+"nit_T": 715
+},
+{
+"m": 14,
+"n": 47,
+"status": 3,
+"nit": 23,
+"status_T": 0,
+"nit_T": 95
+},
+{
+"m": 63,
+"n": 61,
+"status": 0,
+"nit": 522,
+"status_T": 0,
+"nit_T": 502
+},
+{
+"m": 39,
+"n": 43,
+"status": 3,
+"nit": 111,
+"status_T": 0,
+"nit_T": 264
+},
+{
+"m": 9,
+"n": 51,
+"status": 3,
+"nit": 15,
+"status_T": 0,
+"nit_T": 98
+},
+{
+"m": 48,
+"n": 36,
+"status": 0,
+"nit": 268,
+"status_T": 3,
+"nit_T": 144
+},
+{
+"m": 72,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 1
+},
+{
+"m": 20,
+"n": 4,
+"status": 0,
+"nit": 27,
+"status_T": 3,
+"nit_T": 7
+},
+{
+"m": 3,
+"n": 14,
+"status": 3,
+"nit": 3,
+"status_T": 0,
+"nit_T": 18
+},
+{
+"m": 70,
+"n": 18,
+"status": 0,
+"nit": 212,
+"status_T": 3,
+"nit_T": 42
+},
+{
+"m": 31,
+"n": 2,
+"status": 0,
+"nit": 35,
+"status_T": 3,
+"nit_T": 3
+},
+{
+"m": 16,
+"n": 59,
+"status": 3,
+"nit": 27,
+"status_T": 0,
+"nit_T": 214
+},
+{
+"m": 60,
+"n": 21,
+"status": 0,
+"nit": 182,
+"status_T": 3,
+"nit_T": 36
+},
+{
+"m": 36,
+"n": 36,
+"status": 3,
+"nit": 194,
+"status_T": 0,
+"nit_T": 157
+},
+{
+"m": 64,
+"n": 58,
+"status": 0,
+"nit": 630,
+"status_T": 0,
+"nit_T": 436
+},
+{
+"m": 53,
+"n": 18,
+"status": 0,
+"nit": 152,
+"status_T": 3,
+"nit_T": 25
+},
+{
+"m": 67,
+"n": 56,
+"status": 0,
+"nit": 585,
+"status_T": 3,
+"nit_T": 326
+},
+{
+"m": 1,
+"n": 14,
+"status": 3,
+"nit": 1,
+"status_T": 0,
+"nit_T": 0
+},
+{
+"m": 72,
+"n": 54,
+"status": 0,
+"nit": 690,
+"status_T": 3,
+"nit_T": 232
+},
+{
+"m": 70,
+"n": 11,
+"status": 0,
+"nit": 162,
+"status_T": 3,
+"nit_T": 16
+},
+{
+"m": 35,
+"n": 13,
+"status": 0,
+"nit": 119,
+"status_T": 3,
+"nit_T": 25
+},
+{
+"m": 11,
+"n": 14,
+"status": 0,
+"nit": 19,
+"status_T": 0,
+"nit_T": 27
+},
+{
+"m": 21,
+"n": 12,
+"status": 0,
+"nit": 50,
+"status_T": 0,
+"nit_T": 30
+},
+{
+"m": 42,
+"n": 11,
+"status": 0,
+"nit": 77,
+"status_T": 3,
+"nit_T": 21
+},
+{
+"m": 62,
+"n": 1,
+"status": 0,
+"nit": 0,
+"status_T": 3,
+"nit_T": 1
+},
+{
+"m": 48,
+"n": 17,
+"status": 0,
+"nit": 93,
+"status_T": 3,
+"nit_T": 33
+},
+{
+"m": 20,
+"n": 35,
+"status": 3,
+"nit": 46,
+"status_T": 0,
+"nit_T": 149
+},
+{
+"m": 47,
+"n": 51,
+"status": 0,
+"nit": 323,
+"status_T": 0,
+"nit_T": 290
+},
+{
+"m": 73,
+"n": 49,
+"status": 0,
+"nit": 581,
+"status_T": 3,
+"nit_T": 166
+},
+{
+"m": 46,
+"n": 62,
+"status": 3,
+"nit": 127,
+"status_T": 0,
+"nit_T": 515
+},
+{
+"m": 12,
+"n": 10,
+"status": 0,
+"nit": 28,
+"status_T": 0,
+"nit_T": 24
+},
+{
+"m": 51,
+"n": 2,
+"status": 0,
+"nit": 52,
+"status_T": 3,
+"nit_T": 3
+},
+{
+"m": 39,
+"n": 71,
+"status": 3,
+"nit": 78,
+"status_T": 0,
+"nit_T": 492
+},
+{
+"m": 45,
+"n": 65,
+"status": 3,
+"nit": 189,
+"status_T": 0,
+"nit_T": 586
+},
+{
+"m": 61,
+"n": 35,
+"status": 0,
+"nit": 361,
+"status_T": 3,
+"nit_T": 74
+},
+{
+"m": 69,
+"n": 32,
+"status": 0,
+"nit": 473,
+"status_T": 3,
+"nit_T": 63
+},
+{
+"m": 39,
+"n": 73,
+"status": 3,
+"nit": 91,
+"status_T": 0,
+"nit_T": 513
+},
+{
+"m": 13,
+"n": 52,
+"status": 3,
+"nit": 24,
+"status_T": 0,
+"nit_T": 92
+},
+{
+"m": 24,
+"n": 27,
+"status": 0,
+"nit": 100,
+"status_T": 3,
+"nit_T": 87
+},
+{
+"m": 29,
+"n": 26,
+"status": 3,
+"nit": 102,
+"status_T": 3,
+"nit_T": 69
+},
+{
+"m": 42,
+"n": 69,
+"status": 3,
+"nit": 95,
+"status_T": 0,
+"nit_T": 565
+},
+{
+"m": 22,
+"n": 50,
+"status": 3,
+"nit": 40,
+"status_T": 0,
+"nit_T": 208
+},
+{
+"m": 64,
+"n": 3,
+"status": 0,
+"nit": 72,
+"status_T": 3,
+"nit_T": 4
+},
+{
+"m": 4,
+"n": 52,
+"status": 3,
+"nit": 5,
+"status_T": 0,
+"nit_T": 69
+},
+{
+"m": 54,
+"n": 14,
+"status": 0,
+"nit": 169,
+"status_T": 3,
+"nit_T": 33
+},
+{
+"m": 25,
+"n": 48,
+"status": 3,
+"nit": 49,
+"status_T": 0,
+"nit_T": 181
+},
+{
+"m": 63,
+"n": 58,
+"status": 0,
+"nit": 625,
+"status_T": 3,
+"nit_T": 356
+},
+{
+"m": 3,
+"n": 43,
+"status": 3,
+"nit": 7,
+"status_T": 0,
+"nit_T": 55
+},
+{
+"m": 9,
+"n": 34,
+"status": 3,
+"nit": 13,
+"status_T": 0,
+"nit_T": 61
+},
+{
+"m": 55,
+"n": 36,
+"status": 0,
+"nit": 288,
+"status_T": 3,
+"nit_T": 97
+},
+{
+"m": 33,
+"n": 64,
+"status": 3,
+"nit": 103,
+"status_T": 0,
+"nit_T": 347
+},
+{
+"m": 68,
+"n": 65,
+"status": 0,
+"nit": 539,
+"status_T": 0,
+"nit_T": 534
+}
+]
+}

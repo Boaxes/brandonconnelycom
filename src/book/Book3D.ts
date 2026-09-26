@@ -22,6 +22,8 @@ export interface BookOptions {
   foil: string;         // title colour
   title: string[];      // cover lines, first is largest
   endpaper: string;
+  /** a page pasted inside the front cover, facing the first page (in place of the plain endpaper) */
+  inside?: Page;
   leather: { map: THREE.Texture; normal: THREE.Texture };
 }
 
@@ -69,6 +71,8 @@ export class Book3D {
   private rest = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
   private tex = new Map<Page, { t: THREE.CanvasTexture; v: number }>();
   private endTex: THREE.CanvasTexture;
+  private clock = 0;
+  private liveDt = 0;
 
   constructor(private o: BookOptions, pages: Page[]) {
     this.pages = pages;
@@ -249,8 +253,13 @@ export class Book3D {
     return t;
   }
 
+  /** Page `i`; -1 is the one inside the front cover, if there is one. */
+  private pageAt(i: number): Page | undefined {
+    return i === -1 ? this.o.inside : this.pages[i];
+  }
+
   private texFor(i: number): THREE.Texture {
-    const page = this.pages[i];
+    const page = this.pageAt(i);
     if (!page) return this.endTex;
     let e = this.tex.get(page);
     if (!e) {
@@ -284,7 +293,7 @@ export class Book3D {
 
   private setMap(mesh: THREE.Mesh, i: number) {
     const m = mesh.material as THREE.MeshBasicMaterial;
-    const t = i < 0 || i >= this.pages.length ? this.endTex : this.texFor(i);
+    const t = this.texFor(i);
     if (m.map !== t) {
       m.map = t;
       m.needsUpdate = true;
@@ -583,6 +592,29 @@ export class Book3D {
         this.showSpread();
       }
     }
+    this.tickPages(dt);
+  }
+
+  /** Animated pages move only while they can be seen: the open spread, and both sides of a turning leaf. */
+  private tickPages(dt: number) {
+    this.clock += dt;
+    const seen = new Set<Page>();
+    if (this.root.visible && this.state !== 'rest' && this.open > 0) {
+      const spreads = this.flip ? [this.spread, this.flip.to] : [this.spread];
+      for (const s of spreads) {
+        for (const i of [2 * s - 1, 2 * s]) {
+          const p = this.pageAt(i);
+          if (p) seen.add(p);
+        }
+      }
+    }
+    for (const p of [this.o.inside, ...this.pages]) p?.setShown(seen.has(p));
+    // (about 30 redraws a second is plenty for diagrams and screen recordings)
+    this.liveDt += dt;
+    if (this.liveDt < 1 / 30) return;
+    this.liveDt = 0;
+    for (const p of seen) p.tick(this.clock);
+    this.refresh();
   }
 
   // ---------------------------------------------------------------- interaction
@@ -598,7 +630,7 @@ export class Book3D {
     if (this.state !== 'held' || !hit.uv) return null;
     const side = hit.object === this.rightPage ? 1 : -1;
     const idx = side === 1 ? 2 * this.spread : 2 * this.spread - 1;
-    const page = this.pages[idx];
+    const page = this.pageAt(idx);
     const link = page?.hitAt(hit.uv.x, 1 - hit.uv.y);
     if (link) return { kind: 'link', href: link.href, page: link.page };
     if (side === 1 && this.spread < this.maxSpread()) return { kind: 'turn', dir: 1 };

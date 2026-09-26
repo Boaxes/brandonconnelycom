@@ -222,16 +222,24 @@ export class Hud {
   /** The portfolio as plain HTML, visually hidden: for screen readers and search engines. */
   private accessibleCopy() {
     const c = content;
+    const P = (t: string) => `<p>${esc(t)}</p>`;
+    const A = (href: string, t: string) => `<a href="${esc(href)}">${esc(t)}</a>`;
+    const job = (j: { org: string; role: string; when: string }) => `<h3>${esc(j.role)}, ${esc(j.org)} (${esc(j.when)})</h3>`;
+    const proj = (name: string, stack: string, repo: string) => `<h3>${esc(name)}</h3><p>${esc(stack)} · ${A(repo, 'GitHub')}</p>`;
     return el(`
       <main id="sr-copy" class="sr-only">
-        <h1>${esc(c.fullName)} — ${esc(c.title)}, ${esc(c.location)}</h1>
-        <p>${esc(c.tagline)}</p>
-        <h2>About</h2>${c.about.map((p) => `<p>${esc(p)}</p>`).join('')}
-        <h2>Selected work</h2>${c.projects.map((p) => `<h3>${esc(p.name)}</h3><p>${esc(p.meta)}</p><p>${esc(p.blurb)}</p>`).join('')}
-        <h2>Experience</h2>${c.experience.map((e) => `<h3>${esc(e.role)}, ${esc(e.org)} (${esc(e.when)})</h3><p>${esc(e.blurb)}</p>`).join('')}
-        <h2>Toolkit</h2>${Object.entries(c.skills).map(([k, v]) => `<p>${esc(k)}: ${esc(v.join(', '))}</p>`).join('')}
+        <h1>${esc(c.fullName)} — Portfolio</h1>
+        <h2>About</h2>${P(c.about.lead)}${c.about.points.map((x) => P(`${x.title}: ${x.text}`)).join('')}${P(c.about.close)}
+        <h2>Experience</h2>
+        ${job(c.cascadia)}${P(c.cascadia.intro)}${c.cascadia.notes.map(P).join('')}${P(c.cascadia.app)}${P(c.cascadia.people)}
+        ${job(c.wwu)}<p>${A(c.wwu.repo, 'GitHub')}</p>${P(c.wwu.intro)}${c.wwu.experiments.map(P).join('')}${P(c.wwu.papers)}${P(c.wwu.stack)}
+        <h2>Projects</h2>
+        ${proj(c.tourism.name, c.tourism.stack, c.tourism.repo)}${P(c.tourism.text)}${P(c.tourism.result)}
+        ${proj(c.tegu.name, c.tegu.stack, c.tegu.repo)}${P(c.tegu.text)}${P(c.tegu.finding)}
+        ${proj(c.reptile.name, c.reptile.stack, c.reptile.repo)}${P(c.reptile.text)}${P(c.reptile.ai)}<p>${A(c.reptile.demo, 'Live demo')}</p>
+        ${c.numerical.length ? `<h3>Numerical experiments</h3>${P(c.numericalIntro)}${c.numerical.map((e) => proj(e.name, e.lang, e.repo) + P(e.text)).join('')}` : ''}
         <h2>Contact</h2>
-        <p><a href="mailto:${esc(c.email)}">${esc(c.email)}</a> · <a href="${esc(c.links.github)}">GitHub</a> · <a href="${esc(c.links.linkedin)}">LinkedIn</a> · <a href="${esc(c.links.resume)}">Résumé</a></p>
+        <p>${A('mailto:' + c.email, c.email)} · ${A(c.github, 'GitHub')}</p>
         <h2>Credits</h2><ul>${CREDITS.map((x) => `<li><a href="${esc(x.url)}">${esc(x.title)}</a> by ${esc(x.author)} (${esc(x.license)})</li>`).join('')}</ul>
       </main>`);
   }

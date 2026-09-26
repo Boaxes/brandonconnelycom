@@ -77,7 +77,7 @@ async function boot() {
   const layout = portfolioPages();
   const portfolio = new Book3D({
     width: 0.2, height: 0.28, thickness: 0.03, cover: 0xc23a2c, foil: '#d9b76a', leather,
-    title: [content.fullName, 'Portfolio', content.title], endpaper: '#6e2a22',
+    title: [content.fullName, 'Portfolio'], endpaper: '#6e2a22', inside: layout.inside,
   }, layout.pages);
   ocean.scene.add(portfolio.root);
   portfolio.onSound = (s) => sound.play(s);
@@ -398,8 +398,9 @@ async function boot() {
     if (portfolio.reading && !rig.inIntro) {
       const edge = portfolio.screenLeft(ocean.camera);
       let active = 0;
-      // the section the left-hand page belongs to (a section starting on the right page is still ahead)
-      const leftPage = Math.max(0, 2 * portfolio.spread - 1);
+      // the section the left-hand page belongs to (a section starting on the right page is still ahead;
+      // the first left-hand page is the contents, inside the cover, page -1)
+      const leftPage = 2 * portfolio.spread - 1;
       layout.sections.forEach((sec, i) => { if (sec.page <= leftPage) active = i; });
       hud.showJump(true, active, edge.x, edge.y);
     } else hud.showJump(false);
