@@ -1,0 +1,10 @@
+{
+  "name": "portfolio-perf-tools",
+  "private": true,
+  "type": "module",
+  "description": "Frame timing, hitch logging and deterministic frame captures for the site, driven in the installed Chrome (real GPU). See WEBGPU.md at the repo root.",
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "puppeteer-core": "^25.12.0"
+  }
+}
