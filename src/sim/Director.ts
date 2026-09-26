@@ -43,6 +43,7 @@ export class Director {
 
   update(dt: number) {
     this.t += dt;
+    this.openerBreath(dt);
     while (this.queue.length && this.queue[0].at <= this.t) this.queue.shift()!.run();
     if (this.hero && (!this.hero.alive || (this.hero as Scripted).done)) this.hero = null;
     if (this.hero instanceof BenthicFish && this.hero.state !== 'inspect') this.hero = null;
@@ -143,8 +144,38 @@ export class Director {
     const toCam = new THREE.Vector3().subVectors(stage().cam, book).setY(0).normalize();
     const right = new THREE.Vector3(0, 1, 0).cross(toCam).normalize();
     const mark = book.clone().addScaledVector(right, 0.1).addScaledVector(toCam, -1.3).add(new THREE.Vector3(0, -0.14, 0));
-    s.start(mark, [{ to: mark, speed: 1.0, hold: 1e9, face: eye, doing: 'staring at you over the rock', radius: 0.25, settle: true }]);
+    s.start(mark, [{
+      to: mark, speed: 1.0, hold: 1e9, face: eye, doing: 'staring at you over the rock', radius: 0.25, settle: true,
+      // (a glance down towards the book, not right at it: its head would drop out of sight behind the cover)
+      curious: { glance: book.clone().lerp(eye, 0.45), neck: 0.55, turn: 0.36, dip: -0.04 },
+    }]);
     this.openerBody = s;
+    this.breathT = 2.5;
+  }
+
+  /** the sea lion's nose (the scan is 1.9 m nose to tail, centred) */
+  private nose(s: Scripted, out: THREE.Vector3) {
+    return out.copy(s.pos).addScaledVector(s.forward, 0.93 * s.scale);
+  }
+  private breathT = 0;
+  private breathLeft = 0;
+  private _nose = new THREE.Vector3();
+
+  /** While it waits, the sea lion lets a few bubbles out of its nose now and then. */
+  private openerBreath(dt: number) {
+    const s = this.openerBody;
+    if (!s || !s.alive) return;
+    this.breathT -= dt;
+    if (this.breathT > 0) return;
+    if (this.breathLeft <= 0) this.breathLeft = 5 + Math.floor(Math.random() * 8);
+    this.w.bubbles.emit(this.nose(s, this._nose), 1 + (Math.random() < 0.3 ? 1 : 0), 0.03);
+    this.breathLeft--;
+    this.breathT = this.breathLeft > 0 ? 0.05 + Math.random() * 0.09 : 3.5 + Math.random() * 4;
+  }
+
+  /** the sea lion in the opening shot, while it's there */
+  get openerSeal(): Scripted | null {
+    return this.openerBody?.alive ? this.openerBody : null;
   }
 
   /** The book's been picked up: the sea lion startles and darts off. */
@@ -161,6 +192,9 @@ export class Director {
       { to: book.clone().addScaledVector(away, 16).addScaledVector(side, 8).add(new THREE.Vector3(0, 3, 0)), speed: 4, doing: 'gone' },
     ]);
     s.vel.addScaledVector(away, 2).add(new THREE.Vector3(0, 1.5, 0));
+    // a gasp of air as it goes: a burst from the nose and a trail off the body
+    this.w.bubbles.emit(this.nose(s, this._nose), 26, 0.12, away.clone().multiplyScalar(-0.4));
+    this.w.bubbles.emit(s.pos, 16, 0.45);
     sound.sealionDart();
   }
 

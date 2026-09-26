@@ -76,9 +76,10 @@ const WaterPostShader = {
       return z >= 0.99999 ? uFar : -perspectiveDepthToViewZ(z, uNear, uFar);
     }
     float cocPx(float d) {
-      // whatever the diver holds up to read is always sharp
-      if (d < uSharpNear) return 0.0;
-      return min(uAperture * abs(1.0 / uFocus - 1.0 / max(d, 0.05)) * 60.0 * uPxScale, 6.0 * uPxScale);
+      // everything nearer than uSharpNear is sharp (the book in hand; the opening's book and sea lion),
+      // with a short ramp behind it so there's no seam on the rock
+      float coc = min(uAperture * abs(1.0 / uFocus - 1.0 / max(d, 0.05)) * 60.0 * uPxScale, 6.0 * uPxScale);
+      return uSharpNear > 0.0 ? coc * smoothstep(uSharpNear, uSharpNear + 0.8, d) : coc;
     }
     float hash13(vec3 p) {
       p = fract(p * 0.1031);

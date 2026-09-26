@@ -4,9 +4,8 @@
  *   - effects: everything that happens — the book, pages, the zoom, logging a species, animal calls
  * Each sound is a recording from /sounds/<name>.mp3 (listed in /sounds/manifest.json; CC0 from
  * Freesound, see the credits), with a small synthesised stand-in used
- * only if a file fails to load. Browsers may keep audio locked until the first click or key press
- * anywhere (`unlock()` is wired to that); `autoplay()` tries to start it straight away, which browsers
- * allow on sites the visitor already plays media on.
+ * only if a file fails to load. Browsers keep audio locked until the first click or key press anywhere;
+ * `unlock()` is wired to that.
  */
 export type Sfx = 'pickup' | 'open' | 'close' | 'page' | 'discover' | 'lower' | 'raise' | 'click' | 'zoom';
 export type Call = 'orca' | 'humpback' | 'sealion';
@@ -53,14 +52,6 @@ export class Sound {
     // the water starts once the recordings are in (or have failed), so it's the real loop from the start
     this.ready = this.loadRecordings().finally(() => this.startAmbience());
     if (ctx.state === 'suspended') void ctx.resume();
-  }
-
-  /** Try to start the sound without a gesture; resolves true if the browser let it run. */
-  async autoplay(): Promise<boolean> {
-    this.unlock();
-    if (!this.ctx) return false;
-    if (this.ctx.state !== 'running') await Promise.race([this.ctx.resume().catch(() => {}), new Promise((r) => setTimeout(r, 400))]);
-    return this.running;
   }
 
   /** false while the browser is still holding the sound back (anything played now would queue up) */

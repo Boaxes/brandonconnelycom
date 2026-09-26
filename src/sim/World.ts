@@ -10,6 +10,7 @@ import { floorHeight, floorNormal, randomFloorAround, randomFloorInSector, stage
 import { makeMaterial, OCC_MAX, shared } from '../scene/UnderwaterMaterial';
 import { asset, hasAsset } from '../scene/Assets';
 import { mulberry32 } from '../util/noise';
+import { Bubbles } from '../scene/Bubbles';
 import { addObstacle, bottomAt, escapeDir, finishObstacles, resetObstacles } from './Obstacles';
 
 const _v = new THREE.Vector3();
@@ -58,9 +59,13 @@ export class World implements Habitat {
   private surfaces: THREE.Mesh[] = [];
   private surfaceRay = new THREE.Raycaster();
 
+  /** exhaled air: the sea lion in the opening, a burst when it bolts */
+  bubbles = new Bubbles();
+
   constructor(scene: THREE.Scene, private camera: THREE.PerspectiveCamera) {
     this.group.name = 'life';
     scene.add(this.group);
+    scene.add(this.bubbles.points);
   }
 
   // ---------------------------------------------------------------- setup
@@ -604,6 +609,7 @@ export class World implements Habitat {
     }
 
     this.director.update(dt);
+    this.bubbles.update(dt, t, window.innerHeight, this.camera.fov);
     for (const p of this.pops.values()) {
       for (const a of p.agents) {
         if (!a.alive) continue;

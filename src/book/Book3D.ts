@@ -82,7 +82,7 @@ export class Book3D {
     this.endTex = this.flatTexture(o.endpaper);
     // lit, like the leather: unlit, the strip of endpaper round the closed book glowed in the dark
     const endMat = new THREE.MeshStandardMaterial({ map: this.endTex, color: 0xd8d0bc, roughness: 0.9 });
-    const edge = new THREE.MeshStandardMaterial({ map: this.edgeTexture(), roughness: 0.9, color: 0xf1e8d2 });
+    const edge = new THREE.MeshStandardMaterial({ map: this.edgeTexture(), roughness: 0.9, color: 0xcfc5ae });
     const paperTop = new THREE.MeshBasicMaterial({ color: 0xe6dcc4 });
 
     // back cover (under the right block) and the front cover on a hinge at the spine

@@ -112,6 +112,15 @@ body.watching #book-toggle { opacity: 0; pointer-events: none; transform: transl
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); opacity: 0; transition: opacity 0.9s ease, transform 0.9s ease;
 }
 #hint.on { opacity: 1; transform: translate(-50%, 0); animation: breathe 3.2s ease-in-out 1s infinite; }
+/* the start: browsers won't play sound before a click, so the visit begins with one */
+.begin {
+  font-family: var(--type); font-size: 14px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(239, 232, 214, 0.9);
+  background: transparent; border: 1px solid rgba(239, 232, 214, 0.35); border-radius: 999px; padding: 14px 28px; cursor: pointer;
+  transition: background 0.3s ease, border-color 0.3s ease; animation: beginIn 1.2s ease both;
+}
+.begin:hover, .begin:focus-visible { background: rgba(239, 232, 214, 0.08); border-color: rgba(239, 232, 214, 0.7); outline: none; }
+.begin + .loader-sub { margin-top: 14px; animation: beginIn 1.2s ease 0.2s both; }
+@keyframes beginIn { from { opacity: 0; transform: translateY(6px); } }
 @keyframes breathe { 50% { opacity: 0.55; } }
 
 /* ---------- logging a species ---------- */

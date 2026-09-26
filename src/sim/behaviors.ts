@@ -553,7 +553,13 @@ export interface Leg {
   radius?: number;        // arrival radius
   /** glide exactly onto the point for the last metre and stay put (a posed moment, e.g. behind a rock) */
   settle?: boolean;
+  /** settled and curious: the head moves (looks about, cocks, glances at this point now and then) while
+   *  the neck stays put, so the body pivots out of sight behind whatever it's peering over */
+  curious?: { glance: THREE.Vector3; neck: number; turn: number; dip: number };
 }
+
+const _q2 = new THREE.Quaternion();
+const _d = new THREE.Vector3();
 
 /**
  * An animal on a route handed out by the director. It steers toward each leg's point in turn with the
@@ -575,8 +581,13 @@ export class Scripted extends Agent implements Behavior {
     this.state = 'scripted';
     this.alive = false;
   }
+  /** curious head motion: current and target yaw / pitch / roll offsets, and the neck it pivots on */
+  private look = { yaw: 0, pitch: 0, roll: 0, tYaw: 0, tPitch: 0, tRoll: 0, next: 1.5, glance: false, t: 0, side: 1 };
+  private neck: THREE.Vector3 | null = null;
+
   start(from: THREE.Vector3, legs: Leg[], doing = '') {
     this.pos.copy(from);
+    this.neck = null;
     this.surfaceRide = null;
     this.legs = legs;
     this.done = false;
@@ -594,6 +605,7 @@ export class Scripted extends Agent implements Behavior {
   }
   /** Replace the remaining route (interrupting any linger). */
   setLegs(legs: Leg[]) {
+    this.neck = null;
     this.legs = legs;
     this.holdT = 0;
   }
@@ -601,6 +613,61 @@ export class Scripted extends Agent implements Behavior {
   get settling() {
     const leg = this.legs[0];
     return !!leg?.settle && this.pos.distanceTo(leg.to) < 1.2;
+  }
+
+  /**
+   * Posed and curious: mostly staring at `face`, it looks about in small quick moves and holds each one,
+   * cocks its head, now and then glances down at `glance`; breathes with a slight bob. It turns about its
+   * neck, which stays where it settled.
+   */
+  private curiousLook(dt: number, face: THREE.Vector3, c: NonNullable<Leg['curious']>) {
+    const L = this.look;
+    const neckLen = c.neck * this.scale;
+    if (!this.neck) {
+      _a.subVectors(face, this.pos).normalize();
+      this.forward.copy(_a);
+      L.side = Math.random() < 0.5 ? 1 : -1;
+      L.yaw = L.tYaw = L.side * c.turn;
+      L.pitch = L.tPitch = -c.dip;
+      L.next = 1.5;
+      this.neck = this.pos.clone().addScaledVector(_a, neckLen);
+    }
+    L.t += dt;
+    L.next -= dt;
+    if (L.next <= 0) {
+      // a new thing to look at: back to the lens most often, a glance at the book, or a look about
+      // (head-on a sea lion is all chin and nostrils: it studies you three-quarter on, one eye then the other)
+      const r = Math.random();
+      L.glance = r < 0.22;
+      const lookAbout = r > 0.55;
+      if (Math.random() < 0.3) L.side = -L.side;
+      const base = L.side * c.turn;
+      L.tYaw = base + (lookAbout ? (Math.random() - 0.5) * 0.45 : (Math.random() - 0.5) * 0.12);
+      // (never nose-down: the body would swing up level and float over the rock)
+      L.tPitch = (lookAbout ? Math.random() * 0.16 : 0) - c.dip;
+      L.tRoll = Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) * (0.22 + Math.random() * 0.18) : 0;
+      L.next = L.glance ? 0.9 + Math.random() * 0.8 : 1.4 + Math.random() * 2.4;
+    }
+    // quick head moves that settle (not a slow drift); turning to the other eye is a slower, bigger move
+    const e = 1 - Math.exp(-dt * (Math.abs(L.tYaw - L.yaw) > 0.4 ? 2.6 : 7));
+    L.yaw += (L.tYaw - L.yaw) * e;
+    L.pitch += (L.tPitch - L.pitch) * e;
+    L.roll += (L.tRoll - L.roll) * (1 - Math.exp(-dt * 4));
+    // where it's looking
+    _d.subVectors(L.glance ? c.glance : face, this.neck).normalize();
+    _d.applyAxisAngle(_b.set(0, 1, 0), L.yaw);
+    _c.crossVectors(_d, _b).normalize();
+    _d.applyAxisAngle(_c, L.pitch);
+    this.forward.lerp(_d, 1 - Math.exp(-dt * 9)).normalize();
+    this.orient(this.forward, _b.set(0, 1, 0));
+    _q2.setFromAxisAngle(this.forward, L.roll);
+    this.quat.premultiply(_q2);
+    // pivot on the neck, breathing with a slight bob
+    this.pos.copy(this.neck).addScaledVector(this.forward, -neckLen);
+    this.pos.y += Math.sin(L.t * 1.25) * 0.012;
+    this.vel.set(0, 0, 0);
+    this.speedMul = 0.35;
+    this.bend *= 1 - Math.min(1, dt * 3);
   }
 
   update(dt: number) {
@@ -615,6 +682,10 @@ export class Scripted extends Agent implements Behavior {
       if (this.holdT > 0) {
         this.holdT -= dt;
         if (this.holdT <= 0) { this.legs.shift(); return; }
+      }
+      if (leg.face && leg.curious) {
+        this.curiousLook(dt, leg.face, leg.curious);
+        return;
       }
       if (leg.face) {
         _a.subVectors(leg.face, this.pos).normalize();

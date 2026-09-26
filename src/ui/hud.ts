@@ -248,6 +248,22 @@ export function loaderProgress(p: number, sub?: string) {
   }
 }
 
+/**
+ * Loaded: the bar gives way to a "View portfolio" button. The visit (and its sound) starts on that click;
+ * browsers won't play audio before one.
+ */
+export function loaderReady(onBegin: () => void) {
+  const l = document.getElementById('loader');
+  if (!l) return onBegin();
+  const inner = l.querySelector('.loader-inner')!;
+  inner.innerHTML = `
+    <button class="begin" type="button">View portfolio</button>
+    <div class="loader-sub">sound on</div>`;
+  const b = inner.querySelector<HTMLButtonElement>('.begin')!;
+  b.focus({ preventScroll: true });
+  b.addEventListener('click', () => onBegin(), { once: true });
+}
+
 export function loaderDone() {
   const l = document.getElementById('loader');
   if (!l) return;

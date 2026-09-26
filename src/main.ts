@@ -12,11 +12,11 @@ import { Book3D } from './book/Book3D';
 import { portfolioPages } from './book/portfolio';
 import { FieldLog } from './ui/fieldlog';
 import { content } from './content';
-import { Hud, loaderDone, loaderProgress, showFallback } from './ui/hud';
+import { Hud, loaderDone, loaderProgress, loaderReady, showFallback } from './ui/hud';
 
 /**
- * The opening, in seconds from the end of loading: a beat of black (with a drone and the diver's
- * breathing, if the browser lets sound play yet), then the torch clicks on and sweeps onto the book, and a
+ * The opening, in seconds from the "View portfolio" click (browsers won't play sound before one): a beat
+ * of black as a drone and the diver's breathing swell up, then the torch clicks on and sweeps onto the book, and a
  * sea lion staring over the rock behind it. Nothing else moves until the book is picked up: then the
  * camera pulls back and daylight seeps down from above, and the controls appear once the camera settles.
  */
@@ -283,11 +283,17 @@ async function boot() {
   // ---------------------------------------------------------------- the loop
   loaderProgress(1, 'ready');
   ocean.render(0, 1 / 60); // warm up shaders before revealing
-  // the dive starts as soon as it's loaded; the sound with it if the browser allows, else on the first click
-  let diveT = 0;
-  world.director.opener(introEye);
-  void sound.autoplay().then((ok) => { if (ok) void sound.ready.then(() => sound.opener()); });
-  loaderDone();
+  // the visit starts on "View portfolio": that click also unlocks the sound, so the opening can start with it
+  let diveT = -1;
+  const begin = () => {
+    if (diveT >= 0) return;
+    sound.unlock();
+    void sound.ready.then(() => sound.opener());
+    diveT = 0;
+    world.director.opener(introEye);
+    loaderDone();
+  };
+  loaderReady(begin);
   // the controls stay hidden through the opening, until the camera has pulled back to the diver's spot
   rig.onIntroDone = () => {
     document.body.classList.add('ready');
@@ -305,6 +311,12 @@ async function boot() {
   let dayT = -1; // seconds since the book was picked up (the daylight comes up from there)
   /** one tick of everything; the dev helpers below call it directly to fast-forward */
   const step = (dt: number, render = true) => {
+    if (diveT < 0) {
+      // waiting for the click: black
+      ocean.fade = 0;
+      if (render) ocean.render(simT, dt);
+      return;
+    }
     simT += dt;
     diveT += dt;
     const t = simT;
@@ -368,7 +380,12 @@ async function boot() {
     // the book in the diver's hands is never blurred (from the first frame of the lift); the water behind
     // it keeps its depth of field. The dome-port distortion eases off so lines of type stay straight.
     const up = bookUp() || portfolio.state === 'lowering';
-    ocean.sharpNear = up ? ocean.camera.position.distanceTo(portfolio.root.position) + 0.4 : 0;
+    // On the opening shot, everything as far back as the sea lion staring over the rock is sharp too.
+    const seal = rig.inIntro && portfolio.state === 'rest' ? world.director.openerSeal : null;
+    ocean.sharpNear = up ? ocean.camera.position.distanceTo(portfolio.root.position) + 0.4
+      : seal ? ocean.camera.position.distanceTo(seal.pos) + 0.35 : 0;
+    // the bubbles catch the torch in the dark, the daylight later
+    world.bubbles.light = Math.max(ocean.torchOn * 0.9, ocean.daylight);
     ocean.barrel += ((bookUp() ? 0 : 1) - ocean.barrel) * Math.min(1, dt * 6);
     // the quick-jump card sits just off the book's left edge while it's open
     if (portfolio.reading && !rig.inIntro) {
@@ -397,6 +414,7 @@ async function boot() {
   if (import.meta.env.DEV) {
     // dev helpers: fast-forward the simulation (the rAF loop pauses in hidden tabs), and render one
     // frame and save it through the vite shot plugin
+    (window as unknown as { begin: () => void }).begin = begin;
     const w = window as unknown as { advance: (s: number) => number; shot: (name: string) => Promise<string> };
     w.advance = (seconds: number) => {
       for (let i = 0; i < Math.round(seconds * 30); i++) step(1 / 30, false);
