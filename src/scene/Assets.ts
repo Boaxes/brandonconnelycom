@@ -1,5 +1,20 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+
+/**
+ * The scans' textures are GPU-compressed (KTX2, see tools/assets/optimize.mjs): transcoded, in workers, to
+ * whatever this GPU takes. One loader for everything, set up once the renderer exists.
+ */
+let gltf: GLTFLoader | null = null;
+export function setupLoaders(renderer: THREE.WebGLRenderer) {
+  const ktx2 = new KTX2Loader().setTranscoderPath(import.meta.env.BASE_URL + 'basis/').detectSupport(renderer);
+  gltf = new GLTFLoader().setKTX2Loader(ktx2);
+}
+function loader() {
+  if (!gltf) throw new Error('setupLoaders() first');
+  return gltf;
+}
 
 /**
  * Baked photogrammetry scans from tools/blender/scans.py (textured, one material each).
@@ -123,9 +138,9 @@ export const LATE = new Set(['orca', 'humpback', 'harbor_porpoise']);
 
 /** Fetch the late visitors in the background. */
 export async function loadLate(): Promise<void> {
-  const loader = new GLTFLoader();
+  const loader_ = loader();
   const base = import.meta.env.BASE_URL + 'models/';
-  await Promise.all([...LATE].map((key) => loadScan(loader, base, key)));
+  await Promise.all([...LATE].map((key) => loadScan(loader_, base, key)));
 }
 
 async function loadScan(loader: GLTFLoader, base: string, key: string) {
@@ -143,7 +158,7 @@ async function loadScan(loader: GLTFLoader, base: string, key: string) {
 
 /** Load everything needed for the opening; resolves when those geometries are ready. Reports progress 0..1. */
 export async function loadAll(onProgress?: (p: number) => void): Promise<void> {
-  const loader = new GLTFLoader();
+  const loader_ = loader();
   const base = import.meta.env.BASE_URL + 'models/';
   const scanKeys = Object.keys(SCANS).filter((k) => !LATE.has(k));
   const total = scanKeys.length + Object.keys(SCAN_SETS).length;
@@ -152,14 +167,14 @@ export async function loadAll(onProgress?: (p: number) => void): Promise<void> {
   await Promise.all([
     ...Object.keys(SCAN_SETS).map(async (key) => {
       try {
-        await loadSet(loader, key, base + 'scan_' + key + '.glb');
+        await loadSet(loader_, key, base + 'scan_' + key + '.glb');
       } catch (e) {
         console.warn('scan set missing', key, e);
       }
       tick();
     }),
     ...scanKeys.map(async (key) => {
-      await loadScan(loader, base, key);
+      await loadScan(loader_, base, key);
       tick();
     }),
   ]);

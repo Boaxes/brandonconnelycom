@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Ocean } from './scene/Ocean';
 import { CameraRig } from './scene/CameraRig';
-import { loadAll, loadLate } from './scene/Assets';
+import { loadAll, loadLate, setupLoaders } from './scene/Assets';
 import { World } from './sim/World';
 import { SPECIES } from './sim/Species';
 import { stage } from './scene/Terrain';
@@ -51,6 +51,7 @@ async function boot() {
     return;
   }
 
+  setupLoaders(ocean.renderer);
   loaderProgress(0.02);
   try {
     await Promise.all([loadAll((p) => loaderProgress(0.05 + p * 0.8)), fontsReady()]);

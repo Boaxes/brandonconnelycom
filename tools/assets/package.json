@@ -1,0 +1,12 @@
+{
+  "name": "portfolio-asset-tools",
+  "private": true,
+  "type": "module",
+  "description": "Post-processing for the baked scans in public/models: GPU-compressed textures (KTX2) and levels of detail. Run after tools/blender/scans.py.",
+  "dependencies": {
+    "@gltf-transform/core": "^4.5.0",
+    "@gltf-transform/extensions": "^4.5.0",
+    "@gltf-transform/functions": "^4.5.0",
+    "meshoptimizer": "^1.3.0"
+  }
+}

@@ -12,7 +12,10 @@ console.log(await page.evaluate(() => {
     if (!o.material) return;
     for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap']) {
       const t = m[k]; if (!t || !t.image || seen.has(t)) continue;
-      const w = t.image.width, h = t.image.height; seen.set(t, { who: (o.name || '?') + '.' + k, w, h, mb: w * h * 4 * 1.333 / 1e6 });
+      const w = t.image.width, h = t.image.height;
+      // (a compressed texture: the bytes of its mip levels as they go to the GPU)
+      const mb = t.isCompressedTexture ? t.mipmaps.reduce((s, m) => s + m.data.byteLength, 0) / 1e6 : w * h * 4 * 1.333 / 1e6;
+      seen.set(t, { who: (o.name || '?') + '.' + k + (t.isCompressedTexture ? ' (compressed)' : ''), w, h, mb });
     }
     const u = m => m && m.uniforms; for (const m of [].concat(o.material)) { const U = u(m); if (U) for (const [k, v] of Object.entries(U)) { const t = v && v.value; if (t && t.isTexture && t.image && !seen.has(t)) seen.set(t, { who: (o.name || '?') + '.' + k, w: t.image.width, h: t.image.height, mb: t.image.width * t.image.height * 4 * 1.333 / 1e6 }); } }
   });

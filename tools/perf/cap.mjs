@@ -27,6 +27,8 @@ page.on('console', (m) => { if (m.type() === 'error') console.log('[page]', m.te
 await page.goto(URL, { waitUntil: 'networkidle0' });
 await page.waitForFunction(() => typeof window.begin === 'function' && window.portfolio, { timeout: 120000 });
 await new Promise((r) => setTimeout(r, 6000));
+// (the late visitors too: their loading mustn't land in the middle of the stepped simulation)
+await page.waitForFunction(() => window.world.pops.get('orca')?.agents.length > 0, { timeout: 60000 }).catch(() => console.log('late visitors not loaded'));
 await page.evaluate(() => { const o = window.ocean; o.adapt = () => {}; o.renderer.setPixelRatio(1.5); o.resize(); });
 let T = 0;
 const cap = async (name) => {
