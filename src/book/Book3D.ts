@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CANVAS_OPTIONS, Page, PAGE_H, PAGE_W, WEBKIT } from './Page';
+import { IOS, Page, PAGE_H, PAGE_W, WEBKIT } from './Page';
 
 /**
  * A real 3D book: leather covers on a hinge, page blocks, and one leaf that curls over the spine
@@ -386,20 +386,22 @@ export class Book3D {
     const rc = page.liveBounds;
     // (the texture is flipped: its rows count up from the bottom of the page)
     const y = t.flipY ? PAGE_H - rc.y - rc.h : rc.y;
-    if (WEBKIT) {
-      // the page canvas is in main memory: its pixels as a plain array (three times quicker there than
-      // handing WebGL the canvas)
+    if (WEBKIT && !IOS) {
+      // Safari on a Mac: the page canvas is in main memory, and its pixels as a plain array are three times
+      // quicker to hand WebGL than the canvas. (Not on an iPhone or iPad: there, reading a canvas's pixels
+      // back takes ~85 ms however few, measured on an iPhone; the copy below keeps them in the GPU process.)
       const px = page.g.getImageData(rc.x, rc.y, rc.w, rc.h).data;
       gl.texSubImage2D(gl.TEXTURE_2D, 0, rc.x, y, rc.w, rc.h, gl.RGBA, gl.UNSIGNED_BYTE, px);
     } else {
-      // the area copied onto a canvas of its own, which WebGL takes straight from the GPU
+      // the area copied onto a canvas of its own (GPU-backed), which WebGL takes without the pixels coming
+      // back to the page
       const key = rc.w + 'x' + rc.h;
       let g = this.patches.get(key);
       if (!g) {
         const c = document.createElement('canvas');
         c.width = rc.w;
         c.height = rc.h;
-        g = c.getContext('2d', CANVAS_OPTIONS)!;
+        g = c.getContext('2d')!;
         g.globalCompositeOperation = 'copy';
         this.patches.set(key, g);
       }

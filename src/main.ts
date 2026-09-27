@@ -525,6 +525,7 @@ async function boot() {
       for (let i = 0; i < Math.round(seconds * 30); i++) step(1 / 30, false);
       return simT;
     };
+    if (new URLSearchParams(location.search).has('bench')) void import('./dev/bench').then((m) => m.run());
     w.shot = async (name: string) => {
       step(1 / 60);
       const data = ocean.renderer.domElement.toDataURL('image/jpeg', 0.88);

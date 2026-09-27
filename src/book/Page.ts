@@ -42,8 +42,9 @@ export interface PageStyle {
  * differently there; see CANVAS_OPTIONS and Book3D.patch.
  */
 const ua = navigator.userAgent;
-export const WEBKIT = /iPhone|iPad|iPod/.test(ua) || (/AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg|OPR/.test(ua))
-  || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua)); // (iPadOS asks for desktop sites as a Mac)
+/** an iPhone or iPad, whatever the browser (iPadOS asks for desktop sites as a Mac) */
+export const IOS = /iPhone|iPad|iPod/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+export const WEBKIT = IOS || (/AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg|OPR/.test(ua));
 
 /**
  * In WebKit, page canvases are kept in main memory (`willReadFrequently`): a GPU-backed canvas lives in the

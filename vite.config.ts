@@ -30,9 +30,32 @@ function shotPlugin(): Plugin {
   };
 }
 
+/** Dev-only: POST /__perf with the on-device benchmark's JSON (src/dev/bench.ts) saves it for review. */
+function perfPlugin(): Plugin {
+  const dir = process.env.SHOT_DIR || join(process.cwd(), '.shots');
+  return {
+    name: 'perf',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/__perf', (req, res) => {
+        let body = '';
+        req.on('data', (c: Buffer) => (body += c.toString()));
+        req.on('end', () => {
+          mkdirSync(dir, { recursive: true });
+          const meta = JSON.parse(body).meta ?? {};
+          const ua = (meta.ua as string) || '';
+          const tag = /iPhone|iPad/.test(ua) ? 'ios' : /Safari/.test(ua) && !/Chrome/.test(ua) ? 'safari' : 'other';
+          writeFileSync(join(dir, `perf-${tag}${meta.mode ? '-' + meta.mode : ''}.json`), body);
+          res.end('ok');
+        });
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: process.env.BASE_PATH || '/',
-  plugins: [shotPlugin()],
+  plugins: [shotPlugin(), perfPlugin()],
   server: { port: Number(process.env.PORT) || 5173 },
   build: {
     chunkSizeWarningLimit: 1200,
