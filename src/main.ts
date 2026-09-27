@@ -13,6 +13,7 @@ import { portfolioPages } from './book/portfolio';
 import { FieldLog } from './ui/fieldlog';
 import { content } from './content';
 import { Hud, loaderDone, loaderProgress, loaderReady, showFallback } from './ui/hud';
+import { SectionMarks } from './ui/marks';
 
 /**
  * The opening, in seconds from the "View portfolio" click (browsers won't play sound before one): a beat
@@ -158,17 +159,25 @@ async function boot() {
     sound.play('open');
   };
   field.onClose = () => sound.play('close');
-  // quick jump: one fast turn straight to a section
-  hud.setSections(layout.sections, (page) => {
+  // the section buttons down the open book's right edge: one quick turn straight to a section
+  let jumped: number | null = null; // the section last jumped to: highlighted while its page is in view
+  const marks = new SectionMarks(layout.sections, portfolio, (i) => {
     sound.unlock();
+    jumped = i;
     portfolio.resetZoom();
-    portfolio.showPage(page, true);
+    portfolio.showPage(layout.sections[i].page, true);
   });
+  // a phone held upright: one page at a time
+  const fitLayout = () => { portfolio.onePage = window.innerWidth / window.innerHeight < 0.8; };
+  fitLayout();
+  window.addEventListener('resize', fitLayout);
   rig.onChange = () => hud.setHeading(`${rig.heading} · ${rig.pitchLabel}`);
   // orcas or the whale overhead: nudge the up arrow unless the diver is already looking up
   world.director.onLookUp = () => { if (rig.pitchStep < 1) hud.nudge('up'); };
 
-  // pointer: click a page or a link, pick up the book, log an animal; drag to turn in steps
+  // pointer: click a page or a link, pick up the book, log an animal; drag to turn in steps. On a touch
+  // screen a tap does what a click does, a swipe across the open book turns its pages, and two fingers
+  // pinch to zoom (there's no wheel to do it with).
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const bookHit = (x: number, y: number) => {
@@ -179,11 +188,33 @@ async function boot() {
     const hit = ray.intersectObjects(portfolio.targets(), portfolio.state === 'rest')[0];
     return hit ? { book: portfolio, hit } : null;
   };
-  let down: { x: number; y: number; drag: boolean; turned: boolean } | null = null;
+  let zoomFocus: number | null = null; // (the distance to focus on while zoomed in on something)
+  let down: { x: number; y: number; drag: boolean; turned: boolean; touch: boolean } | null = null;
+  const fingers = new Map<number, { x: number; y: number }>();
+  let pinch: { d0: number; z0: number; x: number; y: number; book: boolean } | null = null;
+  const pinchState = () => {
+    const [a, b] = [...fingers.values()];
+    return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
   canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') {
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (fingers.size === 2 && !rig.inIntro) {
+        // a second finger: the tap or swipe under way becomes a pinch
+        const p = pinchState();
+        const book = bookUp();
+        pinch = { d0: Math.max(20, p.d), z0: book ? portfolio.zoomLevel : rig.zoomTarget, x: p.x, y: p.y, book };
+        down = null;
+        canvas.classList.remove('grab');
+        return;
+      }
+      if (fingers.size > 2) return;
+    }
     if (e.button !== 0) return;
-    down = { x: e.clientX, y: e.clientY, drag: false, turned: false };
-    // a page turns as soon as it's pressed (links, and the book on its rock, wait for the release)
+    down = { x: e.clientX, y: e.clientY, drag: false, turned: false, touch: e.pointerType === 'touch' };
+    // with a mouse a page turns as soon as it's pressed (links, and the book on its rock, wait for the
+    // release); a finger waits to see whether it's a tap or a swipe
+    if (down.touch) return;
     const h = bookHit(e.clientX, e.clientY);
     if (h && h.book.describe(h.hit)?.kind === 'turn') {
       sound.unlock();
@@ -192,24 +223,76 @@ async function boot() {
     }
   });
   window.addEventListener('pointermove', (e) => {
-    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 14) {
+    const f = fingers.get(e.pointerId);
+    if (f) {
+      f.x = e.clientX;
+      f.y = e.clientY;
+    }
+    if (pinch && fingers.size >= 2) {
+      const p = pinchState();
+      const level = pinch.z0 * p.d / pinch.d0;
+      const nx = (p.x / window.innerWidth) * 2 - 1;
+      const ny = -(p.y / window.innerHeight) * 2 + 1;
+      if (pinch.book) {
+        const z0 = portfolio.zoomLevel;
+        const z1 = portfolio.zoomAt(level, nx, ny, ocean.camera);
+        // and two fingers carry the page along with them
+        portfolio.panBy(((p.x - pinch.x) / window.innerWidth) * 2, (-(p.y - pinch.y) / window.innerHeight) * 2, ocean.camera);
+        if (Math.floor(z1 * 4) !== Math.floor(z0 * 4)) sound.zoom(z1, z1 > z0);
+      } else {
+        const from = rig.zoomTarget;
+        const to = rig.setZoom(level, nx, ny);
+        if (Math.floor(to * 4) !== Math.floor(from * 4)) sound.zoom(to, to > from);
+        const a = to > from ? world.pick(p.x, p.y) : null;
+        if (a) zoomFocus = a.agent.pos.distanceTo(ocean.camera.position);
+        if (to <= 1) zoomFocus = null;
+      }
+      pinch.x = p.x;
+      pinch.y = p.y;
+      return;
+    }
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > (down.touch ? 10 : 14)) {
       down.drag = true;
       canvas.classList.add('grab');
     }
-    if (!down) {
+    if (!down && e.pointerType !== 'touch') {
       const h = bookHit(e.clientX, e.clientY);
       canvas.classList.toggle('pointer', !!(h && h.book.describe(h.hit)));
     }
   });
-  window.addEventListener('pointerup', (e) => {
-    if (!down) return;
+  const release = (e: PointerEvent) => {
+    fingers.delete(e.pointerId);
+    if (pinch) {
+      // let go: a little zoom that's hardly any settles back to none
+      if (fingers.size < 2) {
+        if (pinch.book && portfolio.zoomLevel < 1.1) portfolio.resetZoom();
+        if (!pinch.book && rig.zoomTarget < 1.1) rig.setZoom(1);
+        pinch = null;
+      }
+      return;
+    }
+    if (!down || e.type === 'pointercancel') {
+      down = null;
+      canvas.classList.remove('grab');
+      return;
+    }
     const d = down;
     down = null;
     canvas.classList.remove('grab');
     if (d.drag) {
-      // like grabbing the world: drag left to look right; roughly one step per 200 px, at most two
-      const sx = THREE.MathUtils.clamp(Math.round((d.x - e.clientX) / 200), -2, 2);
-      const sy = THREE.MathUtils.clamp(Math.round((e.clientY - d.y) / 160), -2, 2);
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      // a finger swiped across the open book turns its pages
+      const book = reading();
+      if (d.touch && book && Math.abs(dx) > Math.abs(dy)) {
+        sound.unlock();
+        if (dx < 0) book.next(); else book.prev();
+        return;
+      }
+      // like grabbing the world: drag left to look right; roughly one step per 200 px (70 for a finger),
+      // at most two
+      const sx = THREE.MathUtils.clamp(Math.round(-dx / (d.touch ? 70 : 200)), -2, 2);
+      const sy = THREE.MathUtils.clamp(Math.round(dy / (d.touch ? 60 : 160)), -2, 2);
       if (sx || sy) rig.step(sx, sy);
       return;
     }
@@ -230,7 +313,9 @@ async function boot() {
       sound.play('discover');
       hud.discover(a.key, def.name, def.latin, e.clientX, e.clientY, field.count, field.keys.length);
     } else hud.whisper(def.name, e.clientX, e.clientY);
-  });
+  };
+  window.addEventListener('pointerup', release);
+  window.addEventListener('pointercancel', release);
   window.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const book = reading();
@@ -261,9 +346,8 @@ async function boot() {
   // the wheel zooms toward the pointer (a lens ring, one click per notch); with zoom switched off it
   // turns the pages of an open book instead
   let wheelAt = 0;
-  let zoomFocus: number | null = null;
   window.addEventListener('wheel', (e) => {
-    if ((e.target as HTMLElement).closest?.('#controls, #book-toggle')) return;
+    if ((e.target as HTMLElement).closest?.('#controls, #book-toggle, #marks')) return;
     const book = reading();
     if (!zoomOn) {
       if (!book || Math.abs(e.deltaY) < 8) return;
@@ -403,17 +487,17 @@ async function boot() {
     // the bubbles catch the torch in the dark, the daylight later
     world.bubbles.light = Math.max(ocean.torchOn * 0.9, ocean.daylight);
     ocean.barrel += ((bookUp() ? 0 : 1) - ocean.barrel) * Math.min(1, dt * 6);
-    // the quick-jump card sits just off the book's left edge while it's open
-    if (portfolio.reading && !rig.inIntro) {
-      const edge = portfolio.screenLeft(ocean.camera);
-      let active = 0;
-      // the section the left-hand page belongs to (a section starting on the right page is still ahead;
-      // the first left-hand page is the contents, inside the cover, page -1)
-      const leftPage = 2 * portfolio.spread - 1;
-      layout.sections.forEach((sec, i) => { if (sec.page <= leftPage) active = i; });
-      hud.showJump(true, active, edge.x, edge.y);
-    } else hud.showJump(false);
     if (render) ocean.render(t, dt);
+    // the section buttons, beside the open book (not one page at a time: there's no room beside the page).
+    // The one highlighted is the section the left-hand page is in, or one just jumped to while it's in view.
+    let active = 0;
+    const leftPage = 2 * portfolio.spread - 1;
+    layout.sections.forEach((sec, i) => { if (sec.page <= leftPage) active = i; });
+    if (jumped !== null) {
+      if (portfolio.spreadOf(layout.sections[jumped].page) === portfolio.spread) active = jumped;
+      else if (!portfolio.busy) jumped = null;
+    }
+    if (render) marks.update(portfolio.reading && !portfolio.onePage && !rig.inIntro, active, ocean.camera);
   };
   let last = performance.now();
   const loop = () => {
@@ -427,7 +511,7 @@ async function boot() {
   loop();
 
   // expose for debugging in the console
-  Object.assign(window as unknown as Record<string, unknown>, { ocean, world, rig, THREE, portfolio, field, sound });
+  Object.assign(window as unknown as Record<string, unknown>, { ocean, world, rig, THREE, portfolio, field, sound, marks });
   if (import.meta.env.DEV) {
     // dev helpers: fast-forward the simulation (the rAF loop pauses in hidden tabs), and render one
     // frame and save it through the vite shot plugin

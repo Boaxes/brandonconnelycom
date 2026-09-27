@@ -18,6 +18,8 @@
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; background: #000; color: var(--paper); font-family: var(--serif); overflow: hidden; height: 100%; }
 a { color: inherit; }
+/* (no double-tap zoom on the controls: a quick second tap is a second press) */
+button { touch-action: manipulation; }
 
 #ocean { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 0; touch-action: none; }
 #ocean.pointer { cursor: pointer; }
@@ -52,6 +54,8 @@ a { color: inherit; }
   opacity: 0; pointer-events: none; transform: translateY(8px);
 }
 body.ready #controls { opacity: 1; pointer-events: auto; transform: none; }
+/* while the book is up the card steps aside (the book button stays, to put it down) */
+body.book-up #controls { opacity: 0; pointer-events: none; transform: translateY(8px); }
 #controls .heading {
   font-family: var(--type); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; text-align: center;
   color: rgba(45, 41, 36, 0.6); padding: 2px 0 6px; white-space: nowrap; overflow: hidden;
@@ -64,7 +68,7 @@ body.ready #controls { opacity: 1; pointer-events: auto; transform: none; }
   transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, opacity 0.35s ease;
 }
 .ctl svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.ctl:hover { background: var(--card-hover); }
+@media (hover: hover) { .ctl:hover { background: var(--card-hover); } }
 .ctl:active { transform: scale(0.93); }
 .ctl:focus-visible { outline: 2px solid rgba(45, 41, 36, 0.45); outline-offset: -2px; }
 .ctl[aria-pressed="false"] { color: var(--card-ink-off); }
@@ -99,7 +103,7 @@ body.watching #controls .ctl[data-a="watch"] { color: var(--stamp); }
   opacity: 0; pointer-events: none; transition: opacity 0.45s ease, transform 0.5s cubic-bezier(.2, .8, .2, 1), background 0.15s ease;
 }
 #book-toggle svg { width: 20px; height: 20px; fill: none; stroke: var(--stamp); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-#book-toggle:hover { background: #f8f4ea; }
+@media (hover: hover) { #book-toggle:hover { background: #f8f4ea; } }
 #book-toggle:focus-visible { outline: 2px solid rgba(45, 41, 36, 0.45); outline-offset: 2px; }
 #book-toggle[aria-pressed="true"] { background: #e9e2d1; }
 body.ready.has-book #book-toggle { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
@@ -118,7 +122,7 @@ body.watching #book-toggle { opacity: 0; pointer-events: none; transform: transl
   background: transparent; border: 1px solid rgba(239, 232, 214, 0.35); border-radius: 999px; padding: 14px 28px; cursor: pointer;
   transition: background 0.3s ease, border-color 0.3s ease; animation: beginIn 1.2s ease both;
 }
-.begin:hover, .begin:focus-visible { background: rgba(239, 232, 214, 0.08); border-color: rgba(239, 232, 214, 0.7); outline: none; }
+.begin:focus-visible, .begin:hover { background: rgba(239, 232, 214, 0.08); border-color: rgba(239, 232, 214, 0.7); outline: none; }
 .begin + .loader-sub { margin-top: 14px; animation: beginIn 1.2s ease 0.2s both; }
 @keyframes beginIn { from { opacity: 0; transform: translateY(6px); } }
 @keyframes breathe { 50% { opacity: 0.55; } }
@@ -189,7 +193,7 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
   position: sticky; float: right; top: 0; margin: -40px -40px 0 0; z-index: 2; width: 34px; height: 34px; border: 0; background: transparent;
   font: 26px/1 var(--type); color: var(--ink-2); cursor: pointer; border-radius: 50%;
 }
-#fieldlog .close:hover { color: var(--ink); background: rgba(42, 38, 34, 0.06); }
+@media (hover: hover) { #fieldlog .close:hover { color: var(--ink); background: rgba(42, 38, 34, 0.06); } }
 #fieldlog .date { font-family: var(--type); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; margin: 0 0 8px; line-height: 28px; }
 #fieldlog h1 { font-family: var(--type); font-weight: 400; font-size: 24px; line-height: 28px; margin: 0 0 14px; }
 #fieldlog h2 { font-family: var(--type); font-weight: 400; font-size: 18px; line-height: 28px; margin: 18px 0 0; }
@@ -201,7 +205,7 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
   display: flex; align-items: center; gap: 8px; min-height: 84px; padding: 0 4px; border: 0; background: transparent; text-align: left;
   font-family: var(--type); font-size: 13px; color: var(--ink-3); line-height: 1.3; cursor: pointer; border-radius: 3px;
 }
-#fieldlog .sp:hover { background: rgba(42, 38, 34, 0.05); color: var(--ink-2); }
+@media (hover: hover) { #fieldlog .sp:hover { background: rgba(42, 38, 34, 0.05); color: var(--ink-2); } }
 /* photo prints taped in: a white border, a slight tilt, a strip of tape; unseen species an empty frame */
 #fieldlog .print {
   position: relative; display: block; flex: none; width: 64px; height: 48px; background: #fbf8f0; padding: 3px;
@@ -223,6 +227,8 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
 #fieldlog figure { margin: 0 0 14px; }
 #fieldlog figcaption { font-family: var(--type); font-size: 11px; color: var(--ink-3); line-height: 28px; }
 #fieldlog figcaption a, #fieldlog .sources a { color: inherit; }
+/* (no double-tap zoom on the controls: a quick second tap is a second press) */
+button { touch-action: manipulation; }
 #fieldlog .facts { display: grid; grid-template-columns: max-content 1fr; gap: 0 14px; margin: 0 0 14px; font-size: 15px; line-height: 28px; }
 #fieldlog .facts dt { font-family: var(--type); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; }
 #fieldlog .facts dd { margin: 0; }
@@ -233,35 +239,47 @@ body.fallback #sr-copy { max-width: 680px; margin: 40px auto; padding: 32px 40px
 #fieldlog .sp.seen .tick { opacity: 1; }
 #fieldlog .back { border: 0; background: none; padding: 0; font-family: var(--type); font-size: 13px; color: var(--pencil); cursor: pointer; line-height: 28px; margin-bottom: 14px; }
 @media (max-width: 640px) {
-  #fieldlog .sheet { padding: 40px 18px 30px 44px; background-position: -40px 0, 0 0, 0 0; }
+  #fieldlog .sheet { padding: calc(40px + env(safe-area-inset-top)) 18px 30px 44px; background-position: -40px 0, 0 0, 0 0; }
+  /* (the corner it sits in on a wide sheet is outside a narrow one) */
+  #fieldlog .close { margin: -36px -10px 0 0; width: 44px; height: 44px; font-size: 30px; color: var(--ink); }
   #fieldlog .log { grid-template-columns: 1fr 1fr; }
 }
 
-/* ---------- quick jump: a small card beside the open book, in the same style as the corner controls ---------- */
-#jump {
-  position: fixed; left: 16px; top: 50%; z-index: 20; width: 188px; padding: 8px;
-  background: var(--card); color: var(--card-ink); border: 1px solid var(--card-edge); border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
-  transform: translate(-10px, -50%); opacity: 0; pointer-events: none;
-  transition: opacity 0.35s ease, transform 0.45s cubic-bezier(.2, .8, .2, 1);
-}
-body.jump-on #jump { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
-#jump .heading {
-  font-family: var(--type); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; text-align: center;
-  color: rgba(45, 41, 36, 0.6); padding: 2px 0 6px;
-}
-#jump button {
-  display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px;
-  background: transparent; color: var(--card-ink); cursor: pointer; text-align: left;
+/* ---------- the section buttons down the open book's right edge (placed in the book's space: marks.ts) ---------- */
+#marks { position: fixed; inset: 0; z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.35s ease; }
+#marks.on { opacity: 1; }
+.mark-box { display: flex; justify-content: flex-start; pointer-events: none; }
+#marks.on .mark { pointer-events: auto; }
+.mark {
+  display: inline-flex; align-items: baseline; gap: 8px; height: 30px; padding: 0 13px 0 11px; line-height: 30px; white-space: nowrap;
+  background: var(--card); color: var(--card-ink); border: 1px solid var(--card-edge); border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28); cursor: pointer;
   font-family: var(--type); font-size: 13px; letter-spacing: 0.02em;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-#jump button:hover { background: var(--card-hover); }
-#jump button:focus-visible { outline: 2px solid rgba(45, 41, 36, 0.45); outline-offset: -2px; }
-#jump button .n { font-size: 10.5px; color: rgba(45, 41, 36, 0.45); }
-#jump button.on { background: rgba(141, 59, 47, 0.1); color: var(--stamp); }
-#jump button.on .n { color: var(--stamp); }
-@media (max-width: 900px) {
-  #jump { width: 150px; }
-  #jump button { padding: 6px 8px; font-size: 12px; }
+.mark .n { font-size: 10.5px; color: rgba(45, 41, 36, 0.45); }
+.mark.on { color: var(--stamp); background: #f6eee3; }
+.mark.on .n { color: var(--stamp); }
+.mark:focus-visible { outline: 2px solid rgba(45, 41, 36, 0.45); outline-offset: 2px; }
+@media (hover: hover) { .mark:hover { background: #f8f4ea; } }
+
+/* ---------- touch screens: swipe to look round and pinch to zoom, so the card is a short bar of the rest ---------- */
+@media (pointer: coarse) {
+  #controls {
+    width: auto; padding: 3px 5px; border-radius: 999px;
+    right: calc(12px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+  #controls .heading { display: none; }
+  #controls .grid { display: flex; gap: 0; }
+  #controls .ctl { width: 44px; height: 44px; aspect-ratio: auto; }
+  #controls .ctl[data-a="up"], #controls .ctl[data-a="down"], #controls .ctl[data-a="left"],
+  #controls .ctl[data-a="right"], #controls .ctl[data-a="zoom"] { display: none; }
+  #controls .ctl[data-a="log"] { order: 1; }
+  #controls .ctl[data-a="ambience"] { order: 2; }
+  #controls .ctl[data-a="sfx"] { order: 3; }
+  #controls .ctl[data-a="watch"] { order: 4; }
+  body.watching #controls { width: auto; padding: 3px 5px; }
+  #book-toggle { left: calc(12px + env(safe-area-inset-left)); bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateY(16px); }
+  body.ready.has-book #book-toggle { transform: none; }
+  body.watching #book-toggle { transform: translateY(16px); }
 }

@@ -110,7 +110,11 @@ function contentsPage(entries: { label: string; page: number; indent?: boolean; 
       y += 58;
     }
     penLine(g, L, y + 40, L + 120, y + 40, 6, 2, RED);
-    para(g, 'Click a line to turn straight to it. Click the right-hand page to go on, the left to go back; scroll over the page to read closer.',
+    // (said the way it's done on a touch screen, where there's no wheel)
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    para(g, touch
+      ? 'Tap a line to turn straight to it. Tap or swipe the page to go on or back; pinch to read closer.'
+      : 'Click a line to turn straight to it. Click the right-hand page to go on, the left to go back; scroll over the page to read closer.',
       L, y + 64, W, { size: 25, lh: 38, italic: true, color: INK2 });
   });
 }

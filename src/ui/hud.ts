@@ -35,8 +35,9 @@ export interface HudCallbacks {
 
 /**
  * The controls: a small paper card in the bottom-right corner (field log, look-around pad, zoom, sound,
- * effects, watch the water) and, once the book has been picked up, a single button at the bottom middle
- * to bring it back up or put it down. Also the discovery animation, hints, and an accessible copy of
+ * effects, watch the water; on a touch screen a short bar of the log, sound, effects and watch, since
+ * swiping looks round and pinching zooms) and, once the book has been picked up, a single button at the
+ * bottom to bring it back up or put it down. Also the discovery animation, hints, and an accessible copy of
  * the portfolio.
  */
 export class Hud {
@@ -106,9 +107,13 @@ export class Hud {
 
   setHeading(text: string) { this.heading.textContent = text; }
 
-  /** The book button appears once the book has been picked up; pressed while it's being read. */
+  /**
+   * The book button appears once the book has been picked up; pressed while it's being read. While the book
+   * is up, the corner card steps aside (the book button stays, to put it down).
+   */
   setBook(inHand: boolean, reading: boolean) {
     document.body.classList.toggle('has-book', inHand);
+    document.body.classList.toggle('book-up', reading);
     this.bookBtn.setAttribute('aria-pressed', String(reading));
     this.bookBtn.title = reading ? 'Put the portfolio down (B)' : 'Read the portfolio (B)';
   }
@@ -117,51 +122,18 @@ export class Hud {
   nudge(action: string) {
     const b = this.root.querySelector<HTMLElement>(`[data-a="${action}"]`);
     if (!b) return;
+    // (no look pad on a touch screen: say it instead)
+    if (!b.offsetParent) {
+      if (action === 'up') {
+        this.showHint('something overhead · swipe down to look up');
+        setTimeout(() => this.showHint(null), 5000);
+      }
+      return;
+    }
     b.classList.remove('nudge');
     void b.offsetWidth;
     b.classList.add('nudge');
     setTimeout(() => b.classList.remove('nudge'), 6000);
-  }
-
-  // ---------------------------------------------------------------- quick jump beside the book
-
-  private jump: HTMLElement | null = null;
-  private jumpActive = -1;
-  private jumpPos = '';
-
-  /** The quick-jump card: one entry per section of the book; `go` turns straight to it. */
-  setSections(sections: { label: string; page: number }[], go: (page: number) => void) {
-    this.jump = el(`
-      <nav id="jump" aria-label="Jump to a section of the portfolio">
-        <div class="heading">Sections</div>
-        ${sections.map((s, i) => `<button data-page="${s.page}" data-i="${i}"><span class="n">${String(i + 1).padStart(2, '0')}</span>${esc(s.label)}</button>`).join('')}
-      </nav>`);
-    document.body.appendChild(this.jump);
-    this.jump.addEventListener('click', (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-page]');
-      if (b) go(Number(b.dataset.page));
-    });
-    this.jump.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
-  }
-
-  /** Show the card beside the book (right edge at `right` px from the left), with `active` highlighted. */
-  showJump(on: boolean, active = -1, right = 0, midY = window.innerHeight / 2) {
-    if (!this.jump) return;
-    document.body.classList.toggle('jump-on', on);
-    if (!on) return;
-    if (active !== this.jumpActive) {
-      this.jumpActive = active;
-      this.jump.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', i === active));
-    }
-    const w = this.jump.offsetWidth || 180;
-    const x = Math.max(16, Math.round(right - w - 22));
-    const y = Math.round(midY);
-    const pos = `${x},${y}`;
-    if (pos !== this.jumpPos) {
-      this.jumpPos = pos;
-      this.jump.style.left = x + 'px';
-      this.jump.style.top = y + 'px';
-    }
   }
 
   setZoom(on: boolean) {

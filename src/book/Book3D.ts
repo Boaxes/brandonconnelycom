@@ -70,6 +70,23 @@ export class Book3D {
   private flip: { t: number; dir: 1 | -1; to: number; time: number; rush: boolean } | null = null;
   /** the spread asked for while a turn was under way: turned to as soon as it lands */
   private queued: number | null = null;
+  /**
+   * One page at a time (a phone held upright, where a spread would be too small to read): the book is
+   * held closer and slides sideways to show the left or the right page of the spread.
+   */
+  onePage = false;
+  /** one page at a time: which page of the spread is in view (0 left, 1 right) */
+  private side: 0 | 1 = 0;
+  /** how far the book has slid sideways to put that page in the middle (m) */
+  private slide = 0;
+  /** one page at a time: the page asked for while a turn was under way */
+  private queuedPage: number | null = null;
+  /** where things beside the book's right edge are anchored (the section buttons): moves and zooms with it */
+  readonly edge = new THREE.Group();
+  get pageWidth() { return this.W; }
+  get pageHeight() { return this.H; }
+  /** how far the open pages stand in front of the spine, toward the reader */
+  get pageDepth() { return this.th / 2; }
   private anim = 1;           // pose transition 0..1
   private from = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
   private rest = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
@@ -192,6 +209,9 @@ export class Book3D {
       const m = c as THREE.Mesh;
       if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; }
     });
+    // (at the cover board's edge, which stands a few mm proud of the pages)
+    this.edge.position.set(W + 0.004, 0, this.th / 2 + 0.001);
+    this.root.add(this.edge);
     this.layoutBlocks();
     this.showSpread();
   }
@@ -423,13 +443,38 @@ export class Book3D {
 
   get busy() { return !!this.flip; }
 
-  /** (counted from wherever the turns already asked for will land) */
-  next() { this.flipTo(this.heading() + 1); }
-  prev() { this.flipTo(this.heading() - 1); }
+  /** (counted from wherever the turns already asked for will land; one page at a time, a page at a time) */
+  next() { if (this.onePage) this.toPage(this.pageHeading() + 1); else this.flipTo(this.heading() + 1); }
+  prev() { if (this.onePage) this.toPage(this.pageHeading() - 1); else this.flipTo(this.heading() - 1); }
   private heading() { return this.queued ?? this.flip?.to ?? this.spread; }
+  private pageHeading() { return this.queuedPage ?? 2 * (this.flip?.to ?? this.spread) - 1 + this.side; }
+  /** the page in view, one page at a time (-1 is the one inside the cover) */
+  get page() { return 2 * this.spread - 1 + this.side; }
 
-  /** Turn to the spread containing page `i`. */
-  showPage(i: number, quick = false) { this.flipTo(Math.floor((i + 1) / 2), quick); }
+  /** Turn to the spread containing page `i` (one page at a time: to page `i` itself). */
+  showPage(i: number, quick = false) {
+    if (this.onePage) this.toPage(i, quick);
+    else this.flipTo(Math.floor((i + 1) / 2), quick);
+  }
+
+  /**
+   * One page at a time: to page `i`. On the same spread the book just slides across to it; otherwise a
+   * leaf turns while the book slides, landing on it. Asked during a turn, like flipTo.
+   */
+  toPage(i: number, quick = false) {
+    i = THREE.MathUtils.clamp(i, this.o.inside ? -1 : 0, this.pages.length - 1);
+    if (!this.reading) return;
+    if (this.flip) {
+      if (i !== this.pageHeading()) {
+        this.queuedPage = i;
+        this.flip.rush = true;
+      }
+      return;
+    }
+    const s = this.spreadOf(i);
+    if (s !== this.spread) this.flipTo(s, quick || Math.abs(s - this.spread) > 1);
+    this.side = i === 2 * s - 1 ? 0 : 1;
+  }
   /** The spread a page is on. */
   spreadOf(i: number) { return Math.floor((i + 1) / 2); }
 
@@ -482,18 +527,6 @@ export class Book3D {
     this.root.visible = true;
   }
 
-  /** Where the open spread's left edge and middle are on screen (CSS px), for placing things beside it. */
-  screenLeft(camera: THREE.Camera) {
-    this.root.updateMatrixWorld();
-    const a = _p.set(-this.W, this.H / 2, 0).applyMatrix4(this.root.matrixWorld).project(camera);
-    const ax = a.x, ay = a.y;
-    const b = _p.set(-this.W, -this.H / 2, 0).applyMatrix4(this.root.matrixWorld).project(camera);
-    return {
-      x: (Math.min(ax, b.x) + 1) / 2 * window.innerWidth,
-      y: (1 - (ay + b.y) / 2) / 2 * window.innerHeight,
-    };
-  }
-
   /** Centre of the closed book where it rests (for framing the opening shot). */
   get restCentre() {
     return new THREE.Vector3(this.W / 2, 0, this.th / 2).applyMatrix4(this.root.matrixWorld);
@@ -511,13 +544,18 @@ export class Book3D {
     const cam = camera as THREE.PerspectiveCamera;
     const fov = this.fitFov ?? cam.fov;
     const t = Math.tan(THREE.MathUtils.degToRad(fov / 2));
-    // leave the corner card, and the section list beside the book, clear where the window is wide enough to
-    const vw = window.innerWidth;
-    const fw = THREE.MathUtils.clamp((vw - 2 * 235) / vw, 0.6, 0.92);
+    const aspect = cam.aspect || 1.6;
     const dh = this.H / (0.8 * 2 * t);
-    const dw = (2.04 * this.W) / (fw * 2 * t * (cam.aspect || 1.6));
+    // one page at a time: the page nearly fills the width
+    if (this.onePage) return Math.max(0.2, dh, (1.04 * this.W) / (0.94 * 2 * t * aspect));
+    // leave room beside it for the section buttons, where the window is wide enough to
+    const vw = window.innerWidth;
+    const fw = THREE.MathUtils.clamp((vw - 2 * this.sideRoom) / vw, 0.6, 0.92);
+    const dw = (2.04 * this.W) / (fw * 2 * t * aspect);
     return Math.max(0.2, dh, dw);
   }
+  /** room kept clear either side of the open book (CSS px), for what goes beside it */
+  sideRoom = 235;
   /** the unzoomed field of view the held size is fitted to */
   fitFov: number | null = null;
 
@@ -544,15 +582,30 @@ export class Book3D {
     this.offTarget.x += ndcX * t * a * (d1 - d0);
     this.offTarget.y += ndcY * t * (d1 - d0);
     if (m1 <= 1.001) this.offTarget.set(0, 0);
-    // keep the page covering the view where it can
-    const hh = d1 * t;
-    const hw = hh * a;
-    const mx = Math.max(0, this.W - hw);
+    this.magTarget = m1;
+    this.keepOnPage(camera);
+    return m1;
+  }
+
+  /** Read closer: slide the book by a distance on screen (NDC), as two fingers drag it. */
+  panBy(ndcX: number, ndcY: number, camera: THREE.PerspectiveCamera) {
+    if (this.magTarget <= 1.001) return;
+    const t = Math.tan(THREE.MathUtils.degToRad((this.fitFov ?? camera.fov) / 2));
+    const d = this.heldDistance(camera) / this.magTarget;
+    this.offTarget.x += ndcX * t * camera.aspect * d;
+    this.offTarget.y += ndcY * t * d;
+    this.keepOnPage(camera);
+  }
+
+  /** keep the page (one page at a time, the page in view) covering the view where it can */
+  private keepOnPage(camera: THREE.PerspectiveCamera) {
+    const t = Math.tan(THREE.MathUtils.degToRad((this.fitFov ?? camera.fov) / 2));
+    const hh = (this.heldDistance(camera) / this.magTarget) * t;
+    const hw = hh * camera.aspect;
+    const mx = Math.max(0, (this.onePage ? this.W / 2 : this.W) - hw);
     const my = Math.max(0, this.H / 2 - hh);
     this.offTarget.x = THREE.MathUtils.clamp(this.offTarget.x, -mx, mx);
     this.offTarget.y = THREE.MathUtils.clamp(this.offTarget.y, -my, my);
-    this.magTarget = m1;
-    return m1;
   }
   resetZoom() { this.magTarget = 1; this.offTarget.set(0, 0); }
   get zoomLevel() { return this.magTarget; }
@@ -564,9 +617,11 @@ export class Book3D {
     const sq = THREE.MathUtils.clamp((this.mag - 1) * 2, 0, 1);
     _m2.makeRotationX(-0.08 * (1 - sq) + lowered * 0.9);
     // (the root is the spine: shut, the book is slid left so it sits in the middle of the view, and it
-    // slides back as it opens, keeping the open spread centred)
-    const shut = (1 - this.open / Math.PI) * this.W / 2;
-    _m2.setPosition(this.off.x - shut, d * 0.02 * (1 - sq) + this.off.y - lowered * d * 0.95, -d + lowered * 0.08);
+    // slides back as it opens, keeping the open spread centred; one page at a time, it slides on across to
+    // centre the page in view)
+    const opened = this.open / Math.PI;
+    const shut = (1 - opened) * this.W / 2;
+    _m2.setPosition(this.off.x - shut + this.slide * opened, d * 0.02 * (1 - sq) + this.off.y - lowered * d * 0.95, -d + lowered * 0.08);
     _m.multiplyMatrices((this.holder ?? camera).matrixWorld, _m2);
     _m.decompose(out.p, out.q, _s);
     return out;
@@ -607,6 +662,7 @@ export class Book3D {
     const e = 1 - Math.exp(-dt * 12);
     this.mag += (this.magTarget - this.mag) * e;
     this.off.lerp(this.offTarget, e);
+    this.slide += ((this.onePage ? (this.side === 0 ? 1 : -1) * this.W / 2 : 0) - this.slide) * e;
     // pose
     const tgt = { p: _p, q: _q };
     if (this.state === 'lifting') {
@@ -664,6 +720,9 @@ export class Book3D {
         const q = this.queued;
         this.queued = null;
         if (q !== null) this.flipTo(q, Math.abs(q - this.spread) > 1);
+        const qp = this.queuedPage;
+        this.queuedPage = null;
+        if (qp !== null) this.toPage(qp);
       }
     }
     this.tickPages(dt);
@@ -736,6 +795,13 @@ export class Book3D {
     const page = this.pageAt(idx);
     const link = page?.hitAt(hit.uv.x, 1 - hit.uv.y);
     if (link) return { kind: 'link', href: link.href, page: link.page };
+    if (this.onePage) {
+      // one page at a time: the right half of the page goes on, the left half back
+      const dir = hit.uv.x > 0.5 ? 1 : -1;
+      const p = this.page;
+      if (dir === 1 ? p < this.pages.length - 1 : p > (this.o.inside ? -1 : 0)) return { kind: 'turn', dir };
+      return null;
+    }
     if (side === 1 && this.spread < this.maxSpread()) return { kind: 'turn', dir: 1 };
     if (side === -1 && this.spread > 0) return { kind: 'turn', dir: -1 };
     return null;

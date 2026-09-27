@@ -16,6 +16,9 @@ const print = (k: string, got: boolean, big = false) => got
  * seen are empty frames and question marks), and a page for each one with a photo, notes written for
  * this site from NOAA Fisheries, Wikipedia and others (src/sim/speciesNotes.ts), and their sources.
  */
+/** (said the way it's done: there's no clicking on a touch screen) */
+const TAP = window.matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click';
+
 export class FieldLog {
   keys = Object.keys(SPECIES);
   found = new Map<string, number>(); // key -> seconds into the dive when first logged
@@ -94,7 +97,7 @@ export class FieldLog {
     return `
       <p class="date">FIELD LOG · PUGET SOUND · ROCKY BOTTOM, 30 FT · VISIBILITY 5 M</p>
       <h1>${this.count} of ${this.keys.length} species logged</h1>
-      <p class="dim">Click an animal in the water to log it. Click an entry here to read about it.</p>
+      <p class="dim">${TAP} an animal in the water to log it. ${TAP} an entry here to read about it.</p>
       <div class="log">${rows}</div>`;
   }
 
