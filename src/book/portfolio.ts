@@ -441,7 +441,8 @@ function contactPage(n: number) {
 export function portfolioPages(): { pages: Page[]; inside: Page; sections: Section[] } {
   const pages: Page[] = [];
   const sections: Section[] = [{ id: 'contents', label: 'Contents', page: -1 }];
-  const add = (make: (n: number) => Page) => { const i = pages.length; pages.push(make(i + 1)); return i; };
+  // (each page lets go of its pixels once it's built, until the book needs it: see Page.release)
+  const add = (make: (n: number) => Page) => { const i = pages.length; const p = make(i + 1); p.release(); pages.push(p); return i; };
   const section = (id: string, label: string, page: number) => sections.push({ id, label, page });
   /** the next page is a left-hand one (odd index), so a two-page section lands on one spread */
   const toLeft = () => { if (pages.length % 2 === 0) add((n) => new Page(STYLE, n)); };
@@ -470,8 +471,20 @@ export function portfolioPages(): { pages: Page[]; inside: Page; sections: Secti
   blocks.push({ kind: 'para', small: true, text: CC0_NOTE + ' These models are used under the licences noted, each cleaned up and re-baked for this scene:' });
   for (const c of CREDITS) blocks.push({ kind: 'link', small: true, text: `${c.title} — ${c.author} (${c.license})`, href: c.url });
   section('credits', 'Credits', pages.length);
-  let k = pages.length;
-  pages.push(...flow(blocks, () => new Page({ ...STYLE, header: 'Credits' }, ++k)));
+  const first = pages.length;
+  const creditStyle = { ...STYLE, header: 'Credits' };
+  const flowCredits = () => { let k = first; return flow(blocks, () => new Page(creditStyle, ++k)); };
+  flowCredits().forEach((cp, j) => {
+    // (drawn again, after being let go, by flowing the credits again on scratch pages and copying this one)
+    cp.compose = (p) => {
+      const again = flowCredits();
+      p.g.drawImage(again[j].canvas, 0, 0);
+      p.hits = again[j].hits;
+      for (const q of again) q.release();
+    };
+    cp.release();
+    pages.push(cp);
+  });
 
   const entries: { label: string; page: number; indent?: boolean; group?: boolean }[] = [];
   const at = (id: string) => sections.find((s) => s.id === id)!.page;
@@ -487,5 +500,6 @@ export function portfolioPages(): { pages: Page[]; inside: Page; sections: Secti
   entries.push({ label: 'Contact', page: at('contact') });
   entries.push({ label: 'Credits', page: at('credits') });
   const inside = contentsPage(entries);
+  inside.release();
   return { pages, inside, sections };
 }

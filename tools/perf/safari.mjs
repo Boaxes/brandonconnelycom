@@ -1,5 +1,6 @@
 // usage: node safari.mjs [url]   (needs `safaridriver --port 4444` running and Safari → Settings → Developer → Allow remote automation)
 // Frame timings in real Safari: the book held on each spread, rapid page turns, section jumps.
+import { execFileSync } from 'node:child_process';
 const URL = process.argv[2] || 'http://localhost:5173/';
 const WD = 'http://localhost:4444';
 const req = async (method, path, body) => {
@@ -15,6 +16,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 try {
   await req('POST', S + '/window/rect', { x: 0, y: 0, width: Number(process.env.W || 1440), height: Number(process.env.H || 900) });
   await req('POST', S + '/url', { url: URL });
+  // (Safari stops animating a window that's covered: bring it to the front)
+  execFileSync('osascript', ['-e', 'tell application "Safari" to activate']);
   for (let i = 0; i < 120; i++) { if (await run('return typeof window.begin === "function" && !!window.portfolio')) break; await wait(500); }
   await wait(1500);
   console.log(await run(`

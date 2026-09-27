@@ -295,6 +295,7 @@ export class Book3D {
     if (!page) return this.endTex;
     let e = this.tex.get(page);
     if (!e) {
+      page.ensure();
       const t = new THREE.CanvasTexture(page.canvas);
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 8;
@@ -310,13 +311,57 @@ export class Book3D {
   }
 
   /** The renderer, so an animating page can send just its moving parts to the GPU instead of the whole page. */
-  renderer: THREE.WebGLRenderer | null = null;
+  get renderer() { return this._renderer; }
+  set renderer(r: THREE.WebGLRenderer | null) {
+    this._renderer = r;
+    r?.domElement.addEventListener('webglcontextrestored', () => this.restore());
+  }
+  private _renderer: THREE.WebGLRenderer | null = null;
 
   private upload(page: Page, e: { t: THREE.CanvasTexture; v: number; full: number }) {
     if (e.v === page.version) return;
-    if (e.full !== page.fullVersion || !this.patch(page, e.t)) e.t.needsUpdate = true;
+    if (e.full !== page.fullVersion || !this.patch(page, e.t)) {
+      page.ensure();
+      e.t.needsUpdate = true;
+    }
     e.v = page.version;
     e.full = page.fullVersion;
+  }
+
+  /**
+   * Memory, for a phone's sake: a still page that's on the GPU lets go of its canvas (it's drawn again,
+   * exactly as it was, if it's needed), and only the spreads either side of the one open keep their
+   * textures and canvases (the neighbours are put back before a turn needs them: see prefetch).
+   */
+  private tidy() {
+    const r = this.renderer;
+    if (!r) return;
+    const near = new Set<Page>();
+    for (const s of [this.spread - 1, this.spread, this.spread + 1, this.flip?.to ?? this.spread, this.queued ?? this.spread]) {
+      for (const i of [2 * s - 1, 2 * s]) {
+        const p = this.pageAt(i);
+        if (p) near.add(p);
+      }
+    }
+    for (const [page, e] of this.tex) {
+      if (!near.has(page)) {
+        e.t.dispose();
+        this.tex.delete(page);
+        page.release();
+        continue;
+      }
+      // (a page that moves keeps its canvas while it's near: coming into view it's drawn on, not again)
+      if (!page.alive || page.live) continue;
+      const props = r.properties.get(e.t) as { __version?: number };
+      if (props.__version === e.t.version && e.v === page.version) page.release();
+    }
+  }
+
+  /** The GPU lost its textures (Safari does this to a page in the background): make them again. */
+  private restore() {
+    for (const e of this.tex.values()) e.t.dispose();
+    this.tex.clear();
+    this.showSpread();
   }
 
   /**
@@ -727,6 +772,7 @@ export class Book3D {
     }
     this.tickPages(dt);
     this.prefetch();
+    this.tidy();
   }
 
   /**

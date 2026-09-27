@@ -113,6 +113,8 @@ export class Page {
   /** just came into view: its first moment is drawn whether or not anything reports a change */
   private fresh = false;
   private base: HTMLCanvasElement | null = null;
+  /** whether the canvas holds the page (it's let go while the page is on the GPU and still: see release) */
+  alive = true;
 
   constructor(public style: PageStyle, public number?: number) {
     this.canvas.width = PAGE_W;
@@ -174,11 +176,39 @@ export class Page {
 
   /** Redraw a composed page from scratch (its moving parts go back on top at the next tick). */
   rebuild() {
-    this.clear();
-    this.compose?.(this);
-    this.base = null;
     this.version++;
     this.fullVersion++;
+    // (let go: it's redrawn, with whatever changed, when it's next needed)
+    if (!this.alive) return;
+    this.clear();
+    this.compose?.(this);
+    this.dropBase();
+  }
+
+  /**
+   * Let go of the page's pixels: a 1024×1434 canvas is ~6 MB, and a phone only has room for so many. The
+   * page is drawn the same way every time (its ink is seeded), so ensure() puts back exactly what was there.
+   * Its links and the rects its moving parts use are kept.
+   */
+  release() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.canvas.width = this.canvas.height = 0;
+    this.dropBase();
+  }
+
+  /** Make sure the canvas holds the page, redrawing it if it was let go. */
+  ensure() {
+    if (this.alive) return;
+    this.alive = true;
+    this.canvas.width = PAGE_W;
+    this.canvas.height = PAGE_H;
+    this.rebuild();
+  }
+
+  private dropBase() {
+    if (this.base) this.base.width = this.base.height = 0;
+    this.base = null;
   }
 
   /**
@@ -189,6 +219,7 @@ export class Page {
   tick(now: number) {
     const live = this.live;
     if (!live || !this.due) return false;
+    this.ensure();
     this.fresh = false;
     this.frames?.taken();
     this.drawnAt = now;
@@ -228,7 +259,7 @@ export class Page {
     if (shown) {
       this.shownAt = now;
       this.fresh = true;
-    }
+    } else this.dropBase();
     this.onShow?.(shown);
   }
 
