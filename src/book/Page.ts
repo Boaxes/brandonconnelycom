@@ -37,6 +37,22 @@ export interface PageStyle {
   header?: string;
 }
 
+/**
+ * WebKit: Safari, and every browser on an iPhone or iPad (they all have to use it). The pages go to the GPU
+ * differently there; see CANVAS_OPTIONS and Book3D.patch.
+ */
+const ua = navigator.userAgent;
+export const WEBKIT = /iPhone|iPad|iPod/.test(ua) || (/AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg|OPR/.test(ua))
+  || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua)); // (iPadOS asks for desktop sites as a Mac)
+
+/**
+ * In WebKit, page canvases are kept in main memory (`willReadFrequently`): a GPU-backed canvas lives in the
+ * browser's GPU process, and copying one into a WebGL texture waits on that process, which made an animated
+ * spread take 15-35 ms a frame there. In Chrome it's the other way round (its GPU canvases copy to WebGL
+ * without leaving the GPU), so they stay as they are.
+ */
+export const CANVAS_OPTIONS: CanvasRenderingContext2DSettings = WEBKIT ? { willReadFrequently: true } : {};
+
 let _grain: HTMLCanvasElement | null = null;
 function grain() {
   if (_grain) return _grain;
@@ -72,19 +88,36 @@ export class Page {
    * only inside these, and only these go to the GPU; empty means the whole page.
    */
   liveRects: Rect[] = [];
+  /** the rect round all of `liveRects` */
+  get liveBounds(): Rect {
+    const r = this.liveRects;
+    const x = Math.min(...r.map((a) => a.x)), y = Math.min(...r.map((a) => a.y));
+    return { x, y, w: Math.max(...r.map((a) => a.x + a.w)) - x, h: Math.max(...r.map((a) => a.y + a.h)) - y };
+  }
   /** Hand-composed pages: draws the whole page (again whenever one of its pictures arrives). */
   compose: ((p: Page) => void) | null = null;
   /** Moving parts, drawn over the composed page every frame while it's in view. */
   live: ((g: CanvasRenderingContext2D, t: number) => void) | null = null;
   /** told when the page comes into or goes out of view (to start and stop its videos) */
   onShow: ((shown: boolean) => void) | null = null;
+  /**
+   * For moving parts that only change now and then (screen recordings): whether one has a new frame since
+   * the page was last drawn. Without it the page redraws at every tick.
+   */
+  frames: { changed(): boolean; taken(): void } | null = null;
+  /** when (on the caller's clock) the moving parts were last drawn */
+  drawnAt = -Infinity;
   shown = false;
+  /** when (on the caller's clock) the page last came into view: its moving parts start from there */
+  private shownAt = 0;
+  /** just came into view: its first moment is drawn whether or not anything reports a change */
+  private fresh = false;
   private base: HTMLCanvasElement | null = null;
 
   constructor(public style: PageStyle, public number?: number) {
     this.canvas.width = PAGE_W;
     this.canvas.height = PAGE_H;
-    this.g = this.canvas.getContext('2d')!;
+    this.g = this.canvas.getContext('2d', CANVAS_OPTIONS)!;
     this.left = style.margin ?? 100;
     this.y = 128;
     this.clear();
@@ -148,20 +181,29 @@ export class Page {
     this.fullVersion++;
   }
 
-  /** Draw the moving parts for time `t`: the still page is kept aside and put back under them each time. */
-  tick(t: number) {
-    if (!this.live) return;
+  /**
+   * Draw the moving parts as they are at `now` (the caller's clock), timed from when the page last came
+   * into view, so they start from the beginning each time it's opened. The still page is kept aside and put
+   * back under them each time. False when there was nothing to draw.
+   */
+  tick(now: number) {
+    const live = this.live;
+    if (!live || !this.due) return false;
+    this.fresh = false;
+    this.frames?.taken();
+    this.drawnAt = now;
+    const t = now - this.shownAt;
     if (!this.base) {
       this.base = document.createElement('canvas');
       this.base.width = PAGE_W;
       this.base.height = PAGE_H;
-      this.base.getContext('2d')!.drawImage(this.canvas, 0, 0);
+      this.base.getContext('2d', CANVAS_OPTIONS)!.drawImage(this.canvas, 0, 0);
     }
     const g = this.g;
     const rects = this.liveRects;
     if (!rects.length) {
       g.drawImage(this.base, 0, 0);
-      this.live(g, t);
+      live(g, t);
     } else {
       g.save();
       g.beginPath();
@@ -170,15 +212,23 @@ export class Page {
         g.rect(r.x, r.y, r.w, r.h);
       }
       g.clip();
-      this.live(g, t);
+      live(g, t);
       g.restore();
     }
     this.version++;
+    return true;
   }
 
-  setShown(shown: boolean) {
+  /** whether a tick now would draw anything */
+  get due() { return !!this.live && (this.fresh || !this.frames || this.frames.changed()); }
+
+  setShown(shown: boolean, now = 0) {
     if (shown === this.shown) return;
     this.shown = shown;
+    if (shown) {
+      this.shownAt = now;
+      this.fresh = true;
+    }
     this.onShow?.(shown);
   }
 

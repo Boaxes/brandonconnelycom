@@ -24,24 +24,56 @@ export function picture(file: string, page: Page): Picture {
   return pic;
 }
 
-export interface Clip { video: HTMLVideoElement; ready: boolean }
+export interface Clip {
+  video: HTMLVideoElement;
+  ready: boolean;
+  /** counts the video's new frames; null where the browser can't say when one arrives */
+  frame: number | null;
+}
 
-/** A muted, looping video under public/portfolio that plays while `page` is in view. */
+/**
+ * A muted, looping video under public/portfolio that plays from the start each time `page` comes into
+ * view (it's rewound as the page goes out of view).
+ */
 export function clip(file: string, page: Page): Clip {
   const video = document.createElement('video');
-  const c: Clip = { video, ready: false };
+  const c: Clip = { video, ready: false, frame: null };
   video.muted = true;
   video.loop = true;
   video.playsInline = true;
   video.preload = 'auto';
   video.crossOrigin = 'anonymous';
-  video.addEventListener('loadeddata', () => { c.ready = true; }, { once: true });
+  video.addEventListener('loadeddata', () => {
+    c.ready = true;
+    if (c.frame !== null) c.frame++;
+  }, { once: true });
+  // the recordings run at 2-21 frames a second: their prints need redrawing only when a new one is up
+  if ('requestVideoFrameCallback' in video) {
+    c.frame = 0;
+    const onFrame = () => {
+      c.frame!++;
+      video.requestVideoFrameCallback(onFrame);
+    };
+    video.requestVideoFrameCallback(onFrame);
+  }
   video.src = BASE + file;
   const prev = page.onShow;
   page.onShow = (shown) => {
     prev?.(shown);
     if (shown) video.play().catch(() => { /* it'll try again next time the page shows */ });
-    else video.pause();
+    else {
+      video.pause();
+      video.currentTime = 0;
+    }
   };
   return c;
+}
+
+/** For Page.frames: whether any of these videos has a frame the page hasn't drawn yet. */
+export function newFrames(clips: Clip[]) {
+  const seen = clips.map(() => -1);
+  return {
+    changed: () => clips.some((c, i) => c.frame === null || c.frame !== seen[i]),
+    taken: () => clips.forEach((c, i) => { seen[i] = c.frame ?? -1; }),
+  };
 }

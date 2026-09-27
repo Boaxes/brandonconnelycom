@@ -179,10 +179,17 @@ async function boot() {
     const hit = ray.intersectObjects(portfolio.targets(), portfolio.state === 'rest')[0];
     return hit ? { book: portfolio, hit } : null;
   };
-  let down: { x: number; y: number; drag: boolean } | null = null;
+  let down: { x: number; y: number; drag: boolean; turned: boolean } | null = null;
   canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    down = { x: e.clientX, y: e.clientY, drag: false };
+    down = { x: e.clientX, y: e.clientY, drag: false, turned: false };
+    // a page turns as soon as it's pressed (links, and the book on its rock, wait for the release)
+    const h = bookHit(e.clientX, e.clientY);
+    if (h && h.book.describe(h.hit)?.kind === 'turn') {
+      sound.unlock();
+      h.book.click(h.hit);
+      down.turned = true;
+    }
   });
   window.addEventListener('pointermove', (e) => {
     if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 14) {
@@ -206,6 +213,7 @@ async function boot() {
       if (sx || sy) rig.step(sx, sy);
       return;
     }
+    if (d.turned) return;
     sound.unlock();
     const h = bookHit(e.clientX, e.clientY);
     if (h) {

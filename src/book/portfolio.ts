@@ -2,7 +2,7 @@ import { content } from '../content';
 import { CC0_NOTE, CREDITS } from '../credits';
 import { flow, Page, PAGE_W, pixelRect, TYPE, type Block, type PageStyle } from './Page';
 import { INK, INK2, INK3, RED, Print, caption, label, para, penLine, serifFont, tape, typeFont, type G } from './ink';
-import { picture, clip, type Picture, type Clip } from './media';
+import { picture, clip, newFrames, type Picture, type Clip } from './media';
 import { aboutSketch, cascadiaPipeline, tourismModel } from './diagrams';
 
 const STYLE: PageStyle = {
@@ -301,6 +301,7 @@ function teguPage(n: number) {
     link(p, short(c.repo) + ' →', { href: c.repo }, L, y, 22);
   };
   p.live = (g) => vids.forEach((v) => v.live(g));
+  p.frames = newFrames(clips);
   p.rebuild();
   return p;
 }
@@ -329,6 +330,7 @@ function reptilePage(n: number) {
     link(p, 'try it live →', { href: c.demo }, L, y2 - 8, 22);
   };
   p.live = (g) => vid.live(g);
+  p.frames = newFrames([demo]);
   p.rebuild();
   return p;
 }
@@ -379,6 +381,8 @@ function numericalPage(n: number, pair: Experiment[], first: boolean) {
       if (k === 0) penLine(g, L + 120, top + half, R - 120, top + half, 60 + n, 1.4, INK3);
     });
   };
+  const films = items.flatMap((it) => (it.film ? [it.film] : []));
+  if (films.length) p.frames = newFrames(films);
   p.live = (g) => {
     for (const { pr, film } of items) {
       if (!film) continue;

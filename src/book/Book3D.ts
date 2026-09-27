@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Page, PAGE_H, PAGE_W } from './Page';
+import { CANVAS_OPTIONS, Page, PAGE_H, PAGE_W, WEBKIT } from './Page';
 
 /**
  * A real 3D book: leather covers on a hinge, page blocks, and one leaf that curls over the spine
@@ -28,8 +28,10 @@ export interface BookOptions {
 }
 
 const LEAF_SEG = 28;
-const FLIP_TIME = 0.42;
+const FLIP_TIME = 0.32;
 const QUICK_FLIP = 0.22;
+/** a turn hurrying to land because another was asked for: a whole turn would take this long */
+const RUSH_FLIP = 0.12;
 const OPEN_TIME = 0.5;
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
@@ -65,17 +67,22 @@ export class Book3D {
   private open = 0;           // cover angle 0..π
   private openTarget = 0;
   private openT = 0; // 0..1 through the opening swing
-  private flip: { t: number; dir: 1 | -1; to: number; time: number } | null = null;
+  private flip: { t: number; dir: 1 | -1; to: number; time: number; rush: boolean } | null = null;
+  /** the spread asked for while a turn was under way: turned to as soon as it lands */
+  private queued: number | null = null;
   private anim = 1;           // pose transition 0..1
   private from = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
   private rest = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
+  /** where a page's moving parts are copied out to on their way to the GPU, outside WebKit (one canvas per size) */
+  private patches = new Map<string, CanvasRenderingContext2D>();
   /** each page's texture, and the page versions it holds (all of it, and the parts drawn in full) */
   private tex = new Map<Page, { t: THREE.CanvasTexture; v: number; full: number }>();
-  /** where a page's moving parts are copied out to on their way to the GPU (one canvas per size) */
-  private patches = new Map<string, CanvasRenderingContext2D>();
   private endTex: THREE.CanvasTexture;
   private clock = 0;
   private liveDt = 0;
+  /** frame time, smoothed; and whether it's been running long enough to halve the pages' redraw rate */
+  private frameDt = 1 / 60;
+  private slow = false;
 
   constructor(private o: BookOptions, pages: Page[]) {
     this.pages = pages;
@@ -295,7 +302,8 @@ export class Book3D {
   /**
    * Copy just the page's moving parts into its texture (a 1024×1434 page 30 times a second, twice over for
    * a spread, was most of what the GPU did for the book). Only once the whole page is on the GPU and no
-   * full upload is waiting; false if it can't, and the whole page goes as before.
+   * full upload is waiting; false if it can't, and the whole page goes as before. One copy of the area
+   * round all the moving parts: in WebKit each copy is a wait on the GPU process.
    */
   private patch(page: Page, t: THREE.CanvasTexture) {
     const r = this.renderer;
@@ -310,20 +318,28 @@ export class Book3D {
     st.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, t.premultiplyAlpha);
     st.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
     st.pixelStorei(gl.UNPACK_ALIGNMENT, t.unpackAlignment);
-    for (const rc of page.liveRects) {
+    const rc = page.liveBounds;
+    // (the texture is flipped: its rows count up from the bottom of the page)
+    const y = t.flipY ? PAGE_H - rc.y - rc.h : rc.y;
+    if (WEBKIT) {
+      // the page canvas is in main memory: its pixels as a plain array (three times quicker there than
+      // handing WebGL the canvas)
+      const px = page.g.getImageData(rc.x, rc.y, rc.w, rc.h).data;
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, rc.x, y, rc.w, rc.h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    } else {
+      // the area copied onto a canvas of its own, which WebGL takes straight from the GPU
       const key = rc.w + 'x' + rc.h;
       let g = this.patches.get(key);
       if (!g) {
         const c = document.createElement('canvas');
         c.width = rc.w;
         c.height = rc.h;
-        g = c.getContext('2d')!;
+        g = c.getContext('2d', CANVAS_OPTIONS)!;
         g.globalCompositeOperation = 'copy';
         this.patches.set(key, g);
       }
       g.drawImage(page.canvas, rc.x, rc.y, rc.w, rc.h, 0, 0, rc.w, rc.h);
-      // (the texture is flipped: its rows count up from the bottom of the page)
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, rc.x, t.flipY ? PAGE_H - rc.y - rc.h : rc.y, gl.RGBA, gl.UNSIGNED_BYTE, g.canvas);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, rc.x, y, gl.RGBA, gl.UNSIGNED_BYTE, g.canvas);
     }
     gl.generateMipmap(gl.TEXTURE_2D);
     return true;
@@ -407,18 +423,29 @@ export class Book3D {
 
   get busy() { return !!this.flip; }
 
-  next() { this.flipTo(this.spread + 1); }
-  prev() { this.flipTo(this.spread - 1); }
+  /** (counted from wherever the turns already asked for will land) */
+  next() { this.flipTo(this.heading() + 1); }
+  prev() { this.flipTo(this.heading() - 1); }
+  private heading() { return this.queued ?? this.flip?.to ?? this.spread; }
 
   /** Turn to the spread containing page `i`. */
   showPage(i: number, quick = false) { this.flipTo(Math.floor((i + 1) / 2), quick); }
   /** The spread a page is on. */
   spreadOf(i: number) { return Math.floor((i + 1) / 2); }
 
-  /** Turn to a spread. However far it is, one leaf turns over and lands on it; `quick` for jumps. */
+  /**
+   * Turn to a spread. However far it is, one leaf turns over and lands on it; `quick` for jumps. Asked
+   * during a turn, that turn hurries to land and the next one follows straight on.
+   */
   flipTo(target: number, quick = false) {
     target = THREE.MathUtils.clamp(target, 0, this.maxSpread());
-    if (target === this.spread || this.flip || !this.reading) return;
+    if (!this.reading) return;
+    if (this.flip) {
+      this.queued = target === this.flip.to ? null : target;
+      if (this.queued !== null) this.flip.rush = true;
+      return;
+    }
+    if (target === this.spread) return;
     const dir: 1 | -1 = target > this.spread ? 1 : -1;
     if (dir === 1) {
       // the sheet leaving the right: front = current right page, back = the new left page
@@ -430,7 +457,7 @@ export class Book3D {
       this.setMap(this.leafBack, 2 * this.spread - 1);
       this.setMap(this.leftPage, 2 * target - 1);
     }
-    this.flip = { t: 0, dir, to: target, time: quick ? QUICK_FLIP : FLIP_TIME };
+    this.flip = { t: 0, dir, to: target, time: quick ? QUICK_FLIP : FLIP_TIME, rush: false };
     this.leafPivot.visible = true;
     this.curl(dir === 1 ? 0 : Math.PI, 0);
     this.onSound?.('page');
@@ -623,7 +650,7 @@ export class Book3D {
     // page turn
     if (this.flip) {
       const f = this.flip;
-      f.t = Math.min(1, f.t + dt / f.time);
+      f.t = Math.min(1, f.t + dt / (f.rush ? Math.min(f.time, RUSH_FLIP) : f.time));
       const k = ease(f.t);
       const theta = f.dir === 1 ? Math.PI * k : Math.PI * (1 - k);
       // the free edge trails the spine as the sheet lifts, then catches up and lays flat
@@ -634,6 +661,9 @@ export class Book3D {
         this.flip = null;
         this.leafPivot.visible = false;
         this.showSpread();
+        const q = this.queued;
+        this.queued = null;
+        if (q !== null) this.flipTo(q, Math.abs(q - this.spread) > 1);
       }
     }
     this.tickPages(dt);
@@ -671,12 +701,22 @@ export class Book3D {
         }
       }
     }
-    for (const p of [this.o.inside, ...this.pages]) p?.setShown(seen.has(p));
-    // (about 30 redraws a second is plenty for diagrams and screen recordings)
+    for (const p of [this.o.inside, ...this.pages]) p?.setShown(seen.has(p), this.clock);
+    // Moving parts redraw up to 60 times a second (every frame on most screens); a page of screen
+    // recordings only when one of them has a new frame. When both pages of a spread move, they take turns,
+    // one a frame: in Safari (so on every iPhone) getting a redrawn page to WebGL means waiting on the
+    // browser's GPU process, and two of those in one frame would stall it.
+    // While frames come in late (Safari on a busy page, a slow phone), redrawing at 60 costs more frames
+    // than it shows: then the moving parts redraw at 30, which is where they used to be.
+    this.frameDt += (dt - this.frameDt) * 0.05;
+    if (this.slow ? this.frameDt < 1 / 57 : this.frameDt > 1 / 50) this.slow = !this.slow;
     this.liveDt += dt;
-    if (this.liveDt < 1 / 30) return;
-    this.liveDt = 0;
-    for (const p of seen) p.tick(this.clock);
+    if (this.liveDt >= (this.slow ? 1 / 31 : 1 / 64)) {
+      this.liveDt = 0;
+      let next: Page | null = null;
+      for (const p of seen) if (p.due && (!next || p.drawnAt < next.drawnAt)) next = p;
+      next?.tick(this.clock);
+    }
     this.refresh();
   }
 

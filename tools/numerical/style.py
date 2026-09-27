@@ -28,6 +28,7 @@ for f in (HERE / "fonts").glob("*.ttf"):
 SIZE_IN = 5.0
 DPI = 180
 PX = int(SIZE_IN * DPI)  # 900
+VIDEO_PX = 440  # the MP4s: just over the largest print they fill on the page (430 px of 1024)
 
 PAPER = "#f7f2e6"   # print paper, a touch lighter than the page
 INK = "#2a2622"
@@ -131,7 +132,10 @@ class Recorder:
         mp4 = OUT / (self.name + ".mp4")
         subprocess.run([ffmpeg(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                         "-s", f"{PX}x{PX}", "-r", str(self.fps), "-i", str(self.raw),
-                        "-c:v", "libx264", "-preset", "slow", "-crf", "22", "-pix_fmt", "yuv420p",
+                        # (encoded at the size it's drawn on the page, not the 900 px it's laid out at: every
+                        # frame is copied into a page texture, and in Safari that costs by the pixel)
+                        "-vf", f"scale={VIDEO_PX}:{VIDEO_PX}:flags=lanczos",
+                        "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart", "-an", str(mp4)], check=True)
         self.raw.unlink()
         self.fig.savefig(OUT / (self.name + "-poster.jpg"), dpi=DPI, pil_kwargs={"quality": 90})
