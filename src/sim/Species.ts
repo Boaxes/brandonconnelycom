@@ -61,6 +61,7 @@ const _s = new THREE.Vector3();
 const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
+const _sphere = new THREE.Sphere();
 
 /** A species can be shown only if its scan loaded. */
 export function hasSpecies(key: string) {
@@ -68,19 +69,42 @@ export function hasSpecies(key: string) {
   return !!d && hasAsset('scan:' + d.scan);
 }
 
-/** An InstancedMesh for one species plus the agents it draws. */
+/** How the water is being looked at: for leaving out the animals nobody can see, and choosing a level of detail. */
+export interface LodView {
+  /** the view's frustum, pushed out a little (something just outside it can still throw a torch shadow in) */
+  frustum: THREE.Frustum;
+  /** pixels of the drawing buffer per radian at the middle of the view, at the zoom being headed for */
+  pxPerRad: number;
+}
+
+/**
+ * An animal is drawn with a simpler mesh only where both hold: its shape strays by less than LOD_PX on
+ * screen, and the whole animal is smaller on screen than LOD_SIZE for that level (px across). The first
+ * keeps the outline where it was; the second because a simpler mesh also shades a little differently
+ * (its normals are spread over bigger triangles), which only goes unseen on something that small.
+ */
+const LOD_PX = 0.5;
+const LOD_SIZE = [Infinity, 48, 20];
+
+/**
+ * The instanced meshes for one species plus the agents they draw: the scan itself, and one mesh for each
+ * simpler level of it (tools/assets/lod.mjs), each drawing the animals that suit it this frame.
+ */
 export class SpeciesRenderer {
-  mesh: THREE.InstancedMesh;
+  readonly meshes: THREE.InstancedMesh[] = [];
   agents: Agent[] = [];
-  private phaseAttr: THREE.InstancedBufferAttribute;
-  private speedAttr: THREE.InstancedBufferAttribute;
-  private bendAttr: THREE.InstancedBufferAttribute;
+  private attrs: { phase: THREE.InstancedBufferAttribute; speed: THREE.InstancedBufferAttribute; bend: THREE.InstancedBufferAttribute }[] = [];
+  /** how far each level's surface strays from the scan's (m, at scale 1): 0 for the scan */
+  private errors = [0];
+  /** how far the model reaches from its origin (m, at scale 1): for leaving out what's out of view */
+  private reach: number;
+  private capacity: number;
+  /** the scan itself (the first of `meshes`) */
+  get mesh() { return this.meshes[0]; }
 
   constructor(public def: SpeciesDef, capacity: number) {
     const scanned = asset('scan:' + def.scan);
-    const src = scanned;
-    // each renderer gets its own geometry: the per-instance attributes below differ per species
-    const geo = src.geometry.clone();
+    this.capacity = capacity;
     const { mat, uniforms } = makeMaterial(def.swim, {
       vertexColors: false,
       map: scanned?.map,
@@ -96,32 +120,41 @@ export class SpeciesRenderer {
       translucency: def.translucency,
     });
     // body length along the swim axis, used to scale turn bending
-    geo.computeBoundingBox();
-    const bb = geo.boundingBox!;
+    const g0 = scanned.geometry;
+    g0.computeBoundingBox();
+    const bb = g0.boundingBox!;
     uniforms.uSwim3.value.x = bb.max.x - bb.min.x;
     uniforms.uSwim3.value.y = def.bendGain ?? (def.swim.amp ? 0.12 : 0);
     if (def.emissive) mat.emissiveIntensity = def.emissive.strength;
     if (def.opacity !== undefined) mat.depthWrite = false;
-    this.mesh = new THREE.InstancedMesh(geo, mat, capacity);
-    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.mesh.frustumCulled = false;
-    this.mesh.name = def.key;
-    this.mesh.count = 0;
+    if (!g0.boundingSphere) g0.computeBoundingSphere();
+    // (the swim bends the body a little past its bounds: a margin for that)
+    this.reach = (g0.boundingSphere!.radius + g0.boundingSphere!.center.length()) * 1.15;
     // opaque life casts torch shadows with the same swim deformation as its colour pass
     const translucent = def.opacity !== undefined;
-    this.mesh.castShadow = !translucent;
-    this.mesh.receiveShadow = true;
-    if (!translucent) this.mesh.customDepthMaterial = makeDepthMaterial(uniforms);
-    this.phaseAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
-    this.phaseAttr.setUsage(THREE.DynamicDrawUsage);
-    this.speedAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
-    this.speedAttr.setUsage(THREE.DynamicDrawUsage);
-    this.bendAttr = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
-    this.bendAttr.setUsage(THREE.DynamicDrawUsage);
-    geo.setAttribute('instPhase', this.phaseAttr);
-    geo.setAttribute('instSpeed', this.speedAttr);
-    geo.setAttribute('instBend', this.bendAttr);
-    this.mesh.userData.species = this;
+    const depth = translucent ? null : makeDepthMaterial(uniforms);
+    const levels = [g0, ...scanned.lods.map((l) => l.geometry)];
+    this.errors.push(...scanned.lods.map((l) => l.error));
+    for (const src of levels) {
+      // each mesh gets its own geometry: the per-instance attributes below differ per mesh
+      const geo = src.clone();
+      const mesh = new THREE.InstancedMesh(geo, mat, capacity);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.frustumCulled = false;
+      mesh.name = def.key;
+      mesh.count = 0;
+      mesh.castShadow = !translucent;
+      mesh.receiveShadow = true;
+      if (depth) mesh.customDepthMaterial = depth;
+      const attr = () => new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
+      const a = { phase: attr(), speed: attr(), bend: attr() };
+      geo.setAttribute('instPhase', a.phase);
+      geo.setAttribute('instSpeed', a.speed);
+      geo.setAttribute('instBend', a.bend);
+      mesh.userData.species = this;
+      this.meshes.push(mesh);
+      this.attrs.push(a);
+    }
   }
 
   add(a: Agent) {
@@ -136,16 +169,47 @@ export class SpeciesRenderer {
   }
   private tints = new Map<Agent, THREE.Color>();
 
-  /** Advance swim phases and upload only the instances within `cull` metres of `cam`. */
-  sync(dt: number, cam: THREE.Vector3, cull: number) {
+  /**
+   * The coarsest level whose difference from the scan can't be seen (see LOD_PX, LOD_SIZE). A
+   * level coarser than the one an animal has needs a margin (0.7x), so one hovering at a boundary doesn't
+   * flick between the two; a finer one is taken as soon as it's needed. `pxPerRad` is taken at the zoom
+   * being headed for, so zooming in has the detail in place before the view gets there.
+   */
+  private level(a: Agent, d: number, pxPerRad: number) {
+    const pxPerM = (a.scale * pxPerRad) / Math.max(d, 0.05);
+    const size = 2 * this.reach * pxPerM;
+    let k = 0;
+    for (let i = this.errors.length - 1; i > 0; i--) {
+      const margin = i > a.lod ? 0.7 : 1;
+      if (this.errors[i] * pxPerM <= LOD_PX * margin && size <= (LOD_SIZE[i] ?? 0) * margin) { k = i; break; }
+    }
+    a.lod = k;
+    return k;
+  }
+
+  /**
+   * Advance swim phases and upload the instances within `cull` metres of `cam` (and, given a view, in it or
+   * near enough to cast a shadow into it), each to the level of detail that suits it.
+   */
+  sync(dt: number, cam: THREE.Vector3, cull: number, view?: LodView) {
     const rate = this.def.swim.speed ?? 4;
     const c2 = cull * cull;
-    let n = 0;
+    const counts = this.meshes.map(() => 0);
     for (const a of this.agents) {
       a.animSpeed += (a.speedMul - a.animSpeed) * Math.min(1, dt * 4);
       a.swimPhase += dt * rate * a.animSpeed;
-      if (!a.alive || a.pos.distanceToSquared(cam) > c2) continue;
-      if (n >= this.mesh.instanceMatrix.count) break;
+      if (!a.alive) continue;
+      const d2 = a.pos.distanceToSquared(cam);
+      if (d2 > c2) continue;
+      let k = 0;
+      if (view) {
+        _sphere.center.copy(a.pos);
+        _sphere.radius = this.reach * a.scale;
+        if (!view.frustum.intersectsSphere(_sphere)) continue;
+        k = this.level(a, Math.sqrt(d2), view.pxPerRad);
+      }
+      const n = counts[k];
+      if (n >= this.capacity) continue;
       _s.setScalar(a.scale);
       if (this.def.gait) {
         // walkers: a rigid body that rocks side to side and bobs a little with each step
@@ -157,19 +221,22 @@ export class SpeciesRenderer {
         _p.y += Math.abs(Math.sin(ph)) * 0.006 * a.scale * walk;
         _m.compose(_p, _q, _s);
       } else _m.compose(a.pos, a.quat, _s);
-      this.mesh.setMatrixAt(n, _m);
-      this.phaseAttr.setX(n, a.swimPhase);
-      this.speedAttr.setX(n, a.animSpeed);
-      this.bendAttr.setX(n, a.bend);
+      const mesh = this.meshes[k];
+      const at = this.attrs[k];
+      mesh.setMatrixAt(n, _m);
+      at.phase.setX(n, a.swimPhase);
+      at.speed.setX(n, a.animSpeed);
+      at.bend.setX(n, a.bend);
       const tint = this.tints.get(a);
-      if (tint) this.mesh.setColorAt(n, tint);
-      n++;
+      if (tint) mesh.setColorAt(n, tint);
+      counts[k] = n + 1;
     }
-    this.mesh.count = n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    this.phaseAttr.needsUpdate = true;
-    this.speedAttr.needsUpdate = true;
-    this.bendAttr.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    this.meshes.forEach((mesh, k) => {
+      mesh.count = counts[k];
+      mesh.instanceMatrix.needsUpdate = true;
+      const at = this.attrs[k];
+      at.phase.needsUpdate = at.speed.needsUpdate = at.bend.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    });
   }
 }

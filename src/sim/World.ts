@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { hasSpecies, SPECIES, SpeciesRenderer } from './Species';
+import { hasSpecies, SPECIES, SpeciesRenderer, type LodView } from './Species';
 import { Agent, Grid, randomWaterPoint } from './Agent';
 import {
   BenthicFish, Crab, type CrawlerConfig, Hunter, School, SchoolFish, Scripted, Sessile, currentAt,
@@ -37,6 +37,10 @@ type Place = { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 };
  */
 export class World implements Habitat {
   time = 0;
+  /** the drawing buffer's height (px), and how much further in a zoom under way is going: set each frame */
+  viewPx = 1000;
+  zoomAhead = 1;
+  private lodView: LodView = { frustum: new THREE.Frustum(), pxPerRad: 1 };
   /** obstacles on the floor: centre, radius, and the height of their top (for swimmers) */
   rocks: { pos: THREE.Vector3; r: number; top?: number }[] = [];
   pops = new Map<string, Population>();
@@ -75,7 +79,7 @@ export class World implements Habitat {
     let p = this.pops.get(key);
     if (!p) {
       const r = new SpeciesRenderer(SPECIES[key], capacity);
-      this.group.add(r.mesh);
+      this.group.add(...r.meshes);
       p = { key, renderer: r, agents: [] };
       this.pops.set(key, p);
     }
@@ -624,9 +628,14 @@ export class World implements Habitat {
     const camPos = this.camera.position;
     this.projView.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projView);
+    // what's drawn: in view or near enough to throw a torch shadow into it, each at the detail it needs
+    const lv = this.lodView;
+    lv.frustum.copy(this.frustum);
+    for (const pl of lv.frustum.planes) pl.constant += 2;
+    lv.pxPerRad = (this.viewPx / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2))) * this.zoomAhead;
     let vis = 0;
     for (const p of this.pops.values()) {
-      p.renderer.sync(dt, camPos, VIEW_RANGE);
+      p.renderer.sync(dt, camPos, VIEW_RANGE, lv);
       for (const a of p.agents) {
         if (a.alive && a.pos.distanceToSquared(camPos) < 11 * 11 && this.frustum.containsPoint(a.pos)) vis++;
       }

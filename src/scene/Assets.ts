@@ -62,6 +62,11 @@ export interface ModelAsset {
   geometry: THREE.BufferGeometry;
   map?: THREE.Texture;
   normalMap?: THREE.Texture;
+  /**
+   * Simpler versions of the mesh, coarsest last (tools/assets/lod.mjs), each with how far its surface
+   * strays from the scan's (m, at the model's own size)
+   */
+  lods: { geometry: THREE.BufferGeometry; error: number }[];
 }
 
 const assets = new Map<string, ModelAsset>();
@@ -96,19 +101,25 @@ export function computeSwim(g: THREE.BufferGeometry, rule: SwimRule, core = 0.3)
   g.setAttribute('swim', new THREE.BufferAttribute(arr, 2));
 }
 
-async function loadOne(loader: GLTFLoader, url: string): Promise<{ geo: THREE.BufferGeometry; mat: THREE.MeshStandardMaterial | null }> {
+async function loadOne(loader: GLTFLoader, url: string) {
   const gltf = await loader.loadAsync(url);
   let mesh: THREE.Mesh | null = null;
+  const levels: THREE.Mesh[] = [];
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse((o) => {
-    if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
+    if (!(o as THREE.Mesh).isMesh) return;
+    if (/^lod\d$/.test(o.name)) levels.push(o as THREE.Mesh);
+    else if (!mesh) mesh = o as THREE.Mesh;
   });
   if (!mesh) throw new Error('no mesh in ' + url);
+  const place = (m: THREE.Mesh) => m.geometry.clone().applyMatrix4(m.matrixWorld);
   const m = mesh as THREE.Mesh;
-  const geo = m.geometry.clone();
-  geo.applyMatrix4(m.matrixWorld);
   const mat = Array.isArray(m.material) ? m.material[0] : m.material;
-  return { geo, mat: (mat as THREE.MeshStandardMaterial) ?? null };
+  const lods = levels.sort((a, b) => a.name.localeCompare(b.name)).map((l) => ({
+    geometry: place(l),
+    error: (l.userData.lodError ?? Infinity) * l.matrixWorld.getMaxScaleOnAxis(),
+  }));
+  return { geo: place(m), mat: (mat as THREE.MeshStandardMaterial) ?? null, lods };
 }
 
 async function loadSet(loader: GLTFLoader, key: string, url: string) {
@@ -129,7 +140,7 @@ async function loadSet(loader: GLTFLoader, key: string, url: string) {
     geo.computeBoundingSphere();
     const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial;
     for (const t of [mat.map, mat.normalMap]) if (t) t.anisotropy = 8;
-    assets.set(`scan:${key}_${i}`, { geometry: geo, map: mat.map ?? undefined, normalMap: mat.normalMap ?? undefined });
+    assets.set(`scan:${key}_${i}`, { geometry: geo, map: mat.map ?? undefined, normalMap: mat.normalMap ?? undefined, lods: [] });
   });
 }
 
@@ -145,12 +156,15 @@ export async function loadLate(): Promise<void> {
 
 async function loadScan(loader: GLTFLoader, base: string, key: string) {
   try {
-    const { geo, mat } = await loadOne(loader, base + 'scan_' + key + '.glb');
-    geo.deleteAttribute('color');
-    computeSwim(geo, SCANS[key].swim, SCANS[key].core);
-    geo.computeBoundingSphere();
+    const { geo, mat, lods } = await loadOne(loader, base + 'scan_' + key + '.glb');
+    // (the levels share the scan's vertices, so their swim coordinates come out the same)
+    for (const g of [geo, ...lods.map((l) => l.geometry)]) {
+      g.deleteAttribute('color');
+      computeSwim(g, SCANS[key].swim, SCANS[key].core);
+      g.computeBoundingSphere();
+    }
     for (const t of [mat?.map, mat?.normalMap]) if (t) t.anisotropy = 8;
-    assets.set('scan:' + key, { geometry: geo, map: mat?.map ?? undefined, normalMap: mat?.normalMap ?? undefined });
+    assets.set('scan:' + key, { geometry: geo, map: mat?.map ?? undefined, normalMap: mat?.normalMap ?? undefined, lods });
   } catch (e) {
     console.warn('scan missing', key, e);
   }

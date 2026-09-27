@@ -436,6 +436,9 @@ async function boot() {
     const day = THREE.MathUtils.smoothstep(dayT, 0, DAY_TIME);
     ocean.daylight = day * day * (0.6 + 0.4 * day);
     rig.update(dt, t);
+    // (the animals' level of detail is chosen for the zoom being headed for, so zooming in never catches up with it)
+    world.viewPx = ocean.renderer.domElement.height;
+    world.zoomAhead = Math.max(1, rig.zoomTarget / rig.zoom);
     world.update(dt, t);
     portfolio.update(dt, ocean.camera);
     // the opening shot ends when the book is picked up: the camera pulls back as it rises into the hands,

@@ -30,6 +30,8 @@ export class Agent {
   forward = new THREE.Vector3(1, 0, 0);
   quat = new THREE.Quaternion();
   scale = 1;
+  /** the level of detail it was last drawn at (Species.ts) */
+  lod = 0;
   phase = Math.random() * Math.PI * 2;
   speedMul = 1;         // animation speed multiplier (target)
   animSpeed = 1;        // smoothed multiplier actually used

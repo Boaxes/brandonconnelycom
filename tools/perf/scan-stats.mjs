@@ -36,7 +36,7 @@ const out = await page.evaluate(async () => {
   const cam = window.ocean.camera.position;
   const sp = [];
   for (const [key, p] of window.world.pops) {
-    const m = p.renderer.mesh; const g = m.geometry; const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+    const ms = p.renderer.meshes; const m = { count: ms.reduce((s, x) => s + x.count, 0) }; const tris = ms.reduce((s, x) => s + x.count * (x.geometry.index ? x.geometry.index.count : x.geometry.attributes.position.count) / 3, 0) / Math.max(1, m.count);
     const d = p.agents.filter((a) => a.alive).map((a) => a.pos.distanceTo(cam)).sort((a, b) => a - b);
     const near = d.filter((x) => x < 20);
     sp.push({ key, tris, alive: d.length, drawn: m.count, triTotal: tris * m.count, dmin: d[0]?.toFixed(1), dmed: d[d.length >> 1]?.toFixed(1), over8: near.filter((x) => x > 8).length });
